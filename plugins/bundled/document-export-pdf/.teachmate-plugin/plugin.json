@@ -1,0 +1,15 @@
+{
+  "id": "document_export_pdf",
+  "display_name": "PDF 报告导出",
+  "description": "将已确认的 TeachMate 报告导出为 PDF 文档。",
+  "version": "1.0.0",
+  "api_version": "teachmate-plugin/v1",
+  "source": "bundled",
+  "runtime": {"transport": "internal", "capability": "document_export", "format": "pdf"},
+  "permissions": ["documents.read", "documents.write", "export.pdf"],
+  "capabilities": [{"id": "export_pdf", "name": "导出 PDF"}],
+  "skills": [],
+  "removable": false,
+  "enabled_by_default": false,
+  "ui_visible": false
+}

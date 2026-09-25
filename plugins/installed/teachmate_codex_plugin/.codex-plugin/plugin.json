@@ -1,0 +1,26 @@
+{
+  "name": "teachmate-codex-plugin",
+  "version": "0.1.3",
+  "description": "将 TeachMate 的确定性教学事实与证据化工作流以只读方式暴露给 Codex。",
+  "author": {
+    "name": "TeachMate"
+  },
+  "license": "MIT",
+  "keywords": ["teaching", "education", "teachmate", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "TeachMate 教学事实插件",
+    "shortDescription": "通过本地 MCP 使用 TeachMate 的教学分析能力。",
+    "longDescription": "只读、可撤销、可审计地访问 TeachMate 的考试分析、学生诊断和复习计划能力。",
+    "developerName": "TeachMate",
+    "category": "Education",
+    "capabilities": ["Teaching analysis", "Read-only", "MCP"],
+    "defaultPrompt": [
+      "分析这份考试材料并指出薄弱知识点。",
+      "诊断这个学生的学习情况并给出建议。",
+      "根据分析结果制定复习计划。",
+      "基于这个学生的已确认画像和真实错题生成个性化练习。"
+    ]
+  }
+}

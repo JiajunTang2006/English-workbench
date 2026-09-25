@@ -1,0 +1,1147 @@
+/* =====================================================================
+   theme-warm-paper.css — 暖纸质 × Anthropic 字体 主题叠加层
+   ---------------------------------------------------------------------
+   设计原则：
+   1. 纯叠加：不修改 workbench-app.css / teachmate.css / enhancements.css
+      的任何一行；本文件在三者之后加载，通过重映射 token + 定点覆盖生效。
+   2. 一键回退：删除 workbench.html 中本文件的 <link> 即恢复原样。
+   3. 将既有 MD3 / TeachMate token 统一映射到暖纸体系，并对历史硬编码色
+      做少量定点覆盖。
+   ===================================================================== */
+
+:root {
+  /* ---- 暖纸体系原语 ---- */
+  --wp-paper: #f5f0e8;
+  --wp-card: #fffaf3;
+  --wp-side: #ede6dc;
+  --wp-surface-subtle: #fbf8f3;
+  --wp-ink: #29251f;
+  --wp-muted: #746d63;
+  --wp-faint: #9b9186;
+  --wp-hair: #ded5c8;
+  --wp-hair-strong: #cfc4b4;
+  --wp-clay: #b65f42;  --wp-clay-soft: #f9ede8;
+  --wp-sage: #627a67;  --wp-sage-soft: #eef1ed;
+  --wp-sand: #a57c45;  --wp-sand-soft: #f6f0e4;
+  --wp-plum: #4d3045;  --wp-plum-soft: #f1e8ee;
+  --wp-focus: 0 0 0 3px rgba(146, 116, 138, .22);
+  --wp-shadow-sm: 0 1px 3px rgba(63, 48, 36, .06);
+  --wp-shadow-md: 0 10px 28px rgba(63, 48, 36, .08);
+  --wp-shadow-lg: 0 16px 40px rgba(63, 48, 36, .10);
+  --wp-shadow-hover: 0 12px 32px rgba(63, 48, 36, .12);
+  /* 字体：西文走 Anthropic 风格（Styrene/Tiempos），中文统一走宋体，大字符间距 */
+  --wp-serif: "Tiempos Headline", "Tiempos Text", Georgia, "Times New Roman",
+              "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", "SimSun", serif;
+  --wp-sans: "Styrene A", "Styrene B", "Source Han Serif SC", "Noto Serif CJK SC",
+             "Songti SC", "STSong", "SimSun", ui-sans-serif, system-ui, -apple-system,
+             "SF Pro Text", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* 数字/百分号/小数点专用栈：衬线数字优先（Tiempos/Georgia/Times），保持与中文宋体的文化感一致；
+     同时避免回退到宋体自带的西文数字导致 100.0 / 91 大小不一、基线不齐 */
+  --wp-num: "Tiempos Headline", "Tiempos Text", Georgia, "Times New Roman",
+             "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", "SimSun", serif;
+  --wp-mono: "Styrene Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ---- MD3 层重映射 ---- */
+  --md-primary: var(--wp-ink);
+  --md-on-primary: #fdfbf7;
+  --md-primary-container: var(--wp-sand-soft);
+  --md-on-primary-container: var(--wp-ink);
+  --md-secondary: var(--wp-sage);
+  --md-on-secondary: #fdfbf7;
+  --md-secondary-container: var(--wp-sage-soft);
+  --md-on-secondary-container: var(--wp-ink);
+  --md-tertiary: var(--wp-plum);
+  --md-on-tertiary: #fdfbf7;
+  --md-tertiary-container: var(--wp-plum-soft);
+  --md-on-tertiary-container: var(--wp-ink);
+  --md-background: var(--wp-paper);
+  --md-surface: var(--wp-card);
+  --md-surface-container-lowest: var(--wp-card);
+  --md-surface-container-low: var(--wp-surface-subtle);
+  --md-surface-container: #f4eee3;
+  --md-surface-container-high: var(--wp-side);
+  --md-surface-container-highest: #e5dccd;
+  --md-text-primary: var(--wp-ink);
+  --md-text-secondary: var(--wp-muted);
+  --md-on-surface: var(--wp-ink);
+  --md-on-surface-variant: var(--wp-muted);
+  --md-muted: var(--wp-faint);
+  --md-outline: var(--wp-hair-strong);
+  --md-outline-variant: var(--wp-hair);
+  --md-success: var(--wp-sage);
+  --md-warning: var(--wp-sand);
+  --md-error: var(--wp-clay);
+  --md-on-error: #fdfbf7;
+  --md-on-error-container: #6e3421;
+  --md-error-container: var(--wp-clay-soft);
+  --md-shadow: var(--wp-shadow-md);
+  --elevation-1: var(--wp-shadow-sm);
+
+  /* ---- 简写层（--primary/--bg/--card…）重映射 ---- */
+  --primary: var(--wp-ink);
+  --primary-dark: #171410;
+  --bg: var(--wp-paper);
+  --card: var(--wp-card);
+  --text: var(--wp-ink);
+  --text-secondary: var(--wp-muted);
+  --border: var(--wp-hair);
+  --success: var(--wp-sage);
+  --warning: var(--wp-sand);
+  --danger: var(--wp-clay);
+  --shadow: var(--wp-shadow-md);
+  --status-success-container: var(--wp-sage-soft);
+  --status-warning-container: var(--wp-sand-soft);
+  --status-danger-container: var(--wp-clay-soft);
+  --risk-accent: var(--wp-clay);
+  --risk-bg: var(--wp-clay-soft);
+  --focus-ring: rgba(146, 116, 138, .30);
+  --tm-link: var(--wp-plum);
+
+  /* ---- TeachMate 层重映射 ---- */
+  --tm-bg: var(--wp-paper);
+  --tm-surface: var(--wp-card);
+  --tm-surface-subtle: var(--wp-surface-subtle);
+  --tm-text: var(--wp-ink);
+  --tm-text-secondary: var(--wp-muted);
+  --tm-text-muted: var(--wp-faint);
+  --tm-primary: var(--wp-ink);
+  --tm-primary-hover: #3d3730;
+  --tm-primary-soft: #f1e9dd;
+  --tm-brand-yellow: #ffd02f;
+  --tm-brand-yellow-soft: #f7efdb;
+  --tm-success: var(--wp-sage);
+  --tm-warning: var(--wp-sand);
+  --tm-danger: var(--wp-clay);
+  --tm-border: var(--wp-hair);
+  --tm-border-strong: var(--wp-hair-strong);
+  --tm-shadow-sm: var(--wp-shadow-sm);
+  --tm-shadow-md: var(--wp-shadow-md);
+  --tm-focus: var(--wp-focus);
+  /* TeachMate 品牌蓝（进度条/链接强调）映射为暖梅，消除残余冷蓝 */
+  --tm-brand-blue: var(--wp-plum);
+}
+
+/* =====================================================================
+   字体层
+   ===================================================================== */
+body {
+  font-family: var(--wp-sans);
+  letter-spacing: .03em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+html {
+  font-family: var(--wp-serif);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .03em;
+}
+body { font-family: inherit; }
+.material-symbols-rounded, .material-symbols-outlined, .material-icons { letter-spacing: 0 !important; }
+h1, h2, h3, h4 { font-family: var(--wp-serif); font-weight: 600; letter-spacing: .06em; }
+code, kbd, pre, .mono { font-family: var(--wp-mono); letter-spacing: 0; }
+#appTitle { font-family: var(--wp-serif); font-weight: 600; letter-spacing: .1em; }
+/* 大数值：西文无衬线 + 等宽等高数字，避免宋体数字/百分号大小不一、歪歪扭扭 */
+.kpi .kpi-value, .kpi strong, .kpi b {
+  font-family: var(--wp-num) !important;
+  font-weight: 600 !important;
+  font-size: 25px !important;
+  line-height: 1.2 !important;
+  letter-spacing: .01em !important;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+.kpi .kpi-label { font-size: 13px !important; letter-spacing: .03em !important; }
+.kpi .kpi-secondary { font-size: 12px !important; }
+.kpi.sm .kpi-value { font-size: 21px !important; }
+.kpi.sm .kpi-label { font-size: 12px !important; }
+
+.dash-kpi-value, .dash-kpi-value strong, .dash-kpi-value b {
+  font-family: var(--wp-num) !important;
+  font-size: 25px !important;
+  font-weight: 600 !important;
+  letter-spacing: .01em !important;
+  line-height: 1.2 !important;
+  color: var(--wp-ink) !important;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+.dash-kpi-label { font-size: 13px !important; color: var(--wp-muted) !important; letter-spacing: .05em !important; margin-top: 4px !important; }
+.dash-kpi-sub { font-size: 12px !important; color: var(--wp-faint) !important; letter-spacing: .03em !important; margin-top: 2px !important; }
+
+.card-header h3, .card-header h2, .dash-card-title {
+  font-family: var(--wp-serif) !important;
+  font-weight: 600 !important;
+  letter-spacing: .05em;
+}
+
+/* 表格与分页数字：字号统一、字体统一、等宽等高对齐 */
+.score-table td, .score-table th,
+.dash-lb-table td, .dash-lb-table th,
+.student-table td, .student-table th,
+.dict-table td, .dict-table th,
+.writing-table td, .writing-table th,
+.phone-cell .phone-value,
+.score-table td strong, .dash-lb-table td strong,
+.student-table td strong, .dict-table td strong,
+.writing-table td strong {
+  font-family: var(--wp-num) !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+.score-table th, .dash-lb-table th, .student-table th, .dict-table th, .writing-table th { font-size: 13px !important; }
+/* 分页信息：一行内数字/文字/下拉框字号统一，避免“一个大一个小” */
+.table-pagination { font-size: 13px !important; color: var(--wp-muted) !important; letter-spacing: .03em !important; }
+.table-pagination select { font-size: 13px !important; color: var(--wp-ink) !important; background: var(--wp-card) !important; border-color: var(--wp-hair) !important; }
+.table-pagination button { font-size: 13px !important; }
+.page-info, .page-size-info, .jump-page, .pagination select, .badge,
+.page-info *, .page-size-info *, .jump-page *, .pagination select *, .badge * {
+  font-family: var(--wp-num) !important;
+  font-size: 13px !important;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* =====================================================================
+   表面层（覆盖基础组件中的历史硬编码色）
+   ===================================================================== */
+body { background: var(--wp-paper); }
+
+header {
+  background: #ede6dc !important;
+  border-bottom: 1px solid var(--wp-hair) !important;
+}
+
+aside {
+  background: var(--wp-side) !important;
+  border-right: 1px solid var(--wp-hair) !important;
+}
+
+main, .tm-main { background: var(--wp-paper) !important; }
+
+.card {
+  background: var(--wp-card) !important;
+  border: 1px solid var(--wp-hair) !important;
+  box-shadow: var(--wp-shadow-sm) !important;
+}
+.card:hover {
+  box-shadow: var(--wp-shadow-hover) !important;
+  border-color: var(--wp-hair-strong) !important;
+}
+
+.modal {
+  background: rgba(74, 56, 38, .22) !important;
+  backdrop-filter: blur(2px) !important;
+}
+.modal-content {
+  background: var(--wp-paper) !important;
+  border: 1px solid var(--wp-hair) !important;
+  box-shadow: var(--wp-shadow-lg) !important;
+}
+.modal-header,
+.modal-footer {
+  background: transparent !important;
+  border-color: var(--wp-hair) !important;
+}
+.modal-body { background: transparent !important; }
+/* 设置弹窗内的两块：左侧分类区 + 右侧主区都改为暖纸底，去掉内置白底 */
+.modal-content .settings-sidebar,
+.modal-content .settings-main,
+.modal-content .settings-panel,
+.modal-content .settings-list,
+.modal-content .settings-section,
+.modal-content .setting-row,
+.modal-content .settings-group,
+.modal-content .model-list,
+.modal-content .config-list,
+.modal-content .config-panel,
+.modal-content .provider-list {
+  background: transparent !important;
+}
+/* 设置弹窗列表项：避免纯白底 */
+.modal-content .list-item,
+.modal-content .model-item,
+.modal-content .provider-item,
+.modal-content .config-item,
+.modal-content .row,
+.modal-content .setting-item {
+  background: var(--wp-card) !important;
+  border-color: var(--wp-hair) !important;
+}
+.modal-content .list-item.is-active,
+.modal-content .list-item.active,
+.modal-content .model-item.is-active,
+.modal-content .model-item.active,
+.modal-content .row.is-current,
+.modal-content .setting-item.is-current {
+  background: var(--wp-card) !important;
+  border-color: var(--wp-sage) !important;
+}
+/* 兜底：modal 内部凡是有白底的常见容器都改为透明，让外层暖纸底透出来，
+   真正需要卡片感的元素单独重新上色 */
+.modal-content .card,
+.modal-content .panel,
+.modal-content .panel-body,
+.modal-content .panel-header,
+.modal-content .section,
+.modal-content .content,
+.modal-content .content-pane,
+.modal-content .grid,
+.modal-content .stack,
+.modal-content .form,
+.modal-content .form-group,
+.modal-content .toolbar,
+.modal-content .tab-content,
+.modal-content .empty,
+.modal-content .empty-state,
+.modal-content .placeholder,
+.modal-content .container,
+.modal-content .wrapper {
+  background: transparent !important;
+}
+/* 当前态突出：当前激活的卡片用陶土色描边 */
+.modal-content .is-active,
+.modal-content .is-current,
+.modal-content .is-selected,
+.modal-content [aria-current="true"] {
+  border-color: var(--wp-clay) !important;
+}
+
+/* 导航 */
+aside nav button.nav-item:hover { background: #f3ecdf !important; }
+aside nav button.nav-item:focus-visible { outline: 3px solid rgba(146, 116, 138, .24) !important; }
+/* 侧栏选中态：参考页为白底卡片+极淡阴影，不用品牌黄实底 */
+aside nav button.nav-item.active {
+  background: var(--wp-card) !important;
+  color: var(--wp-ink) !important;
+  box-shadow: var(--wp-shadow-sm) !important;
+  font-weight: 600 !important;
+}
+aside nav button.nav-item.active::before { display: none !important; }
+
+/* 顶栏按钮统一为暖纸语义 */
+header #importBtn { background: var(--wp-ink) !important; color: #fdfbf7 !important; }
+header #importBtn:hover {
+  background: #3d3730 !important;
+  box-shadow: var(--wp-shadow-hover) !important;
+}
+header #exportBtn {
+  background: var(--wp-sand-soft) !important;
+  color: var(--wp-ink) !important;
+  border: 1px solid var(--wp-hair) !important;
+}
+header #exportBtn:hover { background: #ede3cf !important; border-color: var(--wp-hair-strong) !important; }
+header #exportBtn:active { background: #e6d9c0 !important; }
+header #backupBtn { color: var(--wp-ink) !important; }
+header #backupBtn:hover { background: var(--wp-surface-subtle) !important; }
+header .user-menu { border: 1.5px solid var(--wp-hair) !important; }
+header .menu-btn { background: var(--wp-sand-soft) !important; }
+header .menu-btn:hover { background: #ede3cf !important; }
+
+/* TeachMate 对话区强调色统一为梅色 */
+.tm-new-chat {
+  color: var(--wp-plum) !important;
+  border: 1px dashed var(--wp-hair-strong) !important;
+  background: var(--wp-plum-soft) !important;
+}
+.tm-new-chat:hover { background: #e3d2de !important; border-color: var(--wp-plum) !important; }
+.tm-new-chat .nav-icon { color: var(--wp-plum) !important; }
+.tm-conv-item.active .tm-conv-icon,
+.tm-conv-item.active .tm-conv-title { color: var(--wp-plum) !important; }
+
+/* KPI 顶部便签条使用暖纸语义色（品牌黄保留在第一位） */
+.kpi:nth-child(2)::before { background: var(--wp-sage); }
+.kpi:nth-child(3)::before { background: var(--wp-clay); }
+.kpi:nth-child(4)::before { background: var(--wp-sand); }
+.kpi:nth-child(5)::before { background: var(--wp-plum); }
+
+/* 仪表盘 KPI Pastel 变体 → 暖纸语义色 */
+.dash-kpi-yellow { background: #fdf9ec !important; border-color: #ecdfb4 !important; }
+.dash-kpi-yellow .dash-kpi-icon { background: var(--wp-sand-soft) !important; }
+.dash-kpi-yellow .dash-kpi-icon .material-symbols-rounded { color: var(--wp-sand) !important; }
+.dash-kpi-blue { background: var(--wp-sage-soft) !important; border-color: #d3dcd2 !important; }
+.dash-kpi-blue .dash-kpi-icon { background: #dde4da !important; }
+.dash-kpi-blue .dash-kpi-icon .material-symbols-rounded { color: var(--wp-sage) !important; }
+.dash-kpi-teal { background: var(--wp-plum-soft) !important; border-color: #dcccda !important; }
+.dash-kpi-teal .dash-kpi-icon { background: #e2d2e0 !important; }
+.dash-kpi-teal .dash-kpi-icon .material-symbols-rounded { color: var(--wp-plum) !important; }
+.dash-kpi-pink { background: var(--wp-clay-soft) !important; border-color: #ecd2c4 !important; }
+.dash-kpi-pink .dash-kpi-icon { background: #f0d8cb !important; }
+.dash-kpi-pink .dash-kpi-icon .material-symbols-rounded { color: var(--wp-clay) !important; }
+
+/* 仪表盘趋势图（SVG 属性选择器覆盖，不动 JS） */
+.dash-trend-svg line[stroke="#EDEBF0"] { stroke: #e7dfd3; }
+.dash-trend-svg text[fill="#9B97B0"] { fill: #9b9186; }
+.dash-trend-svg text[fill="#050038"] { fill: var(--wp-ink); }
+.dash-trend-svg circle[fill="#4262FF"] { fill: var(--wp-sage); }
+.dash-trend-svg path[stroke="#4262FF"] { stroke: var(--wp-sage); }
+.dash-trend-svg stop[stop-color="#4262FF"] { stop-color: var(--wp-sage); }
+
+/* 仪表盘前十分数与名次 */
+.dash-lb-score { color: var(--wp-ink) !important; }
+
+/* 默写模块蓝色 → 梅 */
+.dictation-round-title-row .dictation-round-stats-btn:hover { background: var(--wp-plum-soft); color: var(--wp-plum); }
+.dictation-round-title-row .dictation-round-stats-btn:focus-visible { outline: 2px solid rgba(77, 48, 69, .35); }
+.dictation-round-batch-cb input { accent-color: var(--wp-plum); }
+.dictation-round-avg-val { color: var(--wp-plum); }
+.dictation-round-card:has(.dictation-round-range-line:not(:empty)) .dictation-round-range-line { color: var(--wp-plum); }
+
+/* 写作任务卡选中/批选 → 梅 */
+.writing-task-card.active {
+  border: 1.5px solid var(--wp-plum) !important;
+  background: var(--wp-plum-soft) !important;
+  box-shadow: 0 1px 6px rgba(77, 48, 69, .08) !important;
+}
+.writing-task-card.batch-selected {
+  border: 1.5px solid var(--wp-plum) !important;
+  background: var(--wp-plum-soft) !important;
+  box-shadow: 0 1px 6px rgba(77, 48, 69, .08) !important;
+}
+.writing-task-average strong { color: var(--wp-plum); }
+
+/* =====================================================================
+   批次 9：TeachMate 设置 modal 全面暖化（tm-settings-* 硬编码 #fff）
+   ===================================================================== */
+body.tab-teachmate .tm-settings-modal-content { background: var(--wp-paper) !important; }
+body.tab-teachmate .tm-settings-modal-content .modal-header { background: var(--wp-side) !important; }
+body.tab-teachmate .tm-settings-sidebar { background: var(--wp-side) !important; }
+body.tab-teachmate .tm-settings-main { background: var(--wp-paper) !important; }
+body.tab-teachmate .tm-settings-card { background: var(--wp-card) !important; border-color: var(--wp-hair) !important; }
+body.tab-teachmate .tm-settings-model-row { background: var(--wp-card) !important; border-color: var(--wp-hair) !important; }
+body.tab-teachmate .tm-settings-model-row.is-current { background: var(--wp-sand-soft) !important; border-color: var(--wp-sand) !important; }
+body.tab-teachmate .tm-settings-model-summary { background: var(--wp-sand-soft) !important; border-color: var(--wp-sand) !important; }
+body.tab-teachmate .tm-settings-empty { background: var(--wp-card) !important; border-color: var(--wp-hair) !important; }
+body.tab-teachmate .tm-settings-primary {
+  background: var(--wp-clay) !important;
+  box-shadow: 0 4px 12px rgba(182, 95, 66, .18) !important;
+}
+body.tab-teachmate .tm-settings-primary:hover { background: #9a4a2e !important; }
+body.tab-teachmate .tm-settings-nav button.is-active {
+  background: var(--wp-sand-soft) !important;
+  color: var(--wp-clay-ink) !important;
+}
+body.tab-teachmate .tm-settings-nav button:hover {
+  background: var(--wp-surface-subtle) !important;
+  color: var(--wp-ink) !important;
+}
+body.tab-teachmate .tm-settings-status-dot { background: var(--wp-sage-soft) !important; color: var(--wp-sage-ink) !important; }
+body.tab-teachmate .tm-settings-status-dot.is-unconfigured { background: var(--wp-faint) !important; color: var(--wp-muted) !important; }
+body.tab-teachmate .tm-settings-option-row { border-color: var(--wp-hair) !important; }
+body.tab-teachmate .tm-settings-section-title { color: var(--wp-muted) !important; }
+body.tab-teachmate .tm-settings-eyebrow { color: var(--wp-clay) !important; }
+
+/* 主按钮渐变 → 墨褐 */
+.btn-primary, .btn:not(.btn-text):not(.btn-secondary):not(.btn-danger-outline):not(.score-exam-action):not(.score-exam-delete) {
+  background: linear-gradient(180deg, #3d3730, #29251f) !important;
+}
+/* 危险按钮渐变 → 陶 */
+.btn-danger, .btn-danger-outline { color: var(--wp-clay) !important; }
+button[style*="linear-gradient(180deg, #FF9999"], .btn.delete-confirm {
+  background: linear-gradient(180deg, #c46a4c, #b65f42) !important;
+}
+
+/* 其余散点蓝色（2406/2562/2581/2603/2654/2659 行同源场景已覆盖；风险云 JS 内联色待后续批次处理） */
+
+/* =====================================================================
+   响应式细节：输入框聚焦光环统一暖紫
+   ===================================================================== */
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--wp-focus);
+}
+
+/* =====================================================================
+   精修批次 2：TeachMate 侧栏/消息区收编 + 全局交互细节
+   ===================================================================== */
+
+/* ---- 1. TeachMate 侧栏与主内容区：ID 选择器权重高于元素选择器，需同权重覆盖 ---- */
+body.tab-teachmate #sidebar {
+  background: var(--wp-side) !important;
+  border-right: 1px solid var(--wp-hair) !important;
+}
+body.tab-teachmate .tm-center { background: var(--wp-paper) !important; }
+/* 侧栏分区：历史区/用户卡由冷灰转暖纸 */
+body.tab-teachmate .tm-side-history { background: #f1ebe1 !important; }
+body.tab-teachmate .tm-side-user { background: #efe8dd !important; }
+body.tab-teachmate .tm-side-user:hover { background: #e6dfd2 !important; }
+/* 会话项 hover/选中保持梅色系（与对话区一致） */
+body.tab-teachmate .tm-conv-item:hover { background: var(--wp-surface-subtle) !important; }
+
+/* ---- 2. TeachMate 消息区与输入区：冷白 → 暖纸 ---- */
+.tm-messages { background: var(--wp-surface-subtle) !important; }
+.tm-input-area {
+  background: var(--wp-surface-subtle) !important;
+  border-top: 1px solid var(--wp-hair) !important;
+}
+/* 输入框容器：去掉冷白，用暖卡纸底，和整体主题融合 */
+.tm-composer,
+.tm-input-wrapper {
+  background: var(--wp-card) !important;
+  border-color: var(--wp-hair) !important;
+  box-shadow: 0 6px 22px rgba(63, 48, 36, .06) !important;
+}
+
+/* ---- 3. 欢迎三卡：冷薄荷/冷粉 → 暖纸语义（分析卡保留品牌黄系） ---- */
+.tm-suggestion-student {
+  border-color: #d3dcd2 !important;
+  background: linear-gradient(145deg, #f8faf6, #e5ece2) !important;
+}
+.tm-suggestion-student .tm-suggestion-icon { color: var(--wp-sage) !important; background: #dde4da !important; }
+.tm-suggestion-plan {
+  border-color: #dcccda !important;
+  background: linear-gradient(145deg, #fcf9fb, #efdfea) !important;
+}
+.tm-suggestion-plan .tm-suggestion-icon { color: var(--wp-plum) !important; background: #e8d7e3 !important; }
+.tm-suggestion-analytics .tm-suggestion-icon { color: #8a6534 !important; }
+.tm-card-arrow { color: var(--wp-faint) !important; }
+.tm-welcome-eyebrow { color: var(--wp-faint) !important; }
+
+/* ---- 4. 排序按钮组：修正「激活=浅色」的颠倒语义（未选=浅、选中=墨褐） ---- */
+.toolbar { background: var(--wp-card) !important; border-color: var(--wp-hair) !important; }
+.btn[data-act="score-sort"]:not(.btn-secondary) {
+  background: var(--wp-sand-soft) !important;
+  color: var(--wp-ink) !important;
+  border: 1px solid var(--wp-hair) !important;
+  box-shadow: none !important;
+}
+.btn[data-act="score-sort"]:not(.btn-secondary):hover {
+  background: #ede3cf !important;
+  border-color: var(--wp-hair-strong) !important;
+}
+.btn.btn-secondary {
+  background: linear-gradient(180deg, #3d3730, #29251f) !important;
+  color: #fdfbf7 !important;
+  border-color: transparent !important;
+}
+
+/* ---- 5. 禁用态：深灰实心 → 暖调浅灰，一眼可辨不可点 ---- */
+.btn:disabled, button.btn-sm:disabled {
+  background: #eae4d9 !important;
+  color: #b0a695 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  cursor: not-allowed;
+}
+
+/* ---- 6. 交互微动效：统一过渡节奏，按压有回弹 ---- */
+.btn, .card, aside nav button.nav-item, .nav-tab-switcher .tab-btn,
+.tm-suggestion-card, .tm-conv-item, .nav-item, header button {
+  transition: background-color .16s ease, color .16s ease,
+              border-color .16s ease, box-shadow .2s ease,
+              transform .12s ease;
+}
+.btn:not(:disabled):active, aside nav button.nav-item:active { transform: translateY(1px); }
+.card:hover { transform: translateY(-1px); }
+
+/* ---- 7. 暖色细滚动条（Webkit + Firefox），替代系统冷灰 ---- */
+* { scrollbar-width: thin; scrollbar-color: #d3c8b6 transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #d3c8b6; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: #c2b49e; background-clip: content-box; border: 2px solid transparent; }
+
+/* ---- 8. 下拉框与原生控件暖化 ---- */
+select {
+  background-color: var(--wp-card);
+  color: var(--wp-ink);
+  border-color: var(--wp-hair);
+}
+
+/* =====================================================================
+   精修批次 3：全局底色收尾 + 排序按钮对比度 + 图标暖化 + Tab 层级
+   ===================================================================== */
+
+/* ---- 9. 修正 body / #app / main 全局冷灰底：直接写死暖纸 ---- */
+html, body, #app {
+  background: var(--wp-paper) !important;
+}
+body.tab-teachmate,
+body.tab-teachmate #app,
+body.tab-teachmate main,
+body.tab-teachmate #workarea {
+  background: var(--wp-paper) !important;
+}
+
+/* ---- 10. 排序按钮：未选态用卡底 + 灰字，与已选墨褐拉开对比 ---- */
+.btn[data-act="score-sort"]:not(.btn-secondary) {
+  background: var(--wp-card) !important;
+  color: var(--wp-muted) !important;
+  border: 1px solid var(--wp-hair) !important;
+  box-shadow: none !important;
+}
+.btn[data-act="score-sort"]:not(.btn-secondary):hover {
+  background: var(--wp-sand-soft) !important;
+  color: var(--wp-ink) !important;
+  border-color: var(--wp-hair-strong) !important;
+}
+
+/* Tab 切换器：去掉纯白滑块，换成陶土色实底+暖白字，整体容器用稍深暖色 */
+.nav-tab-switcher,
+body.tab-teachmate .nav-tab-switcher,
+body:not(.tab-teachmate) .nav-tab-switcher {
+  background: #e8dfd1 !important;
+  border: 1px solid rgba(63, 48, 36, .06) !important;
+}
+.nav-tab-switcher .nav-tab-indicator,
+body.tab-teachmate .nav-tab-switcher .nav-tab-indicator,
+body:not(.tab-teachmate) .nav-tab-switcher .nav-tab-indicator {
+  background: var(--wp-clay) !important;
+  box-shadow: 0 2px 6px rgba(182, 95, 66, .18) !important;
+}
+.nav-tab-switcher .tab-btn { color: var(--wp-muted) !important; }
+.nav-tab-switcher .tab-btn:not(.active):hover,
+.nav-tab-switcher .tab-btn:not([aria-selected="true"]):hover {
+  color: var(--wp-ink) !important;
+}
+.nav-tab-switcher .tab-btn.active,
+.nav-tab-switcher .tab-btn[aria-selected="true"] {
+  color: #fdfbf7 !important;
+}
+
+/* ---- 11. 冷色 PNG 图标暖化（顶部品牌图标、欢迎区装饰图） ---- */
+.tm-brand-icon,
+.tm-welcome-hero img,
+img[src*="app-icon"] {
+  filter: sepia(0.12) saturate(0.88) brightness(1.03);
+}
+
+/* ---- 12. 空状态 / 提示文字统一收进暖灰 ---- */
+.empty-state,
+.empty-state-desc,
+.empty-state-title,
+.text-muted,
+.text-secondary,
+.text-hint,
+.hint,
+.note {
+  color: var(--wp-muted) !important;
+}
+
+/* ---- 13. 表格 zebra / hover 暖化 ---- */
+tbody tr:nth-child(even) td {
+  background: rgba(251, 248, 243, .55) !important;
+}
+tbody tr:hover td {
+  background: rgba(233, 226, 213, .45) !important;
+}
+
+/* ---- 14. 对话框 / Toast / 浮层暖化（覆盖可能的冷灰弹层） ---- */
+.modal-content,
+.dialog-content,
+.popover,
+.dropdown-menu,
+[role="dialog"] > div,
+[role="menu"] {
+  background: var(--wp-card) !important;
+  border-color: var(--wp-hair) !important;
+  box-shadow: var(--wp-shadow-lg) !important;
+}
+
+/* ---- 15. TeachMate 当前会话选中态：参考页侧栏选中为白底卡片+极淡阴影 ---- */
+body.tab-teachmate .tm-conv-item.active,
+body.tab-teachmate .tm-conv-item[aria-current="true"] {
+  background: var(--wp-card) !important;
+  color: var(--wp-ink) !important;
+  border: 1px solid var(--wp-hair) !important;
+  box-shadow: var(--wp-shadow-sm) !important;
+}
+
+/* ---- 16. 侧栏分区图标统一暖灰，避免残留冷蓝 ---- */
+#sidebar svg [stroke="#4262FF"],
+#sidebar svg [stroke="#0b57d0"],
+#sidebar svg [stroke="#2563EB"],
+#sidebar svg [fill="#4262FF"],
+#sidebar svg [fill="#0b57d0"] {
+  stroke: var(--wp-muted) !important;
+  fill: var(--wp-muted) !important;
+}
+body.tab-teachmate #sidebar svg [stroke],
+body.tab-teachmate #sidebar svg [fill] {
+  stroke: var(--wp-faint) !important;
+  fill: var(--wp-faint) !important;
+}
+body.tab-teachmate #sidebar .active svg [stroke],
+body.tab-teachmate #sidebar .active svg [fill] {
+  stroke: var(--wp-ink) !important;
+  fill: var(--wp-ink) !important;
+}
+
+/* =====================================================================
+   精修批次 4：表格、标签、弹层遮罩暖化收尾
+   ===================================================================== */
+
+/* ---- 17. 表头从冷灰改为暖纸（含成绩表/学生表的 !important 覆盖） ---- */
+th, .score-table th, .student-table th, .dash-lb-table th,
+.score-table thead .sticky-name-col,
+.student-table thead .student-name-col,
+.score-table thead th, .student-table thead th {
+  background: #f3ede4 !important;
+  color: var(--wp-ink) !important;
+  border-bottom-color: var(--wp-hair) !important;
+}
+.dash-lb-table th {
+  color: var(--wp-muted) !important;
+  border-bottom-color: var(--wp-hair) !important;
+}
+.dash-lb-table td { border-bottom-color: var(--wp-hair) !important; }
+.dash-lb-table tbody tr:hover { background: rgba(233, 226, 213, .45) !important; }
+
+/* ---- 18. 徽章色统一映射到暖纸语义（覆盖 badge-blue/green/orange/red） ---- */
+.badge-blue { background: var(--wp-plum-soft) !important; color: var(--wp-plum) !important; }
+.badge-green { background: var(--wp-sage-soft) !important; color: var(--wp-sage) !important; }
+.badge-orange { background: var(--wp-sand-soft) !important; color: var(--wp-sand) !important; }
+.badge-red { background: var(--wp-clay-soft) !important; color: var(--wp-clay) !important; }
+
+/* ---- 19. 弹层遮罩从冷黑改为暖褐黑 ---- */
+.modal, .overlay {
+  background: rgba(41, 37, 31, .45) !important;
+}
+
+/* ---- 20. 输入占位符与只读态暖化 ---- */
+::placeholder { color: var(--wp-faint) !important; opacity: 1 !important; }
+input:read-only, textarea:read-only, select:disabled {
+  background: #f3ede4 !important;
+  color: var(--wp-muted) !important;
+}
+
+/* ---- 21. 弱化原卷与错题里的蓝色链接/强调 ---- */
+.subtab.active {
+  background: var(--wp-ink) !important;
+  color: #fdfbf7 !important;
+  border-color: var(--wp-ink) !important;
+}
+.subtab:not(.active) { color: var(--wp-muted) !important; }
+.subtab:not(.active):hover { color: var(--wp-ink) !important; background: var(--wp-surface-subtle) !important; }
+
+/* ---- 22. 选中态链接/文字不再使用冷蓝 ---- */
+a, .link { color: var(--wp-plum); }
+a:hover, .link:hover { color: #3d2736; }
+
+/* ---- 23. 加载骨架屏从冷灰转暖 ---- */
+.skeleton, .loading, [class*="skeleton"] {
+  background: linear-gradient(90deg, #f3ede4 25%, #faf7f2 50%, #f3ede4 75%) !important;
+  background-size: 200% 100% !important;
+}
+
+/* =====================================================================
+   精修批次 5：TeachMate 对话区 / 附件 / 抽屉 / 欢迎细节收编（同步兜底）
+   ---------------------------------------------------------------------
+   目标：把 teachmate.css 里残余的冷蓝(#4262FF/#0b57d0)、冷灰(#fafbfc/#f4f5f7/
+   #f8f9fc/#e4e7ef/#c7cad5)、亮黄(#fcb900) 全部收编到暖纸体系。
+   ===================================================================== */
+
+/* ---- 24. 建议三卡：纯色 soft 底+深色图标，比渐变更自然、更接近参考页快速开始小卡 ---- */
+.tm-suggestion-analytics {
+  border-color: #e8dcc2 !important;
+  background: var(--wp-sand-soft) !important;
+}
+.tm-suggestion-analytics .tm-suggestion-icon { color: var(--wp-sand-ink) !important; background: #f3ecdd !important; }
+.tm-suggestion-student {
+  border-color: #d3dcd2 !important;
+  background: var(--wp-sage-soft) !important;
+}
+.tm-suggestion-student .tm-suggestion-icon { color: var(--wp-sage-ink) !important; background: #e5ece2 !important; }
+.tm-suggestion-plan {
+  border-color: #dcccda !important;
+  background: var(--wp-plum-soft) !important;
+}
+.tm-suggestion-plan .tm-suggestion-icon { color: var(--wp-plum-ink) !important; background: #efdfea !important; }
+.tm-suggestion-card:hover { border-color: var(--wp-hair-strong) !important; box-shadow: var(--wp-shadow-hover) !important; }
+
+/* ---- 25. 欢迎图标：亮黄 #fcb900 → 品牌黄 #FFD02F（小面积点睛，不扩大面积） ---- */
+.tm-welcome-icon .material-symbols-rounded { color: #ffd02f !important; }
+.tm-welcome-icon { background: var(--wp-sand-soft) !important; color: #8a6534 !important; }
+.tm-welcome-eyebrow { color: var(--wp-faint) !important; font-weight: 600 !important; letter-spacing: .14em !important; }
+
+/* ---- 26. 用户/AI 气泡：用户气泡改为 soft 陶土底+陶土文字，避免大面积实色块破坏自然感 ---- */
+.tm-message-user .tm-message-content {
+  background: var(--wp-clay-soft) !important;
+  color: var(--wp-clay-ink) !important;
+  border: 1px solid #f0d5ca !important;
+}
+/* 发送按钮：参考页 outline 按钮样式——白底+陶土描边+陶土图标 */
+body.tab-teachmate .tm-send-btn {
+  background: var(--wp-card) !important;
+  color: var(--wp-clay) !important;
+  border: 1.5px solid var(--wp-clay) !important;
+  box-shadow: none !important;
+}
+body.tab-teachmate .tm-send-btn:hover { background: var(--wp-clay-soft) !important; color: var(--wp-clay-ink) !important; }
+body.tab-teachmate .tm-send-btn:disabled { background: var(--wp-surface-subtle) !important; color: var(--wp-faint) !important; border-color: var(--wp-hair) !important; }
+/* 进度徽标 RUNNING：实色块 → soft 陶土底+陶土文字 */
+body.tab-teachmate .tm-progress-badge {
+  background: var(--wp-clay-soft) !important;
+  color: var(--wp-clay-ink) !important;
+  border: 1px solid #f0d5ca !important;
+}
+body.tab-teachmate .tm-progress-badge::after { background: linear-gradient(90deg, transparent, rgba(182,95,66,.12), transparent) !important; }
+.tm-message-ai .tm-message-content {
+  background: var(--wp-surface-subtle) !important;
+  color: var(--wp-ink) !important;
+  border: 1px solid var(--wp-hair) !important;
+}
+.tm-message-ai .tm-message-avatar { background: var(--wp-plum-soft) !important; color: var(--wp-plum) !important; }
+.tm-message-pending .tm-message-content { color: var(--wp-muted) !important; }
+
+/* ---- 27. 附件 chips / 上传进度条 / 文件类型图标：冷色收编 ---- */
+.tm-attach-progress-bar { background: var(--wp-plum) !important; }
+body.tab-teachmate .tm-attach-chip {
+  background: var(--wp-card) !important;
+  border-color: var(--wp-hair) !important;
+  color: var(--wp-ink) !important;
+}
+body.tab-teachmate .tm-attach-chip-status { color: var(--wp-muted) !important; }
+body.tab-teachmate .tm-attach-chip-status .material-symbols-rounded { color: var(--wp-plum) !important; }
+body.tab-teachmate .tm-file-section-count { background: var(--wp-sand-soft) !important; color: #8a6534 !important; }
+body.tab-teachmate .tm-file-section-label { color: var(--wp-muted) !important; }
+body.tab-teachmate .tm-file-section-label .material-symbols-rounded { color: var(--wp-faint) !important; }
+body.tab-teachmate .tm-file-chip-pdf .tm-file-type-icon { color: var(--wp-clay) !important; }
+body.tab-teachmate .tm-file-chip-xlsx .tm-file-type-icon,
+body.tab-teachmate .tm-file-chip-xls .tm-file-type-icon,
+body.tab-teachmate .tm-file-chip-csv .tm-file-type-icon { color: var(--wp-sage) !important; }
+body.tab-teachmate .tm-file-chip-docx .tm-file-type-icon,
+body.tab-teachmate .tm-file-chip-doc .tm-file-type-icon { color: var(--wp-plum) !important; }
+
+/* ---- 28. 考试选择器 / 模型触发器：hover 冷灰 → 暖纸，图标冷蓝 → 梅 ---- */
+body.tab-teachmate .tm-exam-picker { background: var(--wp-card) !important; color: var(--wp-muted) !important; border-color: var(--wp-hair) !important; }
+body.tab-teachmate .tm-exam-picker:hover { border-color: var(--wp-hair-strong) !important; background: var(--wp-surface-subtle) !important; color: var(--wp-ink) !important; }
+body.tab-teachmate .tm-exam-picker > .material-symbols-rounded { color: var(--wp-plum) !important; }
+body.tab-teachmate .tm-exam-picker-label { color: var(--wp-ink) !important; }
+body.tab-teachmate .tm-exam-picker-value { color: var(--wp-faint) !important; }
+body.tab-teachmate .tm-exam-chevron { color: var(--wp-faint) !important; }
+body.tab-teachmate .tm-model-trigger:hover { border-color: var(--wp-hair-strong) !important; background: var(--wp-surface-subtle) !important; }
+body.tab-teachmate .tm-model-label { color: var(--wp-faint) !important; }
+body.tab-teachmate .tm-model-current { color: var(--wp-ink) !important; }
+body.tab-teachmate .tm-composer-actions .tm-model-current { background: var(--wp-surface-subtle) !important; }
+
+/* ---- 29. 右侧抽屉（学生诊断/详情）：冷纸底 → 暖卡（提升特异性，盖过 body.tab-teachmate 的 #fafbfc） ---- */
+body.tab-teachmate .tm-right-panel.tm-drawer-open { background: var(--wp-card) !important; box-shadow: -18px 0 50px rgba(63, 48, 36, .16) !important; }
+
+/* ---- 30. 会话项 hover/选中兜底（确保 `body.tab-teachmate` 高特异性规则被收编） ---- */
+body.tab-teachmate .tm-conv-item:hover { background: #e9e2d5 !important; }
+body.tab-teachmate .tm-conv-item.active,
+body.tab-teachmate .tm-conv-item[aria-current="true"] {
+  background: var(--wp-plum-soft) !important;
+  color: var(--wp-ink) !important;
+}
+body.tab-teachmate .tm-side-history { background: #f1ebe1 !important; }
+body.tab-teachmate .tm-side-user { background: #efe8dd !important; }
+body.tab-teachmate .tm-side-user:hover { background: #e6dfd2 !important; }
+
+/* =====================================================================
+   精修批次 6：交互与配色深度收编（冷蓝交互态清零 + 交互质感提升）
+   ---------------------------------------------------------------------
+   目标：
+   1. 清零两套基础 CSS 里残留的冷蓝交互态（按钮 hover 的 rgba(11,87,208)、
+      focus 环 rgba(11,87,208/.24)、.btn-primary:hover #0842a0、写作卡/
+      dictation KPI 冷蓝阴影、TeachMate 输入框 focus-within 的 rgba(66,98,255)）。
+   2. 全站统一暖紫 focus 环、暖色文字选区、按压回弹更利落。
+   3. Tab 滑块顺滑、Toast 暖化、KPI 卡片 hover 与 .card 一致。
+   4. 语义文字加深，提升在 soft 底上的可读性。
+   ===================================================================== */
+
+/* ---- 31. 语义文字加深：soft 底上更清晰（仅作用于文字色，不改底） ---- */
+:root {
+  --wp-clay-ink: #7a3a24;
+  --wp-sand-ink: #7a5a2d;
+  --wp-sage-ink: #3d5243;
+  --wp-plum-ink: #33202d;
+  --wp-focus-ring: rgba(146, 116, 138, .45);
+}
+.badge-blue { color: var(--wp-plum-ink) !important; }
+.badge-green { color: var(--wp-sage-ink) !important; }
+.badge-orange { color: var(--wp-sand-ink) !important; }
+.badge-red { color: var(--wp-clay-ink) !important; }
+.dash-kpi-yellow .dash-kpi-icon .material-symbols-rounded { color: var(--wp-sand-ink) !important; }
+.dash-kpi-blue .dash-kpi-icon .material-symbols-rounded { color: var(--wp-sage-ink) !important; }
+.dash-kpi-teal .dash-kpi-icon .material-symbols-rounded { color: var(--wp-plum-ink) !important; }
+.dash-kpi-pink .dash-kpi-icon .material-symbols-rounded { color: var(--wp-clay-ink) !important; }
+
+/* ---- 32. 全站统一暖紫 focus 环：盖过所有冷蓝 outline（含 .btn / 输入 / nav） ---- */
+:focus-visible {
+  outline: 2.5px solid var(--wp-focus-ring) !important;
+  outline-offset: 2px;
+}
+.btn:focus-visible,
+button:focus-visible,
+a:focus-visible,
+.nav-item:focus-visible,
+.tab:focus-visible,
+.subtab:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2.5px solid var(--wp-focus-ring) !important;
+  outline-offset: 2px;
+}
+
+/* ---- 33. 按钮 hover / focus 冷蓝清零（WorkBench 基础层 244/246/248/250） ---- */
+.btn:not(.btn-primary):not(.btn-secondary):hover {
+  background: rgba(146, 116, 138, .10) !important;
+  border-color: var(--wp-hair-strong) !important;
+  color: var(--wp-ink) !important;
+}
+.btn-primary:hover {
+  background: linear-gradient(180deg, #3d3730, #171410) !important;
+  color: #fdfbf7 !important;
+}
+.btn.btn-secondary:hover {
+  background: linear-gradient(180deg, #3d3730, #171410) !important;
+  color: #fdfbf7 !important;
+}
+.btn-danger:hover { background: var(--wp-clay-ink) !important; color: #fdfbf7 !important; }
+
+/* ---- 34. 顶栏/工具条/表单控件 focus 冷蓝环 → 暖紫 box-shadow ---- */
+header select:focus,
+header button:focus-visible,
+header input:focus,
+.toolbar input:focus,
+.toolbar select:focus,
+.jump-select:focus,
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none !important;
+  border-color: var(--wp-hair-strong) !important;
+  box-shadow: var(--wp-focus) !important;
+}
+
+/* ---- 35. 写作任务卡 / dictation KPI 冷蓝 focus + hover 阴影收编（133/71） ---- */
+.writing-task-card:focus-visible {
+  outline: 2.5px solid var(--wp-focus-ring) !important;
+  outline-offset: 2px;
+}
+.dict-round-kpi-clickable:hover,
+.dict-round-kpi-clickable:focus-visible {
+  border-color: var(--wp-plum) !important;
+  box-shadow: 0 3px 12px rgba(146, 116, 138, .14) !important;
+  outline: none;
+}
+
+/* ---- 36. TeachMate 输入框 / 会话搜索 / 考试·模型选择器 focus-within 冷蓝收编 ---- */
+body.tab-teachmate .tm-input-wrapper:focus-within,
+body.tab-teachmate .tm-composer:focus-within {
+  border-color: var(--wp-hair-strong) !important;
+  box-shadow: var(--wp-focus) !important;
+}
+body.tab-teachmate .tm-composer.tm-drag-over {
+  border-color: var(--wp-plum) !important;
+  background: var(--wp-plum-soft) !important;
+  box-shadow: 0 0 0 3px rgba(146, 116, 138, .14), 0 8px 24px rgba(63, 48, 36, .08) !important;
+}
+body.tab-teachmate .tm-session-search:focus-within { border-color: var(--wp-hair-strong) !important; }
+body.tab-teachmate .tm-exam-picker:hover,
+body.tab-teachmate .tm-model-trigger:hover {
+  border-color: var(--wp-hair-strong) !important;
+  background: var(--wp-surface-subtle) !important;
+}
+body.tab-teachmate .tm-settings-model-row.is-current {
+  border-color: var(--wp-hair-strong) !important;
+  box-shadow: 0 0 0 3px rgba(146, 116, 138, .12) !important;
+}
+body.tab-teachmate .tm-prompt-ideas button:hover {
+  border-color: var(--wp-hair-strong) !important;
+  background: var(--wp-card) !important;
+  color: var(--wp-ink) !important;
+}
+body.tab-teachmate .tm-composer-plus:hover {
+  border-color: var(--wp-hair-strong) !important;
+  background: var(--wp-plum-soft) !important;
+  color: var(--wp-plum) !important;
+}
+
+/* ---- 37. 错误/危险态冷红 → 陶（TeachMate 错误条、重试、取消、危险确认） ---- */
+body.tab-teachmate .tm-error-bar { background: var(--wp-clay-soft) !important; color: var(--wp-clay) !important; }
+body.tab-teachmate .tm-retry-btn:hover { background: var(--wp-clay-soft) !important; color: var(--wp-clay) !important; }
+body.tab-teachmate .tm-cancel-btn:hover,
+body.tab-teachmate .tm-confirm-btn.tm-confirm-danger:hover { background: var(--wp-clay-ink) !important; color: #fdfbf7 !important; }
+
+/* ---- 38. Toast 冷绿/冷红 → 暖语义（success=sage / error=clay / 默认=墨褐） ---- */
+.toast { background: var(--wp-ink) !important; color: #fdfbf7 !important; box-shadow: var(--wp-shadow-lg) !important; }
+.toast.success { background: var(--wp-sage) !important; }
+.toast.error { background: var(--wp-clay) !important; }
+
+/* ---- 39. 文字选区暖色 ---- */
+::selection { background: rgba(146, 116, 138, .24); color: var(--wp-ink); }
+
+/* ---- 40. Tab 滑块过渡由 JS 内联 transition 统一管理（含重渲染时 'none' 禁止回弹）。
+   此处仅作非 !important 兜底，且只过渡 transform/width，不含 left，
+   否则 !important 会压住 JS 的 transition:'none'，导致切 Tab 后滑块从原点回弹。 ---- */
+.nav-tab-indicator {
+  transition: transform .3s cubic-bezier(.4, 0, .2, 1), width .3s cubic-bezier(.4, 0, .2, 1);
+}
+
+/* ---- 41. KPI 卡片 hover 与 .card 一致（抬升 + 暖边） ---- */
+.kpi { transition: background-color .16s ease, border-color .16s ease, box-shadow .2s ease, transform .12s ease; }
+.kpi:hover {
+  box-shadow: var(--wp-shadow-hover) !important;
+  border-color: var(--wp-hair-strong) !important;
+  transform: translateY(-1px);
+}
+
+/* ---- 42. 欢迎大标题与 AI 结论摘要用衬线，强化编辑感（配色之外的质感） ---- */
+body.tab-teachmate .tm-welcome-title,
+.tm-welcome-title {
+  font-family: var(--wp-serif) !important;
+  font-weight: 600 !important;
+  letter-spacing: .1em !important;
+}
+.tm-structured-summary-label,
+.tm-message-ai .tm-summary-title {
+  font-family: var(--wp-serif) !important;
+  font-weight: 600 !important;
+  letter-spacing: .06em;
+}
+
+/* ---- 43. 会话/卡片按压回弹更利落（覆盖基础层 scale(.98) 的生硬感） ---- */
+.btn:not(:disabled):active { transform: translateY(1px) scale(.985); }
+
+/* =====================================================================
+   精修批次 7：数字/百分号统一为衬线数字，避免宋体西文数字大小不一
+   ---------------------------------------------------------------------
+   根因： TeachMate 文本报告卡/WorkBench KPI 的数字区若直接继承 --wp-serif，
+         一旦 Tiempos/Georgia/Times 缺失，浏览器会回退到 Songti SC/SimSun，
+         而宋体自带的西文数字、小数点、百分号字形不统一，导致 100.0/91 等
+         看起来一大一小、基线不齐。
+   修复：所有含数字/百分号/小数点的展示区域强制走 --wp-num（Tiempos →
+         Georgia → Times New Roman 衬线数字优先栈），既保留图2的衬线文化感，
+         又让数字来自同一高质量字体；中文字符仍由栈尾宋体渲染；同时启用
+         tabular + lining 保证等宽等高。
+   ===================================================================== */
+
+/* TeachMate 文本报告 KPI/分层/区间卡片 */
+body.tab-teachmate .tm-text-report-metric-card strong,
+body.tab-teachmate .tm-text-report-band-card strong,
+body.tab-teachmate .tm-text-report-tier-card strong,
+.tm-text-report-metric-card strong,
+.tm-text-report-band-card strong,
+.tm-text-report-tier-card strong {
+  font-family: var(--wp-num) !important;
+  font-size: 22px !important;
+  font-weight: 600 !important;
+  letter-spacing: .01em !important;
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+body.tab-teachmate .tm-text-report-metric-card span,
+body.tab-teachmate .tm-text-report-band-card span,
+body.tab-teachmate .tm-text-report-tier-card span,
+.tm-text-report-metric-card span,
+.tm-text-report-band-card span,
+.tm-text-report-tier-card span {
+  font-family: var(--wp-num) !important;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* AI 消息气泡/结构化摘要里的数字与百分比（AI 动态生成的 95.6%、≥60.0 等） */
+.tm-message-ai .tm-message-content,
+.tm-message-ai .tm-message-content p,
+.tm-message-ai .tm-message-content strong,
+.tm-message-ai .tm-message-content span,
+.tm-structured-summary p,
+.tm-structured-summary strong,
+.tm-structured-summary span,
+.tm-summary-title,
+.tm-summary-title * {
+  font-family: var(--wp-num) !important;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+/* 但 AI 气泡里的中文标签、标题仍希望保持宋体质感，单独覆盖回衬线 */
+.tm-message-ai .tm-structured-summary-label,
+.tm-message-ai .tm-summary-title,
+.tm-message-ai .tm-message-content h1,
+.tm-message-ai .tm-message-content h2,
+.tm-message-ai .tm-message-content h3,
+.tm-message-ai .tm-message-content h4 {
+  font-family: var(--wp-serif) !important;
+}
+
+/* 通用兜底：任何显式包含数字/百分号/小数点的元素 */
+input[type="number"],
+.phone-value, .score-value, .rank-value, .avg-value, .percent-value,
+[data-value*="%"], [data-value*="."] {
+  font-family: var(--wp-num) !important;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* =====================================================================
+   精修批次 8：主操作统一为陶土色 + TeachMate 顶栏与 WorkBench 同色
+   ---------------------------------------------------------------------
+   深色仍保留给正文、图标和信息层级；只有可点击的主操作由墨褐改为陶土色。
+   ===================================================================== */
+
+:root {
+  --wp-clay-hover: #9a4a2e;
+  --wp-clay-active: #853f29;
+}
+
+/* TeachMate 自带的高权重 body token 原本会把主操作重新设回黑色。 */
+body.tab-teachmate {
+  --tm-primary: var(--wp-clay);
+  --tm-primary-hover: var(--wp-clay-hover);
+}
+
+/* WorkBench 与通用弹窗中的主按钮（含归档恢复、学期管理等）。 */
+header #importBtn:not(:disabled),
+.btn-primary:not(:disabled),
+.btn.btn-secondary:not(:disabled),
+.btn:not(.btn-text):not(.btn-danger):not(.btn-danger-outline):not(.score-exam-action):not(.score-exam-delete):not(:disabled) {
+  background: var(--wp-clay) !important;
+  border-color: var(--wp-clay) !important;
+  color: #fdfbf7 !important;
+  box-shadow: 0 3px 10px rgba(182, 95, 66, .18) !important;
+}
+header #importBtn:not(:disabled):hover,
+.btn-primary:not(:disabled):hover,
+.btn.btn-secondary:not(:disabled):hover,
+.btn:not(.btn-text):not(.btn-danger):not(.btn-danger-outline):not(.score-exam-action):not(.score-exam-delete):not(:disabled):hover {
+  background: var(--wp-clay-hover) !important;
+  border-color: var(--wp-clay-hover) !important;
+  color: #fdfbf7 !important;
+  box-shadow: 0 5px 14px rgba(182, 95, 66, .24) !important;
+}
+header #importBtn:not(:disabled):active,
+.btn-primary:not(:disabled):active,
+.btn.btn-secondary:not(:disabled):active,
+.btn:not(.btn-text):not(.btn-danger):not(.btn-danger-outline):not(.score-exam-action):not(.score-exam-delete):not(:disabled):active {
+  background: var(--wp-clay-active) !important;
+  border-color: var(--wp-clay-active) !important;
+}
+
+/* 不使用 .btn 的主操作控件也纳入同一语义色。 */
+.subtab.active,
+.todo-segment-btn.active,
+body.tab-teachmate .tm-budget-confirm,
+body.tab-teachmate .tm-confirm-btn.tm-confirm-primary,
+body.tab-teachmate .tm-plan-confirm-primary,
+body.tab-teachmate .tm-settings-primary,
+body.tab-teachmate .tm-settings-switch.is-on {
+  background: var(--wp-clay) !important;
+  border-color: var(--wp-clay) !important;
+  color: #fdfbf7 !important;
+}
+.subtab.active:hover,
+.todo-segment-btn.active:hover,
+body.tab-teachmate .tm-budget-confirm:hover,
+body.tab-teachmate .tm-confirm-btn.tm-confirm-primary:hover,
+body.tab-teachmate .tm-plan-confirm-primary:hover,
+body.tab-teachmate .tm-settings-primary:hover {
+  background: var(--wp-clay-hover) !important;
+  border-color: var(--wp-clay-hover) !important;
+}
+
+/* TeachMate 顶栏不再用冷白，和 WorkBench 顶栏共用暖侧栏底色与分隔线。 */
+body.tab-teachmate header {
+  background: var(--wp-side) !important;
+  border-bottom-color: var(--wp-hair) !important;
+  box-shadow: none !important;
+}

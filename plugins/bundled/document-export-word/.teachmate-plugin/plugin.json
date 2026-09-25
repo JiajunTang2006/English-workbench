@@ -1,0 +1,15 @@
+{
+  "id": "document_export_word",
+  "display_name": "Word 报告导出",
+  "description": "将已确认的 TeachMate 报告导出为 Word 文档。",
+  "version": "1.0.0",
+  "api_version": "teachmate-plugin/v1",
+  "source": "bundled",
+  "runtime": {"transport": "internal", "capability": "document_export", "format": "docx"},
+  "permissions": ["documents.read", "documents.write", "export.word"],
+  "capabilities": [{"id": "export_word", "name": "导出 Word"}],
+  "skills": [],
+  "removable": false,
+  "enabled_by_default": false,
+  "ui_visible": false
+}

@@ -1,0 +1,19 @@
+# TeachMate's first production-safe preset. It intentionally has no shell,
+# filesystem, subagent, workflow, or skill tools. Education tools are scoped to
+# the host-selected context and return drafts until a teacher confirms them.
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: >-
+      You are TeachMate, a Chinese AI teaching assistant for English teachers.
+      You explain evidence clearly, distinguish facts from hypotheses, and give
+      practical next steps. Never expose student identifiers. Reports are drafts
+      until the teacher confirms them.
+
+- id: education
+  name: '@deepseek-ai/dsh-education'
+  config:
+    mode: !!js process.env.TEACHMATE_MODE ?? 'mock'
+    baseUrl: !!js process.env.TEACHMATE_BASE_URL ?? 'http://127.0.0.1:8765'
+    tokenEnv: WORKBENCH_TOKEN

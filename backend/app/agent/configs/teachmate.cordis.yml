@@ -1,0 +1,74 @@
+# TeachMate 最小 Cordis 配置 (H0-2)
+#
+# 基于 bundled default cordis.yml 裁剪，严格遵循 §18.3 安全约束：
+#   - 只保留 JSON-RPC server、Agent core、DeepSeek LLM 适配器、
+#     会话持久化、会话检查点策略
+#   - 明确禁用 Bash、编辑器、任意文件访问、通用 Shell、子 Agent 和未批准工具
+#   - 不挂载 dsh-bash-*、dsh-fs-*、dsh-subprocess-*、dsh-subagent-*、dsh-tool-fs、
+#     dsh-tool-subagent-*、dsh-tool-workflow、dsh-tool-ralph、dsh-tool-todo 等
+#
+# TeachMate 工具通过 H0-3 的 Tool Bridge 注入，不通过 Cordis 插件挂载。
+
+# --- 必需：Stdio JSON-RPC server，SDK 客户端通过它与 runtime 通信 ---
+- id: sdk-jsonrpc-server
+  name: '@deepseek-ai/dsh-sdk-jsonrpc-server'
+
+# --- 必需：Agent spine，SDK server 为每个 sessionId 创建 agent ---
+- id: agent-core
+  name: '@deepseek-ai/dsh-agent-spine-demo'
+  config:
+    workspaceContext:
+      maxBytes: 65536
+    # TeachMate 专用 persona：只做教育数据分析，不执行代码、不访问文件系统
+    persona: |
+      你是 TeachMate 教育数据分析助手，powered by {{model}}。
+      你的职责是分析考试、学生、风险和错误数据，生成结构化教学建议。
+      你只能使用提供的 TeachMate 工具查询数据，不能执行代码、访问文件系统或运行 Shell 命令。
+
+# --- 必需：DeepSeek LLM 适配器 ---
+# API Key 和 Base URL 通过环境变量 DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL 注入
+- id: llm-deepseek
+  name: '@deepseek-ai/dsh-llm-deepseek'
+
+# --- 必需：JSONL 会话持久化 ---
+# $DSH_SESSION_ROOT 优先，回退到 ./.sessions
+- id: sessions
+  name: '@deepseek-ai/dsh-session-persistence-jsonl'
+  config:
+    root: !!js process.env.DSH_SESSION_ROOT ?? './.sessions'
+
+# --- 必需：会话检查点策略 ---
+- id: session-checkpoints
+  name: '@deepseek-ai/dsh-session-checkpoint-policy'
+
+# --- 必需：Token 计量 ---
+- id: token-meter
+  name: '@deepseek-ai/dsh-token-meter'
+
+# --- 必需：上下文压缩（防止长会话溢出） ---
+- id: compaction-basic
+  name: '@deepseek-ai/dsh-compaction-basic'
+  config:
+    thresholdRatio: 0.8
+    retainRatio: 0.08
+    maxTokens: 8192
+    compactionRetries: 1
+
+# --- 明确不挂载的插件（安全审计清单） ---
+# 以下插件在默认配置中存在但在此配置中被移除：
+#
+#   dsh-bash-local / dsh-bash-sandbox   — Bash 执行器（已移除）
+#   dsh-subprocess-local                 — 子进程管理（已移除，bash 依赖它）
+#   dsh-fs-local / dsh-fs-sandbox        — 文件系统访问（已移除）
+#   dsh-sandbox-local / dsh-sandbox-policy — 沙箱策略（无 bash/fs 不需要）
+#   dsh-subagent / dsh-subagent-*         — 子 Agent（已移除）
+#   dsh-tool-subagent / dsh-tool-subagent-* — 子 Agent 工具（已移除）
+#   dsh-tool-fs                           — 文件系统工具（已移除）
+#   dsh-tool-workflow                     — 工作流工具（已移除）
+#   dsh-tool-ralph                        — Ralph 工具（已移除）
+#   dsh-tool-todo                         — Todo 工具（已移除）
+#   dsh-user-approval                     — 用户审批（TeachMate 有自己的确认流程）
+#   dsh-user-questions                    — 用户提问（TeachMate 有自己的交互）
+#   dsh-hooks-claude-code / dsh-hooks-codex — Hook 系统（已移除）
+#   dsh-repeat-tool-reminder              — 重复工具提醒（已移除）
+#   dsh-session-projection                — 会话投影（子 Agent 依赖，已移除）

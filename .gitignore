@@ -1,0 +1,112 @@
+# ================================================================
+# English Workbench —— Git 排除规则
+# 基线：S0-01（建立 Git 基线与敏感文件排除）
+# 原则：本地依赖、数据库、测试结果、密钥与疑似真实学生数据
+#       一律不得进入版本控制。
+# ================================================================
+
+# --- 虚拟环境与包管理器 ---
+.venv/
+.venv-windows/
+.windows-tools/
+venv/
+env/
+ENV/
+backend/.venv/
+node_modules/
+.pnpm-store/
+.pnpm-workspace-state.yaml
+
+# --- Python 中间产物 ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyinstaller-config/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.whl
+*.so
+
+# --- 前端/浏览器测试产物 ---
+test-results/
+test-results-old-*/
+dot/
+playwright-report/
+blob-report/
+coverage/
+.jest-cache/
+tools/shot-*.png
+deliverables/verify-shots/
+deliverables/real_attachment_*
+
+# --- 会话与运行时状态 ---
+.sessions/
+backend/.sessions/
+*.pid
+*.log
+logs/
+
+# --- 数据、备份、附件、导入导出目录 ---
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+backups/
+imports/
+exports/
+attachments/
+backup_*/
+*.bak
+*.tmp
+
+# --- 环境变量与密钥 ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+.secrets/
+
+# --- 编辑器 / 系统文件 ---
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# --- WorkBuddy 项目元数据 ---
+.workbuddy/
+
+# --- TeachMate 打包运行时（可重新生成，体积大） ---
+teachmate-runtime/
+
+# --- 发布目录：旧构建包一律不入库，仅保留交付说明 ---
+release/*.app/
+release/*.app.zip
+release/*.zip
+release/EnglishWorkBench_Windows/
+release/*_Build_Source/
+
+# --- 测试样例数据（含疑似真实姓名/学号，未匿名化，不入库） ---
+test_data/
+
+# --- vendored Harness 上游工程的构建产物（源码本身入库） ---
+vendor/**/node_modules/
+vendor/**/.pnpm-store/
+vendor/**/dist/
+vendor/**/build/
+vendor/**/*.tsbuildinfo
+vendor/**/__pycache__/
+vendor/**/*.py[cod]

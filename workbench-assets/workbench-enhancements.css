@@ -1,0 +1,1028 @@
+/* ================= WorkBench 前端增强层 =================
+   统一设计令牌 · 响应式断点 · 过渡动画 · 骨架屏 · 交互增强
+   本文件作为增强层叠加在现有 CSS 之上，不破坏已有样式。
+   ============================================================= */
+
+/* ---------- TeachMate / 顶部栏稳定布局 ---------- */
+.nav-tab-indicator {
+  pointer-events: none !important;
+}
+
+/* 侧栏内容从顶部分割线开始，避免窄屏和桌面端出现无内容的留白带。 */
+body.tab-teachmate #sidebar { padding-top: 6px !important; }
+body:not(.tab-teachmate) #sidebar { padding-top: 8px !important; }
+
+@media (min-width: 861px) {
+  /* 顶部栏实际高度为 56px。workbench-app.css 的旧版 72px sticky 偏移会在
+     WorkBench、TeachMate 和设置入口上方留下一块固定空白；这里统一覆盖为
+     header 的真实底边，并同步容器高度。 */
+  .container {
+    min-height: calc(100vh - 56px) !important;
+  }
+  .container > aside,
+  .container > #sidebar {
+    top: 56px !important;
+    height: calc(100vh - 56px) !important;
+    max-height: calc(100vh - 56px) !important;
+  }
+
+  header {
+    display: grid !important;
+    grid-template-columns: var(--wb-sidebar-width, 240px) minmax(0, 1fr) !important;
+    gap: 0;
+    padding: 0 !important;
+    justify-content: stretch;
+    /* 左上角（header 第一列，与 sidebar 同宽）折叠/展开时同步滑动 */
+    transition: grid-template-columns 220ms ease;
+  }
+
+  /* 折叠态：保持 header 第一列最小可点击宽度（容纳 sidebarToggle），
+     sidebar 自身的 width 由各 sidebar 规则控制（见 teachmate.css collapsed 覆盖）。 */
+  body.sidebar-collapsed {
+    --wb-sidebar-width: 48px;
+  }
+
+  header .header-left-zone {
+    grid-column: 1;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0 8px;
+    overflow: hidden;
+  }
+
+  header .header-right-zone {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0 16px 0 20px;
+    gap: 16px;
+    overflow: hidden;
+  }
+
+  header .header-right-zone > #appTitle {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: min(32vw, 360px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 4px;
+  }
+
+  header .header-right-zone > .header-context {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  header .header-right-zone > .right {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-left: auto;
+    flex-wrap: nowrap;
+  }
+
+  header .header-right-zone > #tmHeaderSearchBtn {
+    order: 10;
+    flex: 0 0 40px;
+    width: 40px;
+    min-width: 40px;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 860px) {
+  header .header-left-zone,
+  header .header-right-zone {
+    min-width: 0;
+  }
+
+  header .header-right-zone > #tmHeaderSearchBtn {
+    flex: 0 0 40px;
+    width: 40px;
+  }
+}
+
+body.tab-teachmate #workarea {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  flex: 1 1 auto !important;
+  flex-basis: auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: hidden !important;
+}
+
+body.tab-teachmate .container {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+
+/* 聊天区内容容器不允许长报告撑破网格轨道。 */
+body.tab-teachmate .tm-message-ai .tm-message-body,
+body.tab-teachmate .tm-message-user .tm-message-content {
+  min-width: 0;
+}
+
+:root {
+  /* 断点值（供 JS 读取） */
+  --bp-mobile: 560px;
+  --bp-tablet: 860px;
+  --bp-desktop: 1200px;
+  --bp-wide: 1440px;
+
+  /* 间距阶梯 */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* 圆角 */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* 过渡时长 */
+  --dur-fast: 120ms;
+  --dur-normal: 220ms;
+  --dur-slow: 360ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* 动画令牌 */
+  --motion-state-layer: background-color var(--dur-fast) var(--ease-out);
+  --motion-slide: transform var(--dur-normal) var(--ease-out), opacity var(--dur-normal) var(--ease-out);
+  --motion-fade: opacity var(--dur-normal) var(--ease-out);
+
+  /* WorkBench 色彩（继承已有 --md-* 变量，补充语义色） */
+  --wb-header-height: 64px;
+  --wb-sidebar-width: 260px;
+  --wb-content-max: 1280px;
+  --wb-overlay-color: rgba(31, 31, 31, 0.32);
+  --wb-skeleton-base: #e9eaee;
+  --wb-skeleton-shine: #fafbfc;
+
+  /* 阴影层级 */
+  --shadow-e1: 0 1px 2px rgba(60,64,67,.06), 0 1px 3px rgba(60,64,67,.08);
+  --shadow-e2: 0 2px 6px rgba(60,64,67,.08), 0 1px 2px rgba(60,64,67,.06);
+  --shadow-e3: 0 6px 16px rgba(60,64,67,.10), 0 2px 6px rgba(60,64,67,.06);
+  --shadow-e4: 0 12px 32px rgba(60,64,67,.12), 0 4px 12px rgba(60,64,67,.06);
+
+  /* 焦点环 */
+  --focus-ring: 0 0 0 3px rgba(11, 87, 208, 0.22);
+
+  /* z-index 层级 */
+  --z-header: 40;
+  --z-sidebar: 30;
+  --z-overlay: 15;
+  --z-modal: 100;
+  --z-toast: 200;
+  --z-tooltip: 300;
+}
+
+/* ---------- 2. 动画关键帧 ---------- */
+@keyframes wb-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes wb-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes wb-slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes wb-slide-right {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes wb-scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes wb-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes wb-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes wb-bounce-dot {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* ---------- 3. 过渡动画与微交互 ---------- */
+
+/* 页面内容切换动画 */
+#workarea > * {
+  animation: wb-fade-in var(--dur-normal) var(--ease-out);
+}
+
+/* 导航项点击波纹效果增强 */
+aside .nav-item {
+  position: relative;
+  overflow: hidden;
+}
+aside .nav-item::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), rgba(11,87,208,.12), transparent 60%);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+  pointer-events: none;
+}
+aside .nav-item:active::after {
+  opacity: 1;
+}
+
+/* Tab 切换动画 —— 颜色/背景/滑块过渡由 teachmate.css 全局规则承载 */
+
+/* Modal 弹出/关闭动画 */
+.modal.show .modal-content {
+  animation: wb-scale-in var(--dur-normal) var(--ease-spring);
+}
+.modal {
+  transition: opacity var(--dur-normal) var(--ease-out);
+}
+.modal:not(.show) {
+  opacity: 0;
+}
+
+/* Toast 通知增强 */
+.toast {
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-e3) !important;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: 360px;
+  animation: wb-slide-right var(--dur-normal) var(--ease-spring);
+}
+.toast.hide {
+  animation: wb-fade-in var(--dur-fast) var(--ease-out) reverse;
+}
+.toast .toast-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.toast.success { background: var(--md-success) !important; }
+.toast.error { background: var(--md-error) !important; }
+.toast.warning { background: var(--md-warning) !important; }
+.toast.info { background: var(--md-primary) !important; }
+
+/* 按钮增强：波纹效果 */
+.btn {
+  position: relative;
+  overflow: hidden;
+}
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+  pointer-events: none;
+}
+.btn:active::before {
+  opacity: 0.08;
+}
+
+/* 卡片 hover 提升效果 */
+.card {
+  transition: box-shadow var(--dur-normal) var(--ease-out), border-color var(--dur-normal) var(--ease-out);
+}
+.card.hoverable:hover,
+.card.interactive:hover {
+  box-shadow: var(--shadow-e2);
+  border-color: var(--md-outline);
+}
+
+/* 输入框聚焦增强 */
+.toolbar input:focus,
+.toolbar select:focus,
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  box-shadow: var(--focus-ring);
+  transition: box-shadow var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+/* ---------- 4. 骨架屏加载状态 ---------- */
+.wb-skeleton {
+  background: linear-gradient(90deg,
+    var(--wb-skeleton-base) 25%,
+    var(--wb-skeleton-shine) 50%,
+    var(--wb-skeleton-base) 75%
+  );
+  background-size: 200% 100%;
+  animation: wb-shimmer 1.5s infinite linear;
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+.wb-skeleton-line {
+  height: 14px;
+  margin-bottom: var(--space-sm);
+}
+.wb-skeleton-line:last-child {
+  width: 60%;
+}
+.wb-skeleton-line.sm { height: 10px; }
+.wb-skeleton-line.lg { height: 18px; }
+.wb-skeleton-block {
+  height: 80px;
+  border-radius: var(--radius-md);
+}
+.wb-skeleton-card {
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+.wb-skeleton-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+.wb-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+.wb-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md);
+}
+.wb-skeleton-grid > .wb-skeleton-block {
+  height: 100px;
+}
+
+/* ---------- 5. 响应式布局增强 ---------- */
+
+/* 超宽屏：内容区域最大宽度限制 */
+@media (min-width: 1440px) {
+  #workarea { width: min(1280px, 100%); }
+  main { padding: var(--space-xl) clamp(var(--space-lg), 5vw, var(--space-2xl)); }
+}
+
+/* 桌面端（≤1200px）：侧边栏微缩 */
+@media (max-width: 1200px) {
+  aside { width: 220px; }
+  :root { --wb-sidebar-width: 220px; }
+}
+
+/* 平板端（≤860px）：侧边栏抽屉模式 */
+@media (max-width: 860px) {
+  main { padding: var(--space-md); }
+  #workarea { width: 100%; }
+  /* 表格横向滚动增强 */
+  .card-body:has(table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .card-body:has(table) table {
+    min-width: 600px;
+  }
+  /* 工具栏堆叠 */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .toolbar input,
+  .toolbar select,
+  .jump-select {
+    width: 100%;
+  }
+}
+
+/* 导入数据是主按钮：覆盖顶部通用图标颜色，确保左侧上传图标与文字同为白色。 */
+header #importBtn > .material-symbols-rounded,
+header #importBtn:hover > .material-symbols-rounded,
+header #importBtn:active > .material-symbols-rounded {
+  color: #ffffff !important;
+}
+
+/* 移动端（≤560px）：紧凑布局 */
+@media (max-width: 560px) {
+  main { padding: var(--space-sm); }
+  .card-header { padding: var(--space-md); }
+  .card-body { padding: var(--space-md); }
+  .card-title { font-size: var(--radius-lg); }
+  .kpi-value { font-size: 22px; }
+  .kpi { padding: var(--space-md); }
+  /* 表格行紧凑化 */
+  th, td { padding: 10px 12px; }
+  /* 表单全宽 */
+  .form-row { grid-template-columns: 1fr; }
+  /* 隐藏次要按钮文字，只留图标 */
+  header #importBtn,
+  header #exportBtn,
+  header #backupBtn {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+  }
+  header #importBtn .material-symbols-rounded,
+  header #exportBtn .material-symbols-rounded,
+  header #backupBtn .material-symbols-rounded {
+    font-size: 20px;
+  }
+}
+
+/* 超小屏（≤380px）：极致紧凑 */
+@media (max-width: 380px) {
+  header h1 { font-size: 14px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-context { gap: 4px; }
+  header select { font-size: 12px; padding: 0 8px; }
+}
+
+/* ---------- 6. TeachMate 界面增强 ---------- */
+
+/* 消息出现动画 */
+.tm-message {
+  animation: wb-slide-up var(--dur-normal) var(--ease-out);
+}
+.tm-message-user {
+  animation: wb-slide-up var(--dur-fast) var(--ease-out);
+}
+
+/* AI 消息内容增强 */
+.tm-message-ai .tm-message-content {
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 轻量 Markdown 渲染样式 */
+.tm-message-content .md-h1 { font-size: 18px; font-weight: 700; margin: 12px 0 8px; }
+.tm-message-content .md-h2 { font-size: 16px; font-weight: 600; margin: 10px 0 6px; }
+.tm-message-content .md-h3 { font-size: 15px; font-weight: 600; margin: 8px 0 4px; }
+.tm-message-content .md-p { margin: 6px 0; }
+.tm-message-content .md-strong { font-weight: 700; }
+.tm-message-content .md-em { font-style: italic; }
+.tm-message-content .md-ul,
+.tm-message-content .md-ol { margin: 6px 0; padding-left: 20px; }
+.tm-message-content .md-ul { list-style: disc; }
+.tm-message-content .md-ol { list-style: decimal; }
+.tm-message-content .md-li { margin: 3px 0; line-height: 1.6; }
+.tm-message-content .md-code {
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  font-size: 0.9em;
+  background: var(--tm-surface-subtle, #fafbfc);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--tm-link, #4262FF);
+}
+.tm-message-content .md-codeblock {
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  font-size: 13px;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  padding: 12px 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+.tm-message-content .md-blockquote {
+  border-left: 3px solid var(--tm-link, #4262FF);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--tm-text-secondary, #555a6a);
+}
+.tm-message-content .md-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.tm-message-content .md-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 8px 0;
+  border: 1px solid var(--tm-border, #e0e2e8);
+  border-radius: 8px;
+}
+.tm-message-content .md-table-wrap .md-table { margin: 0; }
+.tm-message-content .md-table th,
+.tm-message-content .md-table td {
+  border: 1px solid var(--tm-border, #e0e2e8);
+  padding: 6px 10px;
+  text-align: left;
+}
+.tm-message-content .md-table th {
+  background: var(--tm-surface-subtle, #fafbfc);
+  font-weight: 600;
+}
+.tm-message-content .md-hr {
+  border: 0;
+  border-top: 1px solid var(--tm-border, #e0e2e8);
+  margin: 10px 0;
+}
+
+/* 消息复制按钮 */
+.tm-message-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.tm-message-ai:hover .tm-message-actions {
+  opacity: 1;
+}
+.tm-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--tm-text-muted, #8e91a0);
+  font-size: 11px;
+  cursor: pointer;
+  transition: var(--motion-state-layer);
+}
+.tm-copy-btn:hover {
+  background: var(--tm-surface-subtle, #fafbfc);
+  color: var(--tm-text, #1c1c1e);
+}
+.tm-copy-btn .material-symbols-rounded {
+  font-size: 14px;
+}
+.tm-copy-btn.copied {
+  color: var(--tm-success, #15956f);
+}
+
+/* 打字指示器动画增强 */
+.tm-running-dot {
+  animation: wb-pulse 1.2s ease-in-out infinite;
+}
+
+/* 欢迎页面动画 */
+.tm-welcome {
+  animation: wb-fade-in var(--dur-slow) var(--ease-out);
+}
+.tm-welcome-icon {
+  animation: wb-scale-in var(--dur-slow) var(--ease-spring);
+}
+.tm-suggestion-card {
+  animation: wb-slide-up var(--dur-normal) var(--ease-out);
+  animation-fill-mode: backwards;
+}
+.tm-suggestion-card:nth-child(1) { animation-delay: 60ms; }
+.tm-suggestion-card:nth-child(2) { animation-delay: 120ms; }
+.tm-suggestion-card:nth-child(3) { animation-delay: 180ms; }
+
+/* 右栏面板展开/收起动画 */
+.tm-right-panel {
+  transition: transform var(--dur-normal) var(--ease-out);
+}
+.tm-right-panel.tm-drawer-open {
+  animation: wb-slide-right var(--dur-normal) var(--ease-out);
+}
+
+/* 输入框聚焦增强 */
+.tm-input:focus {
+  box-shadow: var(--focus-ring);
+  transition: box-shadow var(--dur-fast) var(--ease-out);
+}
+
+/* 运行指示器增强 */
+.tm-running-indicator {
+  animation: wb-fade-in var(--dur-fast) var(--ease-out);
+}
+
+/* 预算确认卡片动画 */
+.tm-budget-card {
+  animation: wb-slide-up var(--dur-normal) var(--ease-spring);
+}
+
+/* 错误条动画 */
+.tm-error-bar {
+  animation: wb-slide-down var(--dur-fast) var(--ease-out);
+}
+
+/* ---------- 7. 无障碍增强 ---------- */
+
+/* 减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  #workarea > * { animation: none !important; }
+  .tm-message { animation: none !important; }
+  .tm-suggestion-card { animation: none !important; }
+}
+
+/* 高对比度偏好 */
+@media (prefers-contrast: more) {
+  :root {
+    --focus-ring: 0 0 0 3px rgba(0, 0, 0, 0.6);
+  }
+  .card { border-width: 2px; }
+  .btn { border-width: 2px; }
+}
+
+/* 键盘焦点可见性 */
+:focus-visible {
+  outline: 3px solid rgba(11, 87, 208, 0.5);
+  outline-offset: 2px;
+}
+.btn:focus-visible,
+aside .nav-item:focus-visible,
+.tab-btn:focus-visible {
+  outline: 3px solid rgba(11, 87, 208, 0.4);
+  outline-offset: 2px;
+}
+
+/* 屏幕阅读器专用 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- 8. 右键上下文菜单 ---------- */
+.wb-context-menu {
+  position: fixed;
+  z-index: var(--z-tooltip, 300);
+  min-width: 180px;
+  padding: var(--space-xs) 0;
+  background: var(--md-surface, #fff);
+  border: 1px solid var(--md-outline-variant, #e0e2e8);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-e3);
+  font-size: 13px;
+  font-family: inherit;
+}
+.wb-context-menu.wb-ctx-show {
+  animation: wb-scale-in var(--dur-fast) var(--ease-out);
+  transform-origin: top left;
+}
+.wb-ctx-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  color: var(--md-text-primary, #1c1c1e);
+  transition: var(--motion-state-layer);
+  user-select: none;
+}
+.wb-ctx-item:hover:not(.disabled) {
+  background: var(--md-surface-container, #f4f5f7);
+}
+.wb-ctx-item.disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+.wb-ctx-item .material-symbols-rounded {
+  font-size: 18px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.wb-ctx-item span:last-child {
+  font-size: 13px;
+  line-height: 1.4;
+}
+.wb-ctx-separator {
+  height: 1px;
+  margin: var(--space-xs) 0;
+  background: var(--md-outline-variant, #e0e2e8);
+}
+
+/* ---------- 10. Toast 增强图标 ---------- */
+.toast .toast-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.toast span:last-child {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* ---------- 顶部工作区：与左侧 sidebar 共用同一条分割线 ---------- */
+@media (min-width: 861px) {
+  header {
+    grid-template-columns: var(--wb-sidebar-width, 240px) minmax(0, 1fr);
+  }
+
+  /* TeachMate 的 sidebar 在中等桌面宽度保持 260px，与 WorkBench 模式统一；顶部切割线与实际 sidebar 使用同一变量。 */
+  body.tab-teachmate {
+    --tm-sidebar-width: 260px;
+  }
+
+  /* 折叠态：header 第一列保留 48px 容纳 sidebarToggle 按钮 */
+  body.tab-teachmate.sidebar-collapsed {
+    --tm-sidebar-width: 48px;
+  }
+
+  body.tab-teachmate header {
+    grid-template-columns: var(--tm-sidebar-width) minmax(0, 1fr) !important;
+  }
+
+  body.tab-teachmate #sidebar {
+    width: var(--tm-sidebar-width) !important;
+    flex-basis: var(--tm-sidebar-width);
+    /* 与 WorkBench aside 统一速度（220ms ease）的滑动折叠/展开；
+       折叠规则会把 flex-basis 瞬切为 0，故 flex-basis 也必须过渡，否则 flex 布局会提前收窄、速度不一致 */
+    transition: width 220ms ease, padding 220ms ease, flex-basis 220ms ease;
+  }
+
+  /* 折叠时彻底隐藏 sidebar（避免 padding/border 残留） */
+  body.tab-teachmate.sidebar-collapsed #sidebar {
+    /* sidebar 自身宽度归零，header 第一列保持 48px 仅容纳展开按钮 */
+    width: 0 !important;
+    min-width: 0 !important;
+    flex-basis: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    border-right: 0 !important;
+    overflow: hidden !important;
+  }
+
+  header .header-left-zone {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 0 8px;
+  }
+
+  header .header-left-zone > .sidebar-header-toggle {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+  }
+
+  /* 左侧顶部保持 WorkBench 的布局：sidebar 控制按钮在最左，工作区切换紧随其后。 */
+  header .header-left-zone > .sidebar-header-toggle { order: 1; }
+  header .header-left-zone > .header-tab-switcher { order: 2; }
+
+  header .header-left-zone > .header-tab-switcher {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+
+  header .header-left-zone .nav-tab-switcher {
+    width: auto;
+    min-width: 0;
+    margin: 0;
+  }
+
+  header .header-left-zone .nav-tab-switcher .tab-btn {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+
+  /* TeachMate 搜索按钮由 header 的 data-act 触发，WorkBench 中不占位。 */
+  header .header-right-zone > .tm-header-search[hidden] {
+    display: none;
+  }
+
+  header .header-right-zone {
+    justify-content: flex-start;
+    gap: 18px;
+    min-width: 0;
+    padding-left: 18px;
+  }
+
+  header .header-right-zone h1 {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  header .header-right-zone .header-context {
+    min-width: 0;
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  header .header-right-zone .right {
+    margin-left: auto;
+  }
+
+  /* 搜索聊天固定在整个顶部栏最右侧，不再挤占左侧切换器空间。 */
+  header .header-right-zone > .tm-header-search {
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    margin-left: 12px;
+    padding: 0;
+  }
+}
+
+@media (max-width: 860px) {
+  header .header-left-zone {
+    flex: 0 0 auto;
+    gap: 4px;
+  }
+
+  header .header-tab-switcher {
+    min-width: 132px;
+  }
+
+  header .header-right-zone > .tm-header-search {
+    order: 2;
+    margin-left: auto;
+  }
+}
+
+/* ---------- 顶部工作区切换器：紧凑比例 ----------
+   左侧顶栏仍与 sidebar 对齐，压缩的是切换器自身，避免占满整块区域。
+   TeachMate 保持品牌层级，但只比 WorkBench 大约 1/6，避免视觉跳跃。 */
+@media (min-width: 861px) {
+  header .header-left-zone .nav-tab-switcher {
+    width: 178px;
+    padding: 2px !important;
+    border-radius: 9px !important;
+  }
+
+  header .header-left-zone .nav-tab-switcher .tab-btn {
+    flex: 1 1 0;
+    width: 50%;
+    min-width: 0;
+    padding: 6px 7px !important;
+    font-size: 12px !important;
+    line-height: 1.2;
+  }
+
+  header .header-left-zone .nav-tab-switcher .tab-btn[data-tab="teachmate"] {
+    font-size: 14px !important;
+    font-weight: 700;
+  }
+}
+
+@media (max-width: 860px) {
+  header .header-left-zone .nav-tab-switcher .tab-btn[data-tab="teachmate"] {
+    font-size: 13px !important;
+    font-weight: 700;
+  }
+}
+
+/* ---------- WorkBench 仪表盘图标 ---------- */
+aside .nav-dashboard-icon {
+  display: inline-block;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  color: currentColor;
+}
+
+/* 顶部栏统一：标题只做上下居中，不做左右居中。 */
+@media (min-width: 861px) {
+  body:not(.tab-teachmate) header {
+    height: 56px !important;
+  }
+
+  header .header-left-zone .nav-tab-switcher .tab-btn[data-tab="workbench"] {
+    font-size: 14px !important;
+  }
+
+  body.tab-teachmate header .header-right-zone {
+    position: static;
+    justify-content: flex-start;
+  }
+
+  body.tab-teachmate header .header-right-zone > #appTitle {
+    position: static;
+    left: auto;
+    margin: 0 4px 0 0;
+    max-width: min(32vw, 360px);
+    text-align: left;
+    transform: none;
+  }
+
+  body.tab-teachmate header .header-right-zone > #tmHeaderSearchBtn {
+    position: relative;
+    z-index: 1;
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 860px) {
+  header .header-left-zone .nav-tab-switcher .tab-btn[data-tab="workbench"] {
+    font-size: 13px !important;
+  }
+}
+
+/* ---------- 视觉收敛基础层 ----------
+   新增样式只使用语义 token，不继续扩大 !important 覆盖范围。 */
+:root {
+  --wb-control-height: 36px;
+  --wb-control-radius: 8px;
+  --wb-focus-ring: 0 0 0 3px rgba(66, 98, 255, .22);
+  --wb-surface-soft: #f7f8fa;
+  --wb-border-soft: #e0e2e8;
+  --wb-text-muted: #69728a;
+}
+
+body:not(.tab-teachmate) .btn:not(.btn-sm),
+body:not(.tab-teachmate) .toolbar input,
+body:not(.tab-teachmate) .toolbar select,
+body:not(.tab-teachmate) .jump-select {
+  min-height: var(--wb-control-height);
+  border-radius: var(--wb-control-radius);
+}
+
+body:not(.tab-teachmate) .btn:focus-visible,
+body:not(.tab-teachmate) input:focus-visible,
+body:not(.tab-teachmate) select:focus-visible,
+body:not(.tab-teachmate) textarea:focus-visible,
+body:not(.tab-teachmate) [contenteditable="true"]:focus-visible,
+body.tab-teachmate .tm-send-btn:focus-visible,
+body.tab-teachmate .tm-input:focus-visible,
+body.tab-teachmate .tm-suggestion-card:focus-visible {
+  outline: 2px solid #4262ff;
+  outline-offset: 2px;
+}
+
+body:not(.tab-teachmate) .empty {
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+body.tab-teachmate .tm-welcome h2 {
+  font-size: clamp(24px, 6vw, 38px);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  body:not(.tab-teachmate) header .header-left-zone .nav-tab-switcher {
+    width: 124px;
+  }
+
+  body:not(.tab-teachmate) header .header-left-zone .nav-tab-switcher .tab-btn {
+    padding-left: 4px;
+    padding-right: 4px;
+    font-size: 11px;
+  }
+
+  body:not(.tab-teachmate) .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  body:not(.tab-teachmate) .kpi {
+    padding: 12px;
+  }
+
+  body:not(.tab-teachmate) .kpi-value {
+    font-size: 20px;
+  }
+
+  body.tab-teachmate .tm-welcome {
+    padding: 18px 12px 22px;
+  }
+}

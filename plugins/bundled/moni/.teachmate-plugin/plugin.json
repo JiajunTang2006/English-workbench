@@ -1,0 +1,28 @@
+{
+  "id": "moni",
+  "display_name": "MONI 学生数据",
+  "description": "通过只读 MCP 读取已授权的学生、班级和教学数据。",
+  "version": "1.0.0",
+  "api_version": "teachmate-plugin/v1",
+  "source": "bundled",
+  "runtime": {
+    "transport": "http",
+    "url": "https://t-mcp.fufenxi.com/api/t-mcp/mcp",
+    "bearer_token_env_var": "MONI_MCP_TOKEN",
+    "bearer_token_profile": "moni",
+    "require_bearer_token": true
+  },
+  "permissions": ["teaching.read"],
+  "capabilities": [
+    {"id": "moni_vfs_glob", "name": "发现授权数据路径"},
+    {"id": "moni_vfs_grep", "name": "检索授权文本"},
+    {"id": "moni_vfs_list", "name": "列出授权目录"},
+    {"id": "moni_vfs_man", "name": "读取数据目录说明"},
+    {"id": "moni_vfs_query_jsonl", "name": "查询学生 JSONL 数据"},
+    {"id": "moni_vfs_read", "name": "读取授权数据文件"}
+  ],
+  "skills": [],
+  "removable": false,
+  "enabled_by_default": true,
+  "ui_visible": false
+}

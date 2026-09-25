@@ -1,0 +1,14 @@
+{
+  "id": "review_plan",
+  "display_name": "复习计划",
+  "description": "把分析结果整理成可执行的复习安排。",
+  "version": "1.0.0",
+  "api_version": "teachmate-plugin/v1",
+  "source": "bundled",
+  "runtime": {"transport": "internal", "capability": "review_plan"},
+  "permissions": ["teaching.read"],
+  "capabilities": [{"id": "review_plan", "name": "复习计划"}],
+  "skills": ["build-review-plan"],
+  "removable": false,
+  "enabled_by_default": true
+}

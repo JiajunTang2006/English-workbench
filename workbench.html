@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="vdAJXhuSHk4FknN8glXxHG">
+<head data-page-node-id="q2xCyjRd7VP1tHqmUgMff6">
+  <meta charset="UTF-8" data-page-node-id="kobVC3TGGtT6DHkbsyllXl">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" data-page-node-id="NSxETcZ9x5b8eljEM9BaKh">
+  <title>英语教学工作台</title>
+  <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="2go5hNGxAbkV9fQscVy51z">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" data-page-node-id="QXHyjcz630BSgFf4hgyHaE">
+  <meta name="theme-color" content="#f5f0e8" data-page-node-id="L8AtsB6aZT010EeR3sktYt">
+  <link rel="icon" type="image/png" sizes="64x64" href="./workbench-assets/app-icon-64.png?v=202608190930" data-page-node-id="yLsbV2Rm3oerHGQtYKuk4I">
+  <link rel="apple-touch-icon" sizes="256x256" href="./workbench-assets/app-icon-256.png?v=202608190930" data-page-node-id="hpMImaFoUejqitaBreZGoC">
+  <link rel="stylesheet" href="./workbench-assets/material-symbols-rounded.css?v=202608190930" data-page-node-id="mqSjTGk9ozNAL6FVSwaBXS">
+  <link rel="stylesheet" href="./workbench-assets/workbench-app.css?v=202609032030" data-page-node-id="SGX62B7nX7mDQFpjEwpUkt">
+  <link rel="stylesheet" href="./workbench-assets/teachmate.css?v=202609032030" data-page-node-id="vf1jJ4zLH0QLF1MDILsxg4">
+  <link rel="stylesheet" href="./workbench-assets/workbench-enhancements.css?v=202608311050" data-page-node-id="qnuapGhmTR9Yh2pBKG1zqu">
+  <link rel="stylesheet" href="./workbench-assets/theme-warm-paper.css?v=202609031935" data-page-node-id="R4im9U9krVbUB0IKsG8YpJ">
+  <link rel="stylesheet" href="./workbench-assets/workbench-growth.css?v=20260925-forest-1">
+</head>
+<body data-page-node-id="B2RLuPdirmTu8z9q5Xceh9">
+  <div id="app" data-page-node-id="oediQpjFotjbESA0frGj8H">
+    <header data-page-node-id="TBL8tcKbKXCSmnVft0yE3w">
+      <div class="header-left-zone" data-page-node-id="5IR3WIQHI9XgHY6PGe3Bv6">
+        <button class="menu-btn btn-icon" id="menuBtn" aria-label="打开导航菜单" title="打开导航菜单" data-page-node-id="FqENYItYjkNif5nET1ZULT"><span class="material-symbols-rounded" aria-hidden="true" data-page-node-id="sIDBbqRL9sIM9uOMOAxTRA">menu</span></button>
+        <button class="sidebar-header-toggle" id="sidebarToggle" type="button" aria-label="收起左侧菜单" aria-expanded="true" title="收起左侧菜单" data-page-node-id="WF7HVsjefPnolY5TDgScMK"><span class="material-symbols-rounded" aria-hidden="true" data-page-node-id="ufoZIbdng1nYi2pQA5WN9J">view_sidebar</span></button>
+        <div id="headerTabSwitcher" class="header-tab-switcher" data-page-node-id="CNfrlcZbJx6JKUw0MzPq91"></div>
+      </div>
+      <div class="header-right-zone" data-page-node-id="Wsa5NldTTNsFSEqddNuLUt">
+        <h1 id="appTitle" data-page-node-id="XLEvUsdokZ1lyncFV5TjY1">英语教学工作台</h1>
+        <div class="header-context" aria-label="当前工作范围" data-page-node-id="6sKQc1PsrSDGXZciDlx2nG">
+          <div class="term-switcher" id="termSwitcher" hidden data-page-node-id="SCRhGh0uPAc93Ht39OGvWM">
+            <span class="material-symbols-rounded" aria-hidden="true" data-page-node-id="XydFa4KLwHXNDJ6QVJSRWU">calendar_month</span>
+            <select id="termSelect" aria-label="切换当前学期" data-page-node-id="LxiyqKbnkxNKooNhPQ5386"></select>
+            <button id="termAddBtn" class="term-add" type="button" data-act="term-add" aria-label="新建学期" title="新建学期" data-page-node-id="AC4rrzUXZR3aHqF9Diqg0V">+</button>
+          </div>
+          <div class="class-switcher" data-page-node-id="RRbb2ngdPJA0q6RkmlsMqk">
+            <span class="material-symbols-rounded" aria-hidden="true" data-page-node-id="Ei0xDLUJgrENgdKM1uWxCZ">groups</span>
+            <select id="classSelect" aria-label="切换当前班级" data-page-node-id="4z3v5xUhPfjGZbwlpMGmiD"><option value="" data-page-node-id="qWWmR3oQakQuadlzbqGCIB">全部班级</option></select>
+          </div>
+        </div>
+        <div class="right" data-page-node-id="OzKMb4arHicAwBNqN1cRhn">
+          <!-- 保留可访问的使用者标识，视觉上不占位；姓名仍由“班级与设置”维护。 -->
+          <span id="userNameLabel" class="sr-only" aria-live="polite" data-page-node-id="6whnr4THXJPyTxE3HSxO6i">使用者</span>
+          <button id="importBtn" class="interactive" aria-label="导入名单或成绩" data-page-node-id="8BMSTfuNy2zEPndEnXo218"><span class="material-symbols-rounded" aria-hidden="true" data-page-node-id="yXqdPym9Hw7cCsDb0WSKwY">upload_file</span>导入数据</button>
+          <button id="exportBtn" class="interactive" aria-label="打开导出中心" data-page-node-id="yaNLG1FNAr3DBwCQRPKguH"><span class="material-symbols-rounded" aria-hidden="true" data-page-node-id="lif8NQmFkfhlO0nhcBClQh">download</span>导出中心</button>
+          <button id="backupBtn" class="interactive" aria-label="打开备份和恢复" data-page-node-id="lDNrIwVrGyoYZdSLSFcPys"><span class="material-symbols-rounded" aria-hidden="true" data-page-node-id="WNY7Olfm2t9xRh7298tCbD">settings_backup_restore</span>备份/恢复</button>
+        </div>
+      </div>
+    </header>
+    <div class="overlay" id="overlay" data-page-node-id="VUzpSjTs0kwSsc2Wa2tU6F"></div>
+    <div class="container" data-page-node-id="xonWcxfFnOsR41xajptKlT">
+      <aside id="sidebar" data-page-node-id="uFu0a6Z52HCqjDBAlxQrOc">
+        <nav id="nav" data-page-node-id="Rs0rNSbJhs6mVypUN68tAo"></nav>
+      </aside>
+      <main id="workarea" data-page-node-id="ezJCUHYwCO1RK3jbwrb2NF"></main>
+    </div>
+  </div>
+
+  <div class="modal" id="modal" data-page-node-id="kbiGILlkQG6usfTBY65ARp">
+    <div class="modal-content" data-page-node-id="9H82QNa2ED7ao58ZoATwXg">
+      <div class="modal-header" data-page-node-id="uDWorCgMPz2hDnPFIYL5nQ"><h3 id="modalTitle" data-page-node-id="4w4QzrPLfjDBStchh0tn77">标题</h3><button class="btn btn-icon btn-text" id="modalClose" aria-label="关闭弹窗" title="关闭" data-page-node-id="TCmFdGwHQPN9AnvpFhCiku"><span class="material-symbols-rounded" aria-hidden="true" data-page-node-id="x4KgQliMt2sJAqMRyhIQEm">close</span></button></div>
+      <div class="modal-body" id="modalBody" data-page-node-id="58x9AJ6U27ULqYZ6BOdEHi"></div>
+      <div class="modal-footer" id="modalFooter" data-page-node-id="mx1zOll4EBGI8TgfvpnGGc"></div>
+    </div>
+  </div>
+  <input type="file" id="fileInput" style="display:none" accept=".xlsx,.xls,.csv,.json" multiple data-page-node-id="hjjcJ8zbxykKM7jphulrHk">
+  <div class="toast" id="toast" data-page-node-id="o64c9fCIiPNECOdSvGUOJt"></div>
+
+  <script src="./workbench-assets/workbench-core.js?v=20260925-forest-1"></script>
+  <script src="./workbench-assets/teachmate-api.js?v=202609031255"></script>
+  <script src="./workbench-assets/teachmate-events.js?v=202608190930"></script>
+  <script src="./workbench-assets/teachmate-state.js?v=202609031820"></script>
+  <script src="./workbench-assets/teachmate-report.js?v=202609011355"></script>
+  <script src="./workbench-assets/teachmate-evidence.js?v=202608190930"></script>
+  <script src="./workbench-assets/teachmate-onboarding.js?v=202608272000"></script>
+  <script src="./workbench-assets/teachmate-a11y.js?v=202608190930"></script>
+  <script src="./workbench-assets/workbench-views.js?v=20260925-export-1"></script>
+  <script src="./workbench-assets/workbench-growth.js?v=20260925-forest-1"></script>
+  <script src="./workbench-assets/teachmate-views.js?v=202609031828"></script>
+  <script src="./workbench-assets/workbench-interactions.js?v=20260925-export-1"></script>
+  <script src="./workbench-assets/teachmate-tutorials.js?v=202609021800"></script>
+  <script src="./workbench-assets/teachmate-interactions.js?v=202609031255"></script>
+  <script src="./workbench-assets/workbench-enhancements.js?v=202609031305"></script>
+</body>
+</html>

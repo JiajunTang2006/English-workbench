@@ -1,0 +1,19 @@
+# TeachMate is a patch over the standard Web profile. The shipped preset is
+# available in the roster; this overlay makes it the default for this run.
+
+- id: agent-presets
+  config:
+    default: teachmate
+
+- id: webserver
+  config:
+    host: 127.0.0.1
+    # The legacy WorkBench launcher supplies the public browser port. Keep a
+    # standalone default for direct `dsh web` development runs.
+    port: !!js Number(process.env.TEACHMATE_UI_PORT ?? 3082)
+
+# TeachMate-only browser surface. The standard Web profile stays unchanged;
+# this row is added only by the TeachMate overlay.
+- insert:
+    - id: ui-education
+      name: '@deepseek-ai/dsh-client-ui-education'

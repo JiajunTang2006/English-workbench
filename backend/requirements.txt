@@ -1,0 +1,36 @@
+# ================================================================
+# English Workbench 后端依赖（运行 + 测试）
+#
+# 正式事实源：backend/pyproject.toml 的 [project].dependencies
+# 与 [project.optional-dependencies].test。
+# 固定版本锁定文件：backend/requirements.lock（干净环境安装后生成）。
+#
+# Harness SDK 与 Runtime 来自仓库内 vendor/（editable 安装，不从 PyPI 下载）：
+#   pip install -e vendor/deepseek-harness-upstream/python/sdk
+#   pip install -e vendor/deepseek-harness-upstream/python/sdk-runtime
+# 完整安装顺序见 README.md「首次安装」。
+# 桌面软件打包额外安装：pip install 'pywebview>=5.3,<7' 'pystray>=0.19,<1'
+# ================================================================
+
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+pydantic>=2.7,<3
+sqlalchemy>=2.0,<3
+alembic>=1.13,<2
+httpx>=0.27,<1
+jsonschema>=4.23,<5
+Pillow>=10,<13
+openpyxl>=3.1,<4
+pdfplumber>=0.11,<1
+# PDF 页面渲染（扫描件 OCR / 试卷录入统一入口）：自带 pdfium 动态库，
+# 避免依赖用户机器上的 Poppler/pdftoppm（参考 Windows 包未携带）。
+pypdfium2>=4,<6
+# multipart 流式附件上传（B2-04）
+python-multipart>=0.0.20,<1
+
+# --- 测试依赖（与 pyproject [project.optional-dependencies].test 一致） ---
+pytest>=8
+pytest-asyncio>=0.24,<1
+# httpx2：starlette.testclient 1.4+ 的官方测试客户端依赖，
+# 与 httpx 共存，消除弃用警告
+httpx2>=2,<3

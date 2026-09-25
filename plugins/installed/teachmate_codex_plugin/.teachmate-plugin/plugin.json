@@ -1,0 +1,32 @@
+{
+  "id": "teachmate_codex_plugin",
+  "name": "teachmate-codex-plugin",
+  "version": "0.1.3",
+  "api_version": "teachmate-plugin/v1",
+  "display_name": "TeachMate 教学事实插件",
+  "description": "将 TeachMate 的确定性教学事实与证据化工作流以只读方式暴露给 Codex。",
+  "runtime": {
+    "transport": "stdio",
+    "command": "python3",
+    "args": ["-m", "server"],
+    "cwd": ".",
+    "env": {
+      "TEACHMATE_PLUGIN_BASE_URL": "http://127.0.0.1:8765"
+    }
+  },
+  "permissions": ["teaching.read"],
+  "capabilities": [
+    {"id": "analyze-exam", "type": "skill"},
+    {"id": "diagnose-student", "type": "skill"},
+    {"id": "build-review-plan", "type": "skill"},
+    {"id": "generate-personalized-practice", "type": "skill"}
+  ],
+  "auth": {
+    "type": "teaching.read",
+    "pairing": true,
+    "pair_endpoint": "/api/v1/plugin/auth/pair"
+  },
+  "read_only": true,
+  "enabled_by_default": false,
+  "removable": true
+}

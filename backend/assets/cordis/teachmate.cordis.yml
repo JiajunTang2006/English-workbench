@@ -1,0 +1,23 @@
+# TeachMate 专用 Harness 配置（归档参考）
+
+> 注意：实际生效配置由 Harness 启动时**运行时生成**（见
+> `backend/app/agent/runtime/harness_runtime.py::_render_teachmate_cordis`，
+> 写入 `<data_dir>/harness-cordis/teachmate.cordis.yml`）。原因是 Node ESM 的
+> 包解析以 cordis 文件所在目录为基准，backend 侧没有 @deepseek-ai 闭包，
+> 因此生成器把每个插件渲成 file:// 绝对 URL（指向 vendored 闭包）。
+>
+> 本文件仅作安全基线文档（B3-03 的验收约束）：
+> - 白名单教学工具：education-bridge 插件（get_exam_overview /
+>   get_score_distribution / get_question_list / get_student_trend /
+>   get_risk_signals / get_wrong_questions / get_formal_attachment /
+>   submit_report）；
+> - agent-spine：toolBash=false、toolJobs=false、skills disabled；
+> - scope 只能来自服务器注入文件（DSH_EDUCATION_SCOPE_ROOT/<sessionId>.json
+>   或单活动 scope 文件），模型参数中出现 scope 键在 bridge_cli 内被拒绝。
+
+Base plugins required（vendored @deepseek-ai/*）：
+sdk-jsonrpc-server, llm-deepseek, agent-spine-demo, session-persistence-jsonl,
+session-checkpoint-policy, subprocess-local, bash-local（禁用）, subagent,
+subagent-spawn-in-process, tool-subagent, tool-todo, fs-local,
+fs-observation-policy, tool-fs, token-meter, compaction-basic, tools
+（ToolRuntime 服务提供者）。

@@ -1,0 +1,18 @@
+{
+  "name": "english-workbench",
+  "private": true,
+  "version": "0.9.0-beta.2",
+  "description": "Offline English teaching workbench",
+  "scripts": {
+    "test": "node --test tests/*.js",
+    "test:e2e": "node --no-warnings tools/run_playwright.js",
+    "check": "node tools/check_syntax.js",
+    "test:backend": "cd backend && ../.venv/bin/python -m pytest -q",
+    "release_check": "python3 tools/release_check.py"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "jsdom": "^26.1.0",
+    "playwright": "^1.62.1"
+  }
+}

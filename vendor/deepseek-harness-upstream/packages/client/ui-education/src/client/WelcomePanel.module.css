@@ -1,0 +1,76 @@
+.panel {
+  width: min(100%, 760px);
+  margin: 0 auto 14px;
+  padding: 18px 20px 16px;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, var(--dsw-alias-border-l1));
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 14% 12%, color-mix(in srgb, #f7c948 24%, transparent), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--dsw-alias-bg-layer-1) 96%, #fff), var(--dsw-alias-bg-base));
+  box-shadow: 0 14px 40px color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent);
+}
+
+.heading {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.title {
+  color: var(--dsw-alias-label-primary);
+  font-size: clamp(20px, 2.6vw, 28px);
+  font-weight: 720;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.card {
+  display: grid;
+  gap: 4px;
+  min-height: 76px;
+  padding: 13px 14px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.card:hover {
+  border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 42%, var(--dsw-alias-border-l1));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent);
+  transform: translateY(-1px);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}
+
+.cardTitle { font-size: 14px; font-weight: 650; }
+.cardDescription { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 17px; }
+.exam { background: color-mix(in srgb, #f7c948 16%, var(--dsw-alias-bg-layer-1)); }
+.lesson { background: color-mix(in srgb, #22c7b8 14%, var(--dsw-alias-bg-layer-1)); }
+.assignment { background: color-mix(in srgb, #f15bb5 12%, var(--dsw-alias-bg-layer-1)); }
+.speaking { background: color-mix(in srgb, #5578f6 13%, var(--dsw-alias-bg-layer-1)); }
+
+@media (max-width: 760px) {
+  .panel { border-radius: 16px; padding: 15px; }
+  .grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } }

@@ -1,0 +1,14 @@
+{
+  "id": "student_diagnosis",
+  "display_name": "学生诊断",
+  "description": "支持全班批量或点名单人诊断；全班方案经教师确认后生成学生画像和个性化建议。",
+  "version": "1.2.0",
+  "api_version": "teachmate-plugin/v1",
+  "source": "bundled",
+  "runtime": {"transport": "internal", "capability": "student_diagnosis"},
+  "permissions": ["teaching.read"],
+  "capabilities": [{"id": "student_diagnosis", "name": "学生诊断"}],
+  "skills": ["diagnose-student"],
+  "removable": false,
+  "enabled_by_default": true
+}

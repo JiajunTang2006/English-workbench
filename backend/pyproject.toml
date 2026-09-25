@@ -1,0 +1,36 @@
+[project]
+name = "english-workbench-backend"
+version = "0.9.0-beta.2"
+description = "Local FastAPI service for English Workbench"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "pydantic>=2.7,<3",
+  "sqlalchemy>=2.0,<3",
+  "alembic>=1.13,<2",
+  "httpx>=0.27,<1",
+  "jsonschema>=4.23,<5",
+  "Pillow>=10,<13",
+  "openpyxl>=3.1,<4",
+  "pdfplumber>=0.11,<1",
+  # PDF 页面渲染（扫描件 OCR / 试卷录入统一入口）：自带 pdfium 动态库，
+  # 避免依赖用户机器上的 Poppler/pdftoppm。
+  "pypdfium2>=4,<6",
+  # multipart 流式附件上传（B2-04）
+  "python-multipart>=0.0.20,<1",
+  # DeepSeek Harness SDK (editable install from vendor/)
+  "deepseek-harness-sdk>=0.0.0.dev0",
+  "deepseek-harness-runtime-bin>=0.0.0.dev0",
+]
+
+[project.optional-dependencies]
+# httpx2：starlette.testclient 在 1.4+ 将 httpx 标记为弃用；安装 httpx2
+# 后 TestClient 自动切换并消除 StarletteDeprecationWarning（S0-07）。
+test = ["pytest>=8", "pytest-asyncio>=0.24,<1", "httpx>=0.27", "httpx2>=2,<3"]
+# 原生桌面窗口仅在打包或希望本地内嵌运行时安装；未安装时启动器会回退浏览器。
+desktop = ["pywebview>=5.3,<7", "pystray>=0.19,<1"]
+
+[tool.pytest.ini_options]
+pythonpath = [".."]
+testpaths = ["tests"]

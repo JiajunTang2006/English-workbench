@@ -1,0 +1,14 @@
+{
+  "id": "exam_analysis",
+  "display_name": "考试分析",
+  "description": "分析整体成绩、分数段和薄弱知识点。",
+  "version": "1.0.0",
+  "api_version": "teachmate-plugin/v1",
+  "source": "bundled",
+  "runtime": {"transport": "internal", "capability": "exam_analysis"},
+  "permissions": ["teaching.read"],
+  "capabilities": [{"id": "exam_analysis", "name": "考试分析"}],
+  "skills": ["analyze-exam"],
+  "removable": false,
+  "enabled_by_default": true
+}
