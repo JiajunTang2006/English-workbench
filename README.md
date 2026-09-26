@@ -19,12 +19,6 @@ English Workbench 把这条链路放进一个本地工作台：以**学期、班
 | macOS | 12 及以上 · Apple Silicon（arm64） | [EnglishWorkBench_macOS_arm64_Blank_0.9.0-beta.2.dmg](https://github.com/JiajunTang2006/English-workbench/releases/download/v0.9.0-beta.2/EnglishWorkBench_macOS_arm64_Blank_0.9.0-beta.2.dmg) | 约 157 MB |
 | Windows | 10 / 11 · x64 | [EnglishWorkBench_Windows_x64_Blank_0.9.0-beta.2.zip](https://github.com/JiajunTang2006/English-workbench/releases/download/v0.9.0-beta.2/EnglishWorkBench_Windows_x64_Blank_0.9.0-beta.2.zip) | 约 54 MB |
 
-SHA-256 校验值：
-
-```text
-8a276345814def6de642187e95f07e53f0e7e74cebca42600ce9d66ce05e96d2  EnglishWorkBench_macOS_arm64_Blank_0.9.0-beta.2.dmg
-4616325d1fb29d397c92792521fa0989b9d4fd0324d042c0a4eac4adb00b2807  EnglishWorkBench_Windows_x64_Blank_0.9.0-beta.2.zip
-```
 
 历史版本见 [Releases](https://github.com/JiajunTang2006/English-workbench/releases)。
 
@@ -85,7 +79,5 @@ SHA-256 校验值：
 - **只覆盖单一学科。** 适配其他学科需要调整数据字段、知识条目与评价规则，并重新验证。
 
 ## 仓库与许可
-
-本仓库为空白版源码快照，保留应用代码、构建脚本、测试与文档；不包含教师或学生数据库、附件、密钥与测试数据。回归测试使用代码生成的合成数据，不需要真实学生资料。
 
 第三方资源的版本与许可见 [workbench-assets/THIRD_PARTY_NOTICES.md](workbench-assets/THIRD_PARTY_NOTICES.md)，完整性校验见 [workbench-assets/checksums.sha256](workbench-assets/checksums.sha256)。
