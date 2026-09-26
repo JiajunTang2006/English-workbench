@@ -133,13 +133,29 @@ ZIP_PATH="release/${NAME}.app.zip"
 rm -f "$ZIP_PATH"
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
 
+# ── Package as DMG (macOS distribution) ──────────────────────────────
+# 拖拽式安装镜像：内含 app 本体与指向 /Applications 的软链接。
+echo "→ Creating DMG installer..."
+DMG_PATH="release/${NAME}_macOS_arm64_Blank_${VERSION}.dmg"
+DMG_STAGE="$ROOT/build/dmg-stage"
+rm -rf "$DMG_STAGE" 2>/dev/null || true
+mkdir -p "$DMG_STAGE"
+ditto "$APP_PATH" "$DMG_STAGE/${NAME}.app"
+ln -sfn /Applications "$DMG_STAGE/Applications"
+rm -f "$DMG_PATH"
+hdiutil create -volname "English Workbench" \
+  -srcfolder "$DMG_STAGE" -ov -format UDZO "$DMG_PATH"
+rm -rf "$DMG_STAGE" 2>/dev/null || true
+
 # ── Build summary ────────────────────────────────────────────────────
 ZIP_SIZE=$(du -sh "$ZIP_PATH" | cut -f1)
 APP_SIZE=$(du -sh "$APP_PATH" | cut -f1)
+DMG_SIZE=$(du -sh "$DMG_PATH" | cut -f1)
 echo ""
 echo "════════════════════════════════════════════════════"
 echo "  ✅ Build complete!"
 echo "  App : $RELEASE_APP ($APP_SIZE)"
 echo "  Zip : $ZIP_PATH ($ZIP_SIZE)"
+echo "  Dmg : $DMG_PATH ($DMG_SIZE)"
 echo "  Date: $BUILD_TIME"
 echo "════════════════════════════════════════════════════"
