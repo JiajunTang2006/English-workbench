@@ -1,6 +1,7 @@
 """Apply a students-table JSON snapshot to an existing WorkBench term safely.
 
-Only the entrance English score is updated. The roster must match exactly;
+Entrance English scores and explicitly supplied genders are updated.
+Missing gender fields preserve existing values. The roster must match exactly;
 exam results, growth events and teacher notes are never read from the snapshot.
 """
 
@@ -12,10 +13,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from backend.app.auth import TOKEN
 from backend.app.config import Settings
 from backend.app.factory import create_app
+from backend.app.models import Student
 from backend.app.services.backups import create_backup, verify_backup
 
 
@@ -53,7 +56,8 @@ def main() -> None:
                       attachments_dir=settings.attachments_dir,
                       exports_dir=settings.exports_dir)
         verify_backup(backup_dir)
-    client = TestClient(create_app(settings))
+    app = create_app(settings)
+    client = TestClient(app)
     headers = {"Authorization": f"Bearer {TOKEN}"}
     term = client.get("/api/v1/terms/current", headers=headers)
     term.raise_for_status()
@@ -72,16 +76,33 @@ def main() -> None:
     changes = [(number, existing[number].get("english"), score)
                for number, score in scores.items()
                if score is not None and existing[number].get("english") != score]
+    # A missing gender field means this snapshot has no gender update. Only an
+    # explicit value (including null to clear it) may change the stored value.
+    genders = {str(row["student_no"]): row["gender"]
+               for row in rows if "gender" in row}
+    with app.state.session_factory() as session:
+        db_students = {student.student_no: student for student in session.scalars(select(Student)).all()}
+        gender_changes = [(number, db_students[number].gender, gender)
+                          for number, gender in genders.items()
+                          if number in db_students and db_students[number].gender != gender]
     print(json.dumps({"term_id": term_id, "students": len(scores),
-                      "entrance_score_changes": len(changes), "sample": changes[:5]}, ensure_ascii=False))
-    if not args.apply or not changes:
+                      "entrance_score_changes": len(changes), "gender_changes": len(gender_changes),
+                      "sample": changes[:5]}, ensure_ascii=False))
+    if not args.apply or (not changes and not gender_changes):
         return
 
-    for number, _old, score in changes:
-        existing[number]["english"] = score
-    result = client.put(endpoint, headers=headers,
-                        json={"state": state, "expected_revision": payload["revision"]})
-    result.raise_for_status()
+    if changes:
+        for number, _old, score in changes:
+            existing[number]["english"] = score
+        result = client.put(endpoint, headers=headers,
+                            json={"state": state, "expected_revision": payload["revision"]})
+        result.raise_for_status()
+    if gender_changes:
+        with app.state.session_factory() as session:
+            db_students = {student.student_no: student for student in session.scalars(select(Student)).all()}
+            for number, _old, gender in gender_changes:
+                db_students[number].gender = gender
+            session.commit()
     saved = client.get(endpoint, headers=headers)
     saved.raise_for_status()
     saved_rows = {str(row["id"]): row for row in saved.json()["state"]["students"]}
@@ -89,7 +110,8 @@ def main() -> None:
         raise RuntimeError(f"写入后校验失败；备份位置：{backup_dir}")
     forest = client.get("/api/v1/growth/forest", headers=headers, params={"term_id": term_id})
     forest.raise_for_status()
-    print(json.dumps({"backup": str(backup_dir), "saved": len(changes),
+    print(json.dumps({"backup": str(backup_dir), "scores_saved": len(changes),
+                      "genders_saved": len(gender_changes),
                       "forest": forest.json()["summary"]}, ensure_ascii=False))
 
 
