@@ -34,9 +34,9 @@
 | 文件大小 | 约 54 MB |
 | SHA-256 | `4616325d1fb29d397c92792521fa0989b9d4fd0324d042c0a4eac4adb00b2807` |
 
-**空白版说明。** 与 macOS 版一致，不预置任何班级、学生、成绩或密钥，首次启动使用独立数据目录 `%APPDATA%\English Workbench Blank\`，不会读取或覆盖已有的工作台数据。
+**空白版说明。** 与 macOS 版一致：不预置数据库、学生信息、考试文件、对话、API Key 或导入记录；首次启动后数据写入 `%APPDATA%\English Workbench Blank\`。
 
-**安装（绿色免安装）。** 下载 zip 后**完整解压**（不要只把 exe 拖出来，程序依赖同目录的 `_internal/`），双击 `EnglishWorkBench.exe` 运行，可整体移动到任意目录。首次运行若出现 SmartScreen 提示，点击「更多信息 → 仍要运行」。构建步骤见 [WINDOWS_GUIDE.md](WINDOWS_GUIDE.md)。
+**安装（绿色版，无需安装）。** 右键 ZIP → 全部解压 → 双击 `EnglishWorkBench.exe`（或 `start_workbench.bat`）。这是 PyInstaller `onedir` 包，**必须保留整个解压目录**，不能只复制 EXE。首次运行若被 SmartScreen 拦截，点「更多信息 → 仍要运行」。关闭窗口只是隐藏到系统托盘，右键托盘图标选「完全退出」才会停止本地服务。构建细节见 [WINDOWS_GUIDE.md](WINDOWS_GUIDE.md)。
 
 ### 所有版本
 
