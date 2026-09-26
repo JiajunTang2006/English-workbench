@@ -24,11 +24,19 @@
 
 **安装。** 打开 DMG，把 `EnglishWorkBench` 拖进「应用程序」。首次打开若提示"无法验证开发者"，在「系统设置 → 隐私与安全性」中允许运行，或右键点击图标选择「打开」。
 
-### Windows
+### Windows（x64）
 
-> **Windows x64 空白版安装包正在准备中，完成后会在此处补充下载链接与 SHA-256 校验值。**
->
-> Windows 版需要在 Windows 10/11 x64 上构建（默认不需要 Node.js），脚本会生成 `release\EnglishWorkBench_Windows_x64_Blank_<版本>.zip`。构建步骤见 [WINDOWS_GUIDE.md](WINDOWS_GUIDE.md)。
+| 项目 | 内容 |
+| --- | --- |
+| 安装包 | [EnglishWorkBench_Windows_x64_Blank_0.9.0-beta.2.zip](https://github.com/JiajunTang2006/English-workbench/releases/download/v0.9.0-beta.2/EnglishWorkBench_Windows_x64_Blank_0.9.0-beta.2.zip) |
+| 版本 | 0.9.0-beta.2（空白版） |
+| 适用系统 | Windows 10 / 11 · x64 |
+| 文件大小 | 约 54 MB |
+| SHA-256 | `4616325d1fb29d397c92792521fa0989b9d4fd0324d042c0a4eac4adb00b2807` |
+
+**空白版说明。** 与 macOS 版一致，不预置任何班级、学生、成绩或密钥，首次启动使用独立数据目录 `%APPDATA%\English Workbench Blank\`，不会读取或覆盖已有的工作台数据。
+
+**安装（绿色免安装）。** 下载 zip 后**完整解压**（不要只把 exe 拖出来，程序依赖同目录的 `_internal/`），双击 `EnglishWorkBench.exe` 运行，可整体移动到任意目录。首次运行若出现 SmartScreen 提示，点击「更多信息 → 仍要运行」。构建步骤见 [WINDOWS_GUIDE.md](WINDOWS_GUIDE.md)。
 
 ### 所有版本
 
