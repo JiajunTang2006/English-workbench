@@ -212,7 +212,7 @@ def test_existing_term_keeps_its_rule_version(tmp_path):
     assert events.ensure_rule_version(session, term_id=term.id).code == "growth-v3"
 
 
-def test_manual_bonus_remains_available_and_is_capped(tmp_path):
+def test_manual_bonus_repeats_only_for_distinct_confirmed_requests(tmp_path):
     setup = basic_env.__wrapped__(tmp_path)
     session, term, student = (setup[key] for key in
                               ("session", "term", "strong"))
@@ -235,7 +235,7 @@ def test_manual_bonus_remains_available_and_is_capped(tmp_path):
         "student_id": student.id, "event_type": "teacher_bonus",
         "note": "独立完成课堂展示", "points": 3,
     }])
-    assert service.forest_rows(session, term_id=term.id)["students"][0]["term_points"] == 3
+    assert service.forest_rows(session, term_id=term.id)["students"][0]["term_points"] == 6
 
 
 def test_rule_binding_migration_preserves_old_term(tmp_path):
@@ -266,3 +266,35 @@ def test_rule_binding_migration_preserves_old_term(tmp_path):
             "SELECT rule_code FROM growth_term_rules WHERE term_id = :term_id"),
             {"term_id": legacy_term_id}).scalar_one()
     assert bound == "growth-v3"
+
+
+def test_new_manual_policy_preserves_historical_caps_and_automatic_allowance(tmp_path):
+    setup = basic_env.__wrapped__(tmp_path)
+    session, term, student = (setup[key] for key in ("session", "term", "strong"))
+    when = datetime(2026, 4, 1, 8, tzinfo=timezone.utc)
+    old_ids = []
+    for i in range(3):
+        old = events.record_event(session, student_id=student.id, term_id=term.id,
+                                  event_type="task_completed", occurred_at=when,
+                                  payload={"note": "历史补录"}, idempotency_key=f"old-{i}")
+        old_ids.append(old.id)
+    created = service.record_batch(session, term_id=term.id, request_id="new-policy", items=[{
+        "student_id": student.id, "event_type": "weekly_goal", "points": 50,
+        "note": "教师确认", "occurred_at": when.isoformat(),
+    }])
+    automatic = events.record_event(session, student_id=student.id, term_id=term.id,
+                                    event_type="exam_completed", occurred_at=when,
+                                    source_type="auto_exam", idempotency_key="auto-after-manual")
+    awards = {a.event_id: a for a in events.calculate_awards(
+        session, student_id=student.id, term_id=term.id)}
+    assert [awards[i].applied_points for i in old_ids] == [2, 2, 0]
+    assert awards[old_ids[-1]].cap_reason == "category_daily_awards"
+    assert awards[automatic.id].applied_points == 2
+    new_id = created["created"][0]["event_id"]
+    assert awards[new_id].applied_points == 50
+    service.reverse_event(session, term_id=term.id, event_id=new_id, reason="误录")
+    awards = {a.event_id: a for a in events.calculate_awards(
+        session, student_id=student.id, term_id=term.id)}
+    assert awards[new_id].applied_points == 0
+    assert [awards[i].applied_points for i in old_ids] == [2, 2, 0]
+    assert awards[automatic.id].applied_points == 2

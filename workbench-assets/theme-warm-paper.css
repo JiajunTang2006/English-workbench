@@ -1145,3 +1145,22 @@ body.tab-teachmate header {
   border-bottom-color: var(--wp-hair) !important;
   box-shadow: none !important;
 }
+
+/* 暖纸细节精修：延续原色彩与排版，仅增强边界、焦点与操作反馈。 */
+:root { --wp-shadow-lg: 0 24px 70px rgba(63, 48, 36, .16), 0 3px 12px rgba(63, 48, 36, .06); }
+button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--wp-sage); outline-offset: 3px;
+}
+aside nav button.nav-item { position: relative; }
+aside nav button.nav-item.active { box-shadow: inset 3px 0 0 var(--wp-clay) !important; }
+aside nav button.nav-item:not(.active):hover .material-symbols-rounded { color: var(--wp-clay); }
+.modal-content { border-radius: 18px; }
+#modalClose { border-radius: 50%; transition: background .18s, color .18s; }
+#modalClose:hover { background: var(--wp-clay-soft); color: var(--wp-clay); }
+input::placeholder, textarea::placeholder { color: #918579; opacity: 1; }
+input, select, textarea { transition: border-color .18s, box-shadow .18s; }
+#toast { border: 1px solid #ffffff35; box-shadow: 0 8px 28px #3f302424; line-height: 1.6; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

@@ -18,6 +18,9 @@
 
 存储整数点数，并保留「原本可得、实际入账、封顶原因」。补录或改分影响封顶
 分配时，按稳定的发生时间与事件 ID 顺序重算受影响日期/周。
+
+带 teacher_confirmed_v1 标记的新教师补录按确认分值完整计入，不占用自动奖励
+额度；既有未标记记录沿用原规则，撤销仍以原事件为依据。
 """
 
 from __future__ import annotations
@@ -290,6 +293,12 @@ def compute_awards(events: list[dict[str, Any]], *, rule: GrowthRuleVersion) -> 
             applied, reason = 0, "legacy"
         elif rule_def.get("reversal") or event.get("reverses_event_id"):
             applied, reason = 0, "reversal"
+        elif event.get("teacher_confirmed") and etype in MANUAL_EVENT_TYPES:
+            # New teacher-confirmed records bypass caps and do not consume the
+            # automatic/legacy allowance. Reversal handling above still applies.
+            proposed = max(0, proposed)
+            applied = proposed
+            progress_bonus = 0
         else:
             if rule_def.get("milestone"):
                 goal_weeks.add(week)

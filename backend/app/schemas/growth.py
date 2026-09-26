@@ -13,13 +13,13 @@ from pydantic import BaseModel, Field
 
 
 class GrowthActivityItem(BaseModel):
-    """单条教师补录。事由必填；自定义点数只用于教师加分。"""
+    """单条教师补录。事由必填；教师确认的正整数点数完整入账。"""
 
     student_id: int = Field(gt=0)
     event_type: str = Field(min_length=1, max_length=40)
     note: str = Field(min_length=1, max_length=500)
     occurred_at: str | None = None
-    points: int | None = Field(default=None, ge=1, le=3)
+    points: int | None = Field(default=None, ge=1)
 
 
 class GrowthActivityBatch(BaseModel):

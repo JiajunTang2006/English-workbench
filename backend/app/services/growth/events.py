@@ -194,6 +194,9 @@ def calculate_awards(session, *, student_id: int, term_id: int,
         "business_date": event.business_date,
         "proposed_points": (event.payload_json or {}).get("proposed_points"),
         "progress_points": (event.payload_json or {}).get("progress_points"),
+        "teacher_confirmed": (event.source_type == "teacher"
+                              and (event.payload_json or {}).get("scoring_mode")
+                              == "teacher_confirmed_v1"),
         "reverses_event_id": event.reverses_event_id,
     } for event in events]
     computed = rules.compute_awards(payloads, rule=rule)

@@ -1,0 +1,20 @@
+{
+  "entry_count": 122,
+  "file_hashes": {
+    "capability-points.md": "06cc48f28ae930710c7c4cdb960226a3e248be522906fc43ae702adc9b540fa6",
+    "cases-index.md": "111293077843b6cab1d7665301185bacbc0afab50cd9d9dfb345f6b5db2dd807",
+    "curriculum-2022/academic-quality.md": "8befaaca4f2e0f44a2ceabca724ad18e9b6f66995e44bc0d3044ee73984a5fee",
+    "curriculum-2022/competency.md": "21c402252b22ca5c0ce660eca84a9d718d264458d02609a17cd5128ae5ab09cc",
+    "curriculum-2022/culture-knowledge.md": "262a5c7f2ab2350878ec16dc59738b14d9a2b4cf6f2a3b9728f872713ad8ca68",
+    "curriculum-2022/grammar-taxonomy.md": "aa7a0ebcf4a45135534410946751c31511b1ae159f6e0e547cc9350c189e649d",
+    "curriculum-2022/language-knowledge.md": "40bfbc5e91f2fbcd6c74e79ed349a49a54a76f06e163a0c69195854d0257ddf1",
+    "curriculum-2022/skills-level3.md": "88b3f02d0e0c668b76dadf648441d2a03717560e8f3b0aaa299a420a36c9db9b",
+    "curriculum-2022/strategies-level3.md": "82a950ee72cf1460662aaa7624e2aecac1c57d7a0b39b6d359c8cee02b036524",
+    "curriculum-2022/themes.md": "75cf5662e9a5dde69efbfc0b34a5b0adea749d9c4c27a6f3edbe40cf33865176",
+    "exam-zhejiang-2025/error-cause-rules.md": "497d7957f310632deaff5593e1191d9a0776d35405b744d848252bd8406de0a7",
+    "exam-zhejiang-2025/exam-blueprint.md": "0c275100d4d866ddead9460f99e7bda040c3620453cebdeca91662f1cb47de47",
+    "exam-zhejiang-2025/question-types.md": "13ec49a50fe9e9804be11cf6864539e051ffad5d24839e5c5f388ec5e238d351",
+    "exam-zhejiang-2025/review-tasks.md": "4e5ff2356f5a9fc1f8994491b702af636429d8a71e6a3936604f4103d2a51e1f"
+  },
+  "schema_version": "1.0.0"
+}

@@ -1,0 +1,55 @@
+{
+  "reversal_cap": {
+    "awards": [
+      2,
+      2,
+      0,
+      -2
+    ],
+    "actual": 2,
+    "expected": 4
+  },
+  "reversed_streak": {
+    "awards": [
+      2,
+      2,
+      3,
+      -2
+    ],
+    "actual": 5,
+    "expected": 4
+  },
+  "score_correction": {
+    "sync": {
+      "created": 0,
+      "skipped": 2,
+      "students": []
+    },
+    "stored_progress": 2,
+    "expected_progress": 0
+  },
+  "resync_after_reversal": {
+    "created": 0,
+    "skipped": 2,
+    "students": []
+  },
+  "forest_read_sql": {
+    "students": 2,
+    "total_statements": 19,
+    "writes": {
+      "INSERT": 4,
+      "UPDATE": 1,
+      "DELETE": 2
+    }
+  },
+  "draft_pollution": {
+    "before": 0.6,
+    "after": 0.4,
+    "expected_after": 0.6
+  },
+  "revision_ignores_dimensions": {
+    "same_revision": true,
+    "before": "2c079cb691b227df142fd770e2dcfd96",
+    "after": "2c079cb691b227df142fd770e2dcfd96"
+  }
+}

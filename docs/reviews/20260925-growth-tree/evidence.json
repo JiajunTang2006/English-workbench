@@ -1,0 +1,60 @@
+{
+  "review_date": "2026-09-25",
+  "scope": "Current TeachMate changes and Windows reference growth-tree JavaScript; no Windows executable runtime validation",
+  "archive_name": "EnglishWorkBench_Windows_x64(1)(1).zip",
+  "archive_bytes": 58326439,
+  "archive_sha256": "320f5e9c3c501d811caa2a9070caa656c32eabbb89384c2d459e1e5b5e57bac5",
+  "forest_source_sha256": "da57af2ea21a84d86a32a3bea968d514c815a3fc25dab420f9e78546f50a964a",
+  "archive_contains_pdftoppm": false,
+  "archive_contains_pypdfium2": true,
+  "regression": {
+    "backend_selected_passed": 62,
+    "frontend_selected_passed": 47
+  },
+  "synthetic_reproductions": [
+    {
+      "case": "blank English score",
+      "actual_exam_points": 5,
+      "expected_exam_points": 0
+    },
+    {
+      "case": "absent and blank English score",
+      "actual_exam_points": 5,
+      "expected_exam_points": 0
+    },
+    {
+      "case": "missing English score, rank field 2",
+      "actual_exam_points": 5,
+      "expected_exam_points": 0
+    },
+    {
+      "case": "deduct 5 from zero",
+      "actual_points": -5
+    },
+    {
+      "case": "clone_workspace_state with forest.logs",
+      "actual": "old manual log retained in new term"
+    },
+    {
+      "case": "MONI initial rows for s1 and s2; filtered read succeeds only for s1",
+      "actual_item_counts": {
+        "s1": 1,
+        "s2": 0
+      },
+      "expected_item_counts": {
+        "s1": 1,
+        "s2": 1
+      }
+    },
+    {
+      "case": "change question knowledge tag after report snapshot",
+      "actual_freshness": "current",
+      "expected_freshness": "stale"
+    },
+    {
+      "case": "draft-only paper queried through two services",
+      "actual_score_details": "draft/complete",
+      "actual_item_results_http_status": 404
+    }
+  ]
+}

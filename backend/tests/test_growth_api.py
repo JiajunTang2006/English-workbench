@@ -79,24 +79,36 @@ def test_forest_reflects_recorded_activity(tmp_path):
     assert detail["pending_corrections"] == []
 
 
-def test_daily_category_cap_keeps_evidence_but_limits_points(tmp_path):
+def test_teacher_entries_bypass_category_daily_and_weekly_caps(tmp_path):
     client = TestClient(create_app(Settings(data_dir=tmp_path)))
     headers = auth_headers()
     term_id, _class_id, students = _seed_class(client, headers, names=("01",))
     student = students[0]
 
-    items = [_activity(student["id"]) for _ in range(4)]
+    items = [_activity(student["id"], points=7) for _ in range(7)]
     response = client.post("/api/v1/growth/activities", headers=headers, json={
         "term_id": term_id, "request_id": "req-cap", "items": items})
     assert response.status_code == 201, response.text
 
     detail = client.get(f"/api/v1/growth/students/{student['id']}", headers=headers,
                         params={"term_id": term_id}).json()
-    # 4 条记录全部保留（原始证据不因封顶丢失），但只有前两条入账
-    assert len(detail["records"]) == 4
-    assert detail["snapshot"]["term_points"] == 4
-    reasons = sorted(record["cap_reason"] for record in detail["records"])
-    assert reasons == ["category_daily_awards", "category_daily_awards", "none", "none"]
+    # Same day/category exceeds the former daily (10) and weekly (40) totals.
+    assert len(detail["records"]) == 7
+    assert detail["snapshot"]["term_points"] == 49
+    assert all(record["cap_reason"] == "none" for record in detail["records"])
+    assert all(record["scoring_mode"] == "teacher_confirmed_v1" for record in detail["records"])
+    assert all(row["applied_points"] == 7 for row in response.json()["created"])
+    retry = client.post("/api/v1/growth/activities", headers=headers, json={
+        "term_id": term_id, "request_id": "req-cap", "items": items}).json()
+    assert retry["created"] == []
+    assert len(retry["skipped"]) == 7
+    event_id = response.json()["created"][0]["event_id"]
+    reversal = client.post(f"/api/v1/growth/events/{event_id}/reverse", headers=headers,
+                           json={"term_id": term_id, "reason": "误录"})
+    assert reversal.status_code == 201
+    after = client.get(f"/api/v1/growth/students/{student['id']}", headers=headers,
+                       params={"term_id": term_id}).json()
+    assert after["snapshot"]["term_points"] == 42
 
 
 def test_duplicate_request_does_not_double_count(tmp_path):
@@ -146,8 +158,8 @@ def test_reversal_restores_points_and_blocks_double_reversal(tmp_path):
     assert again.status_code == 409
 
 
-def test_manual_entry_requires_reason_and_cannot_inflate_points(tmp_path):
-    """空分/缺考不产生奖励；补录必须有事由，且不能手工刷分。"""
+def test_manual_entry_requires_reason_and_positive_confirmed_points(tmp_path):
+    """补录要求事由和正整数分值，允许教师确认超过旧上限的奖励。"""
     client = TestClient(create_app(Settings(data_dir=tmp_path)))
     headers = auth_headers()
     term_id, _class_id, students = _seed_class(client, headers, names=("01",))
@@ -159,7 +171,7 @@ def test_manual_entry_requires_reason_and_cannot_inflate_points(tmp_path):
         "items": [{"student_id": student["id"], "event_type": "task_completed", "note": ""}]})
     assert blank.status_code == 422
 
-    # 非课堂观察类型忽略自定义点数，固定按规则 +2
+    # 各补录类别均使用教师确认的分值
     inflated = client.post("/api/v1/growth/activities", headers=headers, json={
         "term_id": term_id, "request_id": "req-inflate",
         "items": [{"student_id": student["id"], "event_type": "task_completed",
@@ -170,12 +182,18 @@ def test_manual_entry_requires_reason_and_cannot_inflate_points(tmp_path):
     assert detail["snapshot"]["term_points"] == 2
     assert detail["records"][0]["proposed_points"] == 2
 
-    # 课堂观察可显式给 1–2 分，超出范围被 schema 拒绝
+    # 课堂观察的确认分值也不再受旧的 1–2 分范围限制
     out_of_range = client.post("/api/v1/growth/activities", headers=headers, json={
         "term_id": term_id, "request_id": "req-obs-bad",
         "items": [{"student_id": student["id"], "event_type": "teacher_observation",
                    "note": "课堂主动回答", "points": 5}]})
-    assert out_of_range.status_code == 422
+    assert out_of_range.status_code == 201
+    assert out_of_range.json()["created"][0]["applied_points"] == 5
+    for invalid in (0, -1, 1.5):
+        rejected = client.post("/api/v1/growth/activities", headers=headers, json={
+            "term_id": term_id,
+            "items": [_activity(student["id"], points=invalid)]})
+        assert rejected.status_code == 422
 
 
 def test_student_without_evidence_stays_at_seed(tmp_path):

@@ -916,7 +916,7 @@
         if (currentView) modalViewStack.push(currentView);
       }
       // 所有普通弹窗都从标准尺寸开始；学生明细打开后再单独加宽。
-      content?.classList.remove('student-detail-modal', 'todo-import-modal', 'todo-edit-modal', 'tm-settings-modal-content', 'tm-teacher-confirm-modal');
+      content?.classList.remove('student-detail-modal', 'growth-detail-modal', 'todo-import-modal', 'todo-edit-modal', 'tm-settings-modal-content', 'tm-teacher-confirm-modal');
       document.getElementById('modalTitle').textContent = title;
       document.getElementById('modalBody').innerHTML = body;
       document.getElementById('modalFooter').innerHTML = footer;

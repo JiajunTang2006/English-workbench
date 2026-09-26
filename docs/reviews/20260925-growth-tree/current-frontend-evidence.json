@@ -1,0 +1,14 @@
+{
+  "currentTermId": 2,
+  "requests": [
+    "/api/v1/growth/forest?term_id=1"
+  ],
+  "state": {
+    "loaded": true,
+    "loading": false,
+    "data": {
+      "term_id": 1,
+      "students": []
+    }
+  }
+}

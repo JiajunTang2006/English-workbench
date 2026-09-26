@@ -95,6 +95,7 @@ def forest_rows(session, *, term_id: int, class_id: int | None = None) -> dict[s
         "term_id": term_id,
         "class_id": class_id,
         "rule_version": rule.code,
+        "manual_entry_policy": "teacher_confirmed_v1",
         "stages": [dict(item) for item in (rule.stage_thresholds_json or rules.DEFAULT_STAGES)],
         "summary": {
             "student_count": len(students),
@@ -133,6 +134,7 @@ def student_detail(session, *, term_id: int, student_id: int,
             "recorded_at": event.recorded_at.isoformat() if event.recorded_at else None,
             "business_date": event.business_date.isoformat(),
             "source_type": event.source_type,
+            "scoring_mode": payload.get("scoring_mode"),
             "source_id": event.source_id,
             "note": payload.get("note"),
             "legacy_points": payload.get("legacy_points"),
@@ -224,12 +226,11 @@ def record_batch(session, *, term_id: int, items: list[dict[str, Any]],
 
         occurred_at = _parse_datetime(item.get("occurred_at")) or now
         proposed = item.get("points")
-        if event_type == "teacher_bonus":
-            proposed = max(1, min(3, int(proposed or 1)))
-        elif event_type == "teacher_observation":
-            proposed = max(1, min(2, int(proposed or 1)))
-        else:
-            proposed = None
+        if proposed is None:
+            proposed = int(term_rule.event_rules_json[event_type].get("points") or 1)
+        if isinstance(proposed, bool) or not isinstance(proposed, int) or proposed < 1:
+            skipped.append({"index": index, "reason": "营养分值必须为正整数"})
+            continue
 
         idempotency_key = growth_events.make_idempotency_key(
             "growth-batch", request_id, index)
@@ -248,7 +249,10 @@ def record_batch(session, *, term_id: int, items: list[dict[str, Any]],
             class_id_at_event=enrollment.class_id,
             source_type="teacher",
             source_id=request_id,
-            payload={"note": note, "request_id": request_id},
+            # Version the per-event policy so historical capped entries retain
+            # their original meaning when the ledger is replayed.
+            payload={"note": note, "request_id": request_id,
+                     "scoring_mode": "teacher_confirmed_v1"},
             actor=actor,
             proposed_points=proposed,
             idempotency_key=idempotency_key,
@@ -262,6 +266,14 @@ def record_batch(session, *, term_id: int, items: list[dict[str, Any]],
 
     for student_id in {item["student_id"] for item in created}:
         snapshots.build_snapshot(session, student_id=student_id, term_id=term_id)
+        awards = {award.event_id: award for award in growth_events.calculate_awards(
+            session, student_id=student_id, term_id=term_id)}
+        for item in created:
+            if item["student_id"] == student_id:
+                award = awards[item["event_id"]]
+                item.update(applied_points=award.applied_points,
+                            proposed_points=award.proposed_points,
+                            cap_reason=award.cap_reason)
 
     return {"request_id": request_id, "created": created, "skipped": skipped}
 

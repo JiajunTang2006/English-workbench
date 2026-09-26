@@ -1,0 +1,1777 @@
+{
+  "AN-案例5": {
+    "credibility": "A",
+    "domain": "案例",
+    "file": "cases-index.md",
+    "level": "三级",
+    "source": "课标2022 附录5 案例5（PDF 第 173 页起）",
+    "tags": [
+      "单元整体教学",
+      "教学案例",
+      "初中",
+      "单元教学"
+    ],
+    "title": "7~9 年级单元整体教学设计（8 课时）"
+  },
+  "AN-案例6": {
+    "credibility": "A",
+    "domain": "案例",
+    "file": "cases-index.md",
+    "level": "三级",
+    "source": "课标2022 附录5 案例6",
+    "tags": [
+      "读写结合",
+      "教学案例",
+      "八年级",
+      "写作教学"
+    ],
+    "title": "8 年级读写结合教学设计 \"Healthy Living\"（2 课时）"
+  },
+  "AN-案例7": {
+    "credibility": "A",
+    "domain": "案例",
+    "file": "cases-index.md",
+    "level": "三级",
+    "source": "课标2022 附录5 案例7",
+    "tags": [
+      "对话语篇",
+      "教学案例",
+      "八年级",
+      "口语"
+    ],
+    "title": "8 年级对话语篇教学设计 \"A Picnic\"（1 课时）"
+  },
+  "AN-案例8": {
+    "credibility": "A",
+    "domain": "案例",
+    "file": "cases-index.md",
+    "level": "三级",
+    "source": "课标2022 附录5 案例8（PDF 第 195 页起）",
+    "tags": [
+      "阅读教学",
+      "语篇研读",
+      "教学案例",
+      "九年级",
+      "中考备考"
+    ],
+    "title": "9 年级阅读语篇研读及教学设计"
+  },
+  "AQ-写": {
+    "credibility": "A",
+    "domain": "素养",
+    "file": "curriculum-2022/academic-quality.md",
+    "level": "三级",
+    "source": "课标2022 表24",
+    "tags": [
+      "学业质量",
+      "写",
+      "书面表达",
+      "仿写",
+      "续编"
+    ],
+    "title": "学业质量：书面表达（3-13 ~ 3-15）"
+  },
+  "AQ-听看": {
+    "credibility": "A",
+    "domain": "素养",
+    "file": "curriculum-2022/academic-quality.md",
+    "level": "三级",
+    "source": "课标2022 表24",
+    "tags": [
+      "学业质量",
+      "听",
+      "看多模态",
+      "复述",
+      "推断"
+    ],
+    "title": "学业质量：听与看（3-1 ~ 3-3）"
+  },
+  "AQ-学习能力": {
+    "credibility": "A",
+    "domain": "素养",
+    "file": "curriculum-2022/academic-quality.md",
+    "level": "三级",
+    "source": "课标2022 表24",
+    "tags": [
+      "学业质量",
+      "学习能力",
+      "合作",
+      "归纳分析"
+    ],
+    "title": "学业质量：学习与合作（3-16 ~ 3-17）"
+  },
+  "AQ-文化": {
+    "credibility": "A",
+    "domain": "素养",
+    "file": "curriculum-2022/academic-quality.md",
+    "level": "三级",
+    "source": "课标2022 表24",
+    "tags": [
+      "学业质量",
+      "文化",
+      "比较文化异同"
+    ],
+    "title": "学业质量：文化比较（3-4）"
+  },
+  "AQ-综合表达": {
+    "credibility": "A",
+    "domain": "素养",
+    "file": "curriculum-2022/academic-quality.md",
+    "level": "三级",
+    "source": "课标2022 表24",
+    "tags": [
+      "学业质量",
+      "综合表达",
+      "口头表达",
+      "书面表达",
+      "文化介绍",
+      "人物故事"
+    ],
+    "title": "学业质量：口头或书面综合表达（3-10 ~ 3-12）"
+  },
+  "AQ-说": {
+    "credibility": "A",
+    "domain": "素养",
+    "file": "curriculum-2022/academic-quality.md",
+    "level": "三级",
+    "source": "课标2022 表24",
+    "tags": [
+      "学业质量",
+      "说",
+      "朗读",
+      "语音语调",
+      "口头表达"
+    ],
+    "title": "学业质量：说（3-8 ~ 3-9）"
+  },
+  "AQ-读": {
+    "credibility": "A",
+    "domain": "素养",
+    "file": "curriculum-2022/academic-quality.md",
+    "level": "三级",
+    "source": "课标2022 表24",
+    "tags": [
+      "学业质量",
+      "读",
+      "构词法猜词",
+      "阅读策略",
+      "隐含信息"
+    ],
+    "title": "学业质量：读（3-5 ~ 3-7）"
+  },
+  "CL-策略-交际": {
+    "credibility": "A",
+    "domain": "策略",
+    "file": "curriculum-2022/strategies-level3.md",
+    "level": "三级",
+    "source": "课标2022 表20",
+    "tags": [
+      "交际策略",
+      "求助",
+      "澄清",
+      "体态语"
+    ],
+    "title": "交际策略（三级）"
+  },
+  "CL-策略-元认知": {
+    "credibility": "A",
+    "domain": "策略",
+    "file": "curriculum-2022/strategies-level3.md",
+    "level": "三级",
+    "source": "课标2022 表20",
+    "tags": [
+      "元认知",
+      "学习计划",
+      "反思",
+      "自我监控",
+      "时间管理"
+    ],
+    "title": "元认知策略（三级）"
+  },
+  "CL-策略-情感管理": {
+    "credibility": "A",
+    "domain": "策略",
+    "file": "curriculum-2022/strategies-level3.md",
+    "level": "三级",
+    "source": "课标2022 表20",
+    "tags": [
+      "情感管理",
+      "自信",
+      "焦虑",
+      "抗挫折"
+    ],
+    "title": "情感管理策略（三级）"
+  },
+  "CL-策略-认知": {
+    "credibility": "A",
+    "domain": "策略",
+    "file": "curriculum-2022/strategies-level3.md",
+    "level": "三级",
+    "source": "课标2022 表20",
+    "tags": [
+      "认知策略",
+      "记笔记",
+      "思维导图",
+      "拼读",
+      "阅读策略",
+      "写作策略"
+    ],
+    "title": "认知策略（三级）"
+  },
+  "CL-策略-诊断边界": {
+    "credibility": "C",
+    "domain": "策略",
+    "file": "curriculum-2022/strategies-level3.md",
+    "level": "三级",
+    "source": "TeachMate 学习策略诊断规则（依据课标表20整理）",
+    "tags": [
+      "策略诊断",
+      "情绪因素",
+      "成绩波动",
+      "证据边界"
+    ],
+    "title": "学习策略与情绪因素的诊断边界"
+  },
+  "CP-写作-任务完成": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "writing.task_completion",
+      "任务完成",
+      "信息点覆盖"
+    ],
+    "title": "任务完成"
+  },
+  "CP-写作-内容组织": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "writing.organization",
+      "内容组织",
+      "结构",
+      "开头",
+      "结尾"
+    ],
+    "title": "内容组织"
+  },
+  "CP-写作-表达多样": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "writing.language_variety",
+      "表达多样性",
+      "句式变化"
+    ],
+    "title": "表达多样性"
+  },
+  "CP-写作-语言准确": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "writing.language_accuracy",
+      "语言准确性",
+      "时态一致",
+      "拼写",
+      "标点"
+    ],
+    "title": "语言准确性"
+  },
+  "CP-写作-连贯衔接": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "writing.coherence",
+      "连贯",
+      "衔接",
+      "连接词"
+    ],
+    "title": "连贯衔接"
+  },
+  "CP-听力-主旨大意": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及浙江中考听力政策整理）",
+    "tags": [
+      "listening.gist",
+      "听力主旨",
+      "场景判断",
+      "主题大意"
+    ],
+    "title": "听力主旨与场景"
+  },
+  "CP-听力-关键信息": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及浙江中考听力政策整理）",
+    "tags": [
+      "listening.detail",
+      "听力细节",
+      "关键信息",
+      "时间地点人物"
+    ],
+    "title": "听力关键信息获取"
+  },
+  "CP-听力-推断判断": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及浙江中考听力政策整理）",
+    "tags": [
+      "listening.inference",
+      "听力推断",
+      "身份关系",
+      "意图态度",
+      "情节预测"
+    ],
+    "title": "听力推断判断"
+  },
+  "CP-听力-语音线索": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022语音知识整理）",
+    "tags": [
+      "listening.phonological_cues",
+      "听辨",
+      "重音",
+      "意群",
+      "语调",
+      "节奏",
+      "连读"
+    ],
+    "title": "语音线索辨识"
+  },
+  "CP-学习策略": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "learning_strategy",
+      "学习策略",
+      "学习方法",
+      "反思"
+    ],
+    "title": "学习策略"
+  },
+  "CP-思维品质": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "critical_thinking",
+      "思维品质",
+      "批判性思维",
+      "评价"
+    ],
+    "title": "思维品质"
+  },
+  "CP-文化意识": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "cultural_awareness",
+      "文化意识",
+      "中外文化",
+      "跨文化"
+    ],
+    "title": "文化意识"
+  },
+  "CP-词汇-固定搭配": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "vocab.collocation",
+      "固定搭配",
+      "搭配",
+      "词块"
+    ],
+    "title": "固定搭配"
+  },
+  "CP-词汇-拼写": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "vocab.spelling",
+      "拼写",
+      "词形"
+    ],
+    "title": "拼写与词形"
+  },
+  "CP-词汇-构词法": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "vocab.word_formation",
+      "词性转换",
+      "派生",
+      "构词法",
+      "前缀",
+      "后缀"
+    ],
+    "title": "词性转换与派生"
+  },
+  "CP-词汇-短语边界": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "vocab.phrase_boundary",
+      "短语",
+      "逐词翻译"
+    ],
+    "title": "短语边界"
+  },
+  "CP-词汇-词性判断": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "vocab.part_of_speech",
+      "词性",
+      "名词",
+      "动词",
+      "形容词",
+      "副词"
+    ],
+    "title": "词性判断"
+  },
+  "CP-词汇-语境词义": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "vocab.meaning_context",
+      "语境词义",
+      "词义猜测"
+    ],
+    "title": "语境词义"
+  },
+  "CP-语法-主谓一致": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "grammar.subject_verb_agreement",
+      "主谓一致"
+    ],
+    "title": "主谓一致"
+  },
+  "CP-语法-从句关系": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "grammar.clause_relation",
+      "从句",
+      "宾语从句",
+      "状语从句",
+      "定语从句",
+      "关系从句"
+    ],
+    "title": "从句关系"
+  },
+  "CP-语法-代词": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "grammar.pronoun",
+      "代词",
+      "人称代词",
+      "物主代词",
+      "反身代词",
+      "不定代词"
+    ],
+    "title": "代词"
+  },
+  "CP-语法-名词单复数": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "grammar.number",
+      "名词单复数",
+      "可数名词",
+      "不可数名词"
+    ],
+    "title": "名词单复数"
+  },
+  "CP-语法-基本句型": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "grammar.sentence_pattern",
+      "基本句型",
+      "主谓",
+      "主谓宾",
+      "主系表",
+      "存现句"
+    ],
+    "title": "基本句型"
+  },
+  "CP-语法-时态": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "grammar.tense",
+      "时态",
+      "一般现在时",
+      "一般过去时",
+      "一般将来时",
+      "现在进行时",
+      "过去进行时",
+      "现在完成时"
+    ],
+    "title": "动词时态"
+  },
+  "CP-语法-比较等级": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "grammar.comparison",
+      "比较级",
+      "最高级"
+    ],
+    "title": "比较级与最高级"
+  },
+  "CP-语法-语序": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "grammar.word_order",
+      "语序",
+      "疑问语序",
+      "从句语序"
+    ],
+    "title": "语序"
+  },
+  "CP-语法-语态": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "grammar.voice",
+      "语态",
+      "被动语态",
+      "被动"
+    ],
+    "title": "语态"
+  },
+  "CP-语法-连词逻辑": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "grammar.conjunction",
+      "连词",
+      "转折",
+      "因果",
+      "递进",
+      "逻辑关系"
+    ],
+    "title": "连词与逻辑关系"
+  },
+  "CP-语法-非谓语": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "grammar.nonfinite",
+      "非谓语",
+      "不定式",
+      "动名词",
+      "过去分词",
+      "to do"
+    ],
+    "title": "非谓语动词"
+  },
+  "CP-阅读-主旨概括": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "reading.main_idea",
+      "主旨",
+      "主旨题",
+      "标题题",
+      "段落大意",
+      "概括"
+    ],
+    "title": "段落/全文主旨概括"
+  },
+  "CP-阅读-写作目的态度": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "reading.author_purpose",
+      "写作目的",
+      "作者态度",
+      "目的题",
+      "态度题"
+    ],
+    "title": "写作目的与态度"
+  },
+  "CP-阅读-同义改写": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "reading.paraphrase",
+      "同义改写",
+      "同义替换",
+      "判断题"
+    ],
+    "title": "同义改写识别"
+  },
+  "CP-阅读-多模态整合": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "reading.multimodal",
+      "多模态",
+      "图文题",
+      "任务型阅读",
+      "图表"
+    ],
+    "title": "多模态信息整合"
+  },
+  "CP-阅读-指代衔接": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "reading.reference",
+      "指代",
+      "语义衔接",
+      "代词指代"
+    ],
+    "title": "指代与语义衔接"
+  },
+  "CP-阅读-推断判断": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "reading.inference",
+      "推断",
+      "推断题",
+      "人物态度"
+    ],
+    "title": "推断判断"
+  },
+  "CP-阅读-篇章结构": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "reading.structure",
+      "篇章结构",
+      "段落作用",
+      "结构题"
+    ],
+    "title": "篇章结构"
+  },
+  "CP-阅读-细节定位": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "reading.detail",
+      "细节定位",
+      "细节题",
+      "信息匹配"
+    ],
+    "title": "细节信息定位"
+  },
+  "CP-阅读-语篇主题体裁": {
+    "credibility": "C",
+    "domain": "考点",
+    "file": "capability-points.md",
+    "level": "通用",
+    "source": "TeachMate 考点分类体系（依据课标2022及2025浙江中考公开评析整理）",
+    "tags": [
+      "reading.topic",
+      "语篇主题",
+      "主题范畴",
+      "体裁",
+      "文体"
+    ],
+    "title": "语篇主题与体裁"
+  },
+  "EC-规则-置信度": {
+    "credibility": "C",
+    "domain": "错因",
+    "file": "exam-zhejiang-2025/error-cause-rules.md",
+    "level": "通用",
+    "source": "TeachMate 错因置信度规则（对齐项目数据字段）",
+    "tags": [
+      "置信度",
+      "判定规则",
+      "candidate",
+      "教师确认"
+    ],
+    "title": "错因置信度判定规则（重要）"
+  },
+  "EC-错因-定位": {
+    "credibility": "C",
+    "domain": "错因",
+    "file": "exam-zhejiang-2025/error-cause-rules.md",
+    "level": "三级",
+    "source": "TeachMate 错因诊断框架（公开评析与教学常理整理）",
+    "tags": [
+      "定位",
+      "没找到证据",
+      "张冠李戴"
+    ],
+    "title": "错因：定位"
+  },
+  "EC-错因-审题": {
+    "credibility": "C",
+    "domain": "错因",
+    "file": "exam-zhejiang-2025/error-cause-rules.md",
+    "level": "三级",
+    "source": "TeachMate 错因诊断框架（公开评析与教学常理整理）",
+    "tags": [
+      "审题",
+      "审题不清",
+      "没看清题目"
+    ],
+    "title": "错因：审题"
+  },
+  "EC-错因-推断": {
+    "credibility": "C",
+    "domain": "错因",
+    "file": "exam-zhejiang-2025/error-cause-rules.md",
+    "level": "三级",
+    "source": "TeachMate 错因诊断框架（公开评析与教学常理整理）",
+    "tags": [
+      "推断",
+      "过度推断",
+      "逻辑跳步"
+    ],
+    "title": "错因：推断"
+  },
+  "EC-错因-表达": {
+    "credibility": "C",
+    "domain": "错因",
+    "file": "exam-zhejiang-2025/error-cause-rules.md",
+    "level": "三级",
+    "source": "TeachMate 错因诊断框架（公开评析与教学常理整理）",
+    "tags": [
+      "表达",
+      "输出不完整",
+      "格式"
+    ],
+    "title": "错因：表达"
+  },
+  "EC-错因-词汇": {
+    "credibility": "C",
+    "domain": "错因",
+    "file": "exam-zhejiang-2025/error-cause-rules.md",
+    "level": "三级",
+    "source": "TeachMate 错因诊断框架（公开评析与教学常理整理）",
+    "tags": [
+      "词汇",
+      "单词不认识",
+      "搭配不当"
+    ],
+    "title": "错因：词汇"
+  },
+  "EC-错因-语法": {
+    "credibility": "C",
+    "domain": "错因",
+    "file": "exam-zhejiang-2025/error-cause-rules.md",
+    "level": "三级",
+    "source": "TeachMate 错因诊断框架（公开评析与教学常理整理）",
+    "tags": [
+      "语法",
+      "时态错误",
+      "句法"
+    ],
+    "title": "错因：语法"
+  },
+  "JD-技能-7年级": {
+    "credibility": "A",
+    "domain": "技能",
+    "file": "curriculum-2022/skills-level3.md",
+    "level": "三级",
+    "source": "课标2022 表17",
+    "tags": [
+      "七年级",
+      "7年级",
+      "语言技能"
+    ],
+    "title": "七年级语言技能要求"
+  },
+  "JD-技能-8年级": {
+    "credibility": "A",
+    "domain": "技能",
+    "file": "curriculum-2022/skills-level3.md",
+    "level": "三级",
+    "source": "课标2022 表18",
+    "tags": [
+      "八年级",
+      "8年级",
+      "语言技能"
+    ],
+    "title": "八年级语言技能要求"
+  },
+  "JD-技能-9年级": {
+    "credibility": "A",
+    "domain": "技能",
+    "file": "curriculum-2022/skills-level3.md",
+    "level": "三级",
+    "source": "课标2022 表19",
+    "tags": [
+      "九年级",
+      "9年级",
+      "语言技能",
+      "中考备考"
+    ],
+    "title": "九年级语言技能要求"
+  },
+  "JD-技能-阅读量": {
+    "credibility": "A",
+    "domain": "技能",
+    "file": "curriculum-2022/skills-level3.md",
+    "level": "三级",
+    "source": "课标2022 表17~19",
+    "tags": [
+      "课外阅读量",
+      "视听",
+      "阅读量",
+      "4万词",
+      "10万词",
+      "15万词"
+    ],
+    "title": "课外阅读量与视听要求（复习目标锚点）"
+  },
+  "KG-语法-主谓一致": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级＊",
+    "source": "课标2022 附录4 句法（八）",
+    "tags": [
+      "主谓一致"
+    ],
+    "title": "主谓一致"
+  },
+  "KG-语法-介词": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 词类（七）",
+    "tags": [
+      "介词",
+      "时间介词",
+      "地点介词"
+    ],
+    "title": "介词"
+  },
+  "KG-语法-代词": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 词类（五）",
+    "tags": [
+      "代词",
+      "人称代词",
+      "物主代词",
+      "反身代词",
+      "指示代词",
+      "不定代词",
+      "疑问代词"
+    ],
+    "title": "代词"
+  },
+  "KG-语法-冠词": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 词类（九）",
+    "tags": [
+      "冠词",
+      "a",
+      "an",
+      "the",
+      "零冠词"
+    ],
+    "title": "冠词"
+  },
+  "KG-语法-副词": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 词类（四）",
+    "tags": [
+      "副词",
+      "副词比较级",
+      "副词最高级"
+    ],
+    "title": "副词"
+  },
+  "KG-语法-动词": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 词类（二）",
+    "tags": [
+      "动词",
+      "及物动词",
+      "不及物动词",
+      "系动词",
+      "助动词",
+      "情态动词"
+    ],
+    "title": "动词"
+  },
+  "KG-语法-句子种类": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 句法（一）",
+    "tags": [
+      "句子种类",
+      "陈述句",
+      "疑问句",
+      "一般疑问句",
+      "特殊疑问句",
+      "选择疑问句",
+      "祈使句",
+      "感叹句"
+    ],
+    "title": "句子种类"
+  },
+  "KG-语法-名词": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 词类（一）",
+    "tags": [
+      "名词",
+      "可数名词",
+      "不可数名词",
+      "专有名词",
+      "名词所有格",
+      "单复数"
+    ],
+    "title": "名词"
+  },
+  "KG-语法-基本句型": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 句法（二）",
+    "tags": [
+      "基本句型",
+      "主谓",
+      "主系表",
+      "主谓宾",
+      "主谓宾宾",
+      "主谓宾补",
+      "存现句",
+      "there be"
+    ],
+    "title": "简单句基本句型"
+  },
+  "KG-语法-定语从句": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 句法（七）3",
+    "tags": [
+      "定语从句",
+      "关系从句",
+      "关系代词",
+      "that",
+      "which",
+      "who"
+    ],
+    "title": "关系从句（定语从句）"
+  },
+  "KG-语法-宾语从句": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 句法（七）1",
+    "tags": [
+      "宾语从句",
+      "从句",
+      "引导词",
+      "that",
+      "if",
+      "whether",
+      "从句语序",
+      "时态呼应"
+    ],
+    "title": "宾语从句"
+  },
+  "KG-语法-并列复合句": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 句法（六）",
+    "tags": [
+      "并列复合句",
+      "and",
+      "but",
+      "or",
+      "so"
+    ],
+    "title": "并列复合句"
+  },
+  "KG-语法-形容词": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 词类（三）",
+    "tags": [
+      "形容词",
+      "比较级",
+      "最高级"
+    ],
+    "title": "形容词"
+  },
+  "KG-语法-感叹词": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级＊",
+    "source": "课标2022 附录4 词类（十）",
+    "tags": [
+      "感叹词"
+    ],
+    "title": "感叹词"
+  },
+  "KG-语法-数词": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 词类（六）",
+    "tags": [
+      "数词",
+      "基数词",
+      "序数词"
+    ],
+    "title": "数词"
+  },
+  "KG-语法-时态": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 句法（三）",
+    "tags": [
+      "时态",
+      "一般现在时",
+      "一般过去时",
+      "一般将来时",
+      "现在进行时",
+      "过去进行时",
+      "现在完成时"
+    ],
+    "title": "谓语动词时态"
+  },
+  "KG-语法-构词法": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 二",
+    "tags": [
+      "构词法",
+      "合成法",
+      "派生法",
+      "转化法",
+      "前缀",
+      "后缀",
+      "缩写"
+    ],
+    "title": "构词法"
+  },
+  "KG-语法-状语从句": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 句法（七）2",
+    "tags": [
+      "状语从句",
+      "时间状语从句",
+      "条件状语从句",
+      "原因状语从句",
+      "when",
+      "if",
+      "because"
+    ],
+    "title": "状语从句"
+  },
+  "KG-语法-被动语态": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 句法（四）",
+    "tags": [
+      "被动语态",
+      "被动",
+      "一般现在时被动",
+      "一般过去时被动",
+      "一般将来时被动"
+    ],
+    "title": "被动语态"
+  },
+  "KG-语法-连词": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 词类（八）",
+    "tags": [
+      "连词",
+      "并列连词",
+      "从属连词",
+      "转折",
+      "因果"
+    ],
+    "title": "连词"
+  },
+  "KG-语法-非谓语": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/grammar-taxonomy.md",
+    "level": "三级",
+    "source": "课标2022 附录4 句法（五）",
+    "tags": [
+      "非谓语",
+      "动词不定式",
+      "动名词",
+      "过去分词",
+      "to do",
+      "doing",
+      "done"
+    ],
+    "title": "动词非谓语形式"
+  },
+  "LK-诊断-语言知识": {
+    "credibility": "C",
+    "domain": "备考",
+    "file": "curriculum-2022/language-knowledge.md",
+    "level": "三级",
+    "source": "TeachMate 诊断映射（依据课标语言知识要求整理）",
+    "tags": [
+      "语言知识诊断",
+      "语音诊断",
+      "词汇诊断",
+      "语法诊断"
+    ],
+    "title": "语言知识诊断边界与分流"
+  },
+  "LK-词汇-三级": {
+    "credibility": "A",
+    "domain": "词汇",
+    "file": "curriculum-2022/language-knowledge.md",
+    "level": "三级",
+    "source": "课标2022 表10 / 教学提示三级",
+    "tags": [
+      "词汇",
+      "1600词",
+      "词块",
+      "固定搭配",
+      "构词法猜词",
+      "词根",
+      "词缀"
+    ],
+    "title": "词汇知识三级要求"
+  },
+  "LK-语法-三级": {
+    "credibility": "A",
+    "domain": "语法",
+    "file": "curriculum-2022/language-knowledge.md",
+    "level": "三级",
+    "source": "课标2022 表11 / 教学提示三级",
+    "tags": [
+      "语法教学",
+      "形式意义使用",
+      "语境语法"
+    ],
+    "title": "语法知识三级要求与教学观"
+  },
+  "LK-语用-三级": {
+    "credibility": "A",
+    "domain": "语用",
+    "file": "curriculum-2022/language-knowledge.md",
+    "level": "三级",
+    "source": "课标2022 表13",
+    "tags": [
+      "语用",
+      "语境",
+      "得体",
+      "交际场合",
+      "正式非正式"
+    ],
+    "title": "语用知识三级要求"
+  },
+  "LK-语篇-三级": {
+    "credibility": "A",
+    "domain": "语篇",
+    "file": "curriculum-2022/language-knowledge.md",
+    "level": "三级",
+    "source": "课标2022 表12",
+    "tags": [
+      "语篇",
+      "记叙文",
+      "说明文",
+      "应用文",
+      "衔接",
+      "连贯",
+      "文体结构"
+    ],
+    "title": "语篇知识三级要求"
+  },
+  "LK-语音-三级": {
+    "credibility": "A",
+    "domain": "语音",
+    "file": "curriculum-2022/language-knowledge.md",
+    "level": "三级",
+    "source": "课标2022 表9 / 教学提示三级",
+    "tags": [
+      "语音",
+      "音标",
+      "重音",
+      "意群",
+      "语调",
+      "节奏",
+      "拼读"
+    ],
+    "title": "语音知识三级要求"
+  },
+  "QT-书面表达": {
+    "credibility": "C",
+    "domain": "题型",
+    "file": "exam-zhejiang-2025/question-types.md",
+    "level": "三级",
+    "source": "TeachMate 题型诊断映射（课标与公开评析整理）",
+    "tags": [
+      "书面表达",
+      "作文",
+      "写作",
+      "题型"
+    ],
+    "title": "书面表达"
+  },
+  "QT-任务型阅读": {
+    "credibility": "C",
+    "domain": "题型",
+    "file": "exam-zhejiang-2025/question-types.md",
+    "level": "三级",
+    "source": "TeachMate 题型诊断映射（课标与公开评析整理）",
+    "tags": [
+      "任务型阅读",
+      "信息整合",
+      "开放任务",
+      "题型"
+    ],
+    "title": "任务型阅读"
+  },
+  "QT-听力理解": {
+    "credibility": "C",
+    "domain": "题型",
+    "file": "exam-zhejiang-2025/question-types.md",
+    "level": "三级",
+    "source": "TeachMate 题型诊断映射（课标与浙江中考听力政策整理）",
+    "tags": [
+      "听力",
+      "听力理解",
+      "人机对话",
+      "短对话",
+      "长对话",
+      "独白",
+      "题型"
+    ],
+    "title": "听力理解（含地区人机对话的理解性任务）"
+  },
+  "QT-完形填空": {
+    "credibility": "C",
+    "domain": "题型",
+    "file": "exam-zhejiang-2025/question-types.md",
+    "level": "三级",
+    "source": "TeachMate 题型诊断映射（课标与公开评析整理）",
+    "tags": [
+      "完形填空",
+      "完形",
+      "题型"
+    ],
+    "title": "完形填空"
+  },
+  "QT-词汇运用": {
+    "credibility": "C",
+    "domain": "题型",
+    "file": "exam-zhejiang-2025/question-types.md",
+    "level": "三级",
+    "source": "TeachMate 题型诊断映射（课标与公开评析整理）",
+    "tags": [
+      "词汇运用",
+      "词汇题",
+      "词形变化",
+      "题型"
+    ],
+    "title": "词汇运用"
+  },
+  "QT-语法填空": {
+    "credibility": "C",
+    "domain": "题型",
+    "file": "exam-zhejiang-2025/question-types.md",
+    "level": "三级",
+    "source": "TeachMate 题型诊断映射（课标与公开评析整理）",
+    "tags": [
+      "语法填空",
+      "语法题",
+      "题型"
+    ],
+    "title": "语法填空"
+  },
+  "QT-阅读理解": {
+    "credibility": "C",
+    "domain": "题型",
+    "file": "exam-zhejiang-2025/question-types.md",
+    "level": "三级",
+    "source": "TeachMate 题型诊断映射（课标与公开评析整理）",
+    "tags": [
+      "阅读理解",
+      "阅读",
+      "题型"
+    ],
+    "title": "阅读理解"
+  },
+  "RV-任务A": {
+    "credibility": "C",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/review-tasks.md",
+    "level": "三级",
+    "source": "TeachMate 复习任务框架·任务A",
+    "tags": [
+      "阅读训练",
+      "证据链",
+      "定位训练",
+      "推断训练"
+    ],
+    "title": "阅读证据链训练"
+  },
+  "RV-任务B": {
+    "credibility": "C",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/review-tasks.md",
+    "level": "三级",
+    "source": "TeachMate 复习任务框架·任务B",
+    "tags": [
+      "完形训练",
+      "复盘表",
+      "上下文逻辑"
+    ],
+    "title": "完形逻辑复盘"
+  },
+  "RV-任务C": {
+    "credibility": "C",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/review-tasks.md",
+    "level": "三级",
+    "source": "TeachMate 复习任务框架·任务C",
+    "tags": [
+      "语法训练",
+      "句法还原",
+      "填空流程"
+    ],
+    "title": "语法填空句法还原"
+  },
+  "RV-任务D": {
+    "credibility": "C",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/review-tasks.md",
+    "level": "三级",
+    "source": "TeachMate 复习任务框架·任务D",
+    "tags": [
+      "写作训练",
+      "信息覆盖",
+      "自检清单"
+    ],
+    "title": "书面表达信息覆盖"
+  },
+  "RV-任务E": {
+    "credibility": "C",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/review-tasks.md",
+    "level": "三级",
+    "source": "TeachMate 复习任务框架·任务E（依据课标与浙江中考听力政策整理）",
+    "tags": [
+      "听力训练",
+      "听辨",
+      "关键信息",
+      "复听",
+      "人机对话"
+    ],
+    "title": "听力证据链训练"
+  },
+  "RV-模板-七天": {
+    "credibility": "C",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/review-tasks.md",
+    "level": "三级",
+    "source": "TeachMate 七天复习计划模板",
+    "tags": [
+      "七天计划",
+      "计划模板",
+      "周计划"
+    ],
+    "title": "七天复习计划模板"
+  },
+  "RV-规则-掌握度": {
+    "credibility": "C",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/review-tasks.md",
+    "level": "通用",
+    "source": "TeachMate 掌握度与练习生成默认规则",
+    "tags": [
+      "掌握度",
+      "练习生成",
+      "约束"
+    ],
+    "title": "掌握度判定与练习生成约束"
+  },
+  "RV-路径-总纲": {
+    "credibility": "C",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/review-tasks.md",
+    "level": "三级",
+    "source": "TeachMate 复习任务框架（课标与公开评析整理）",
+    "tags": [
+      "复习路径",
+      "备考路径",
+      "总纲"
+    ],
+    "title": "六步复习路径"
+  },
+  "SY-学习能力-三级": {
+    "credibility": "A",
+    "domain": "素养",
+    "file": "curriculum-2022/competency.md",
+    "level": "三级",
+    "source": "课标2022 表4（三级列）",
+    "tags": [
+      "学习能力",
+      "三级目标",
+      "主动学习",
+      "合作探究"
+    ],
+    "title": "学习能力三级学段目标"
+  },
+  "SY-思维品质-三级": {
+    "credibility": "A",
+    "domain": "素养",
+    "file": "curriculum-2022/competency.md",
+    "level": "三级",
+    "source": "课标2022 表3（三级列）",
+    "tags": [
+      "思维品质",
+      "三级目标",
+      "逻辑思维",
+      "辩证思维",
+      "批判创新"
+    ],
+    "title": "思维品质三级学段目标"
+  },
+  "SY-文化意识-三级": {
+    "credibility": "A",
+    "domain": "素养",
+    "file": "curriculum-2022/competency.md",
+    "level": "三级",
+    "source": "课标2022 表2（三级列）",
+    "tags": [
+      "文化意识",
+      "三级目标",
+      "文化自信",
+      "跨文化沟通"
+    ],
+    "title": "文化意识三级学段目标"
+  },
+  "SY-画像-证据边界": {
+    "credibility": "C",
+    "domain": "素养",
+    "file": "curriculum-2022/competency.md",
+    "level": "通用",
+    "source": "TeachMate 画像诊断规则（依据课标核心素养框架整理）",
+    "tags": [
+      "学生画像",
+      "核心素养评价",
+      "证据边界",
+      "文化意识评价",
+      "学习能力评价"
+    ],
+    "title": "核心素养画像的证据边界"
+  },
+  "SY-素养-总览": {
+    "credibility": "A",
+    "domain": "素养",
+    "file": "curriculum-2022/competency.md",
+    "level": "通用",
+    "source": "课标2022 三（一）",
+    "tags": [
+      "核心素养",
+      "语言能力",
+      "文化意识",
+      "思维品质",
+      "学习能力"
+    ],
+    "title": "英语课程核心素养四维"
+  },
+  "SY-语言能力-三级": {
+    "credibility": "A",
+    "domain": "素养",
+    "file": "curriculum-2022/competency.md",
+    "level": "三级",
+    "source": "课标2022 表1（三级列）",
+    "tags": [
+      "语言能力",
+      "三级目标",
+      "感知与积累",
+      "梳理与整合",
+      "表达与交流"
+    ],
+    "title": "语言能力三级学段目标"
+  },
+  "WH-文化-三级": {
+    "credibility": "A",
+    "domain": "文化",
+    "file": "curriculum-2022/culture-knowledge.md",
+    "level": "三级",
+    "source": "课标2022 表14",
+    "tags": [
+      "文化知识",
+      "中外文化",
+      "礼仪",
+      "节日",
+      "饮食",
+      "科学家",
+      "艺术家",
+      "体育",
+      "劳动",
+      "青少年生活"
+    ],
+    "title": "文化知识三级要求"
+  },
+  "ZK-命题-主题语篇": {
+    "credibility": "A",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/exam-blueprint.md",
+    "level": "三级",
+    "source": "浙江省教育考试院《浙江省2025年初中学业水平考试试题评析》",
+    "tags": [
+      "语篇主题",
+      "体裁",
+      "真实情境"
+    ],
+    "title": "语篇主题与体裁覆盖（2025 实例）"
+  },
+  "ZK-命题-使用边界": {
+    "credibility": "C",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/exam-blueprint.md",
+    "level": "通用",
+    "source": "TeachMate 知识库使用规则",
+    "tags": [
+      "命题使用边界",
+      "不预测",
+      "年度实例",
+      "诊断边界"
+    ],
+    "title": "2025 命题事实的使用边界"
+  },
+  "ZK-命题-总特点": {
+    "credibility": "A",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/exam-blueprint.md",
+    "level": "三级",
+    "source": "浙江省教育考试院《浙江省2025年初中学业水平考试试题评析》",
+    "tags": [
+      "命题特点",
+      "依标命题",
+      "素养立意",
+      "中考",
+      "浙江"
+    ],
+    "title": "依标命题与素养立意"
+  },
+  "ZK-思维层次": {
+    "credibility": "A",
+    "domain": "题型",
+    "file": "exam-zhejiang-2025/exam-blueprint.md",
+    "level": "三级",
+    "source": "浙江省教育考试院《浙江省2025年初中学业水平考试试题评析》",
+    "tags": [
+      "能力层次",
+      "学习理解",
+      "应用实践",
+      "迁移创新",
+      "思维层次"
+    ],
+    "title": "三个能力层次（学习理解/应用实践/迁移创新）"
+  },
+  "ZK-思维层次-诊断映射": {
+    "credibility": "C",
+    "domain": "题型",
+    "file": "exam-zhejiang-2025/exam-blueprint.md",
+    "level": "三级",
+    "source": "TeachMate 诊断映射（依据课标与2025浙江中考官方评析整理）",
+    "tags": [
+      "能力层次映射",
+      "学习理解诊断",
+      "应用实践诊断",
+      "迁移创新诊断"
+    ],
+    "title": "三个能力层次的 TeachMate 诊断映射"
+  },
+  "ZK-考试-听力口径": {
+    "credibility": "A",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/exam-blueprint.md",
+    "level": "三级",
+    "source": "浙江省教育厅《浙江省教育厅关于实施初中学业水平考试全省统一命题的通知》（浙教基〔2023〕51号）",
+    "tags": [
+      "浙江中考",
+      "听力",
+      "人机对话",
+      "分值",
+      "地方命题"
+    ],
+    "title": "浙江中考英语听力的统一与地方边界"
+  },
+  "ZK-证据等级": {
+    "credibility": "C",
+    "domain": "备考",
+    "file": "exam-zhejiang-2025/exam-blueprint.md",
+    "level": "通用",
+    "source": "TeachMate 知识库证据分级规则",
+    "tags": [
+      "证据等级",
+      "可信度",
+      "使用边界"
+    ],
+    "title": "知识可信度与使用边界"
+  },
+  "ZT-主题-三级": {
+    "credibility": "A",
+    "domain": "主题",
+    "file": "curriculum-2022/themes.md",
+    "level": "三级",
+    "source": "课标2022 表7",
+    "tags": [
+      "主题",
+      "人与自我",
+      "人与社会",
+      "人与自然",
+      "主题群"
+    ],
+    "title": "三大主题范畴与三级主题群"
+  }
+}

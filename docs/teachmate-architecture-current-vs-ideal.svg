@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1120" viewBox="0 0 1600 1120" role="img" aria-labelledby="title desc">
+  <title id="title">TeachMate 当前架构与成熟目标架构对比</title>
+  <desc id="desc">左侧展示当前的浏览器界面、FastAPI、SQLite、Python Agent 与一次性 Harness 子进程；右侧展示成熟目标中的任务型界面、统一 Agent 网关、常驻 Harness、可信工具层和持久任务系统；底部列出主要差距。</desc>
+  <defs>
+    <style>
+      .bg { fill:#f7f8fc; }
+      .panel { fill:#ffffff; stroke:#d9deea; stroke-width:2; }
+      .box { fill:#ffffff; stroke:#c8cfdd; stroke-width:2; }
+      .ui { fill:#eef4ff; stroke:#4c78a8; }
+      .api { fill:#eef9f1; stroke:#59a14f; }
+      .agent { fill:#fff5e8; stroke:#f28e2b; }
+      .data { fill:#f6eff8; stroke:#b279a2; }
+      .warn { fill:#fff1f0; stroke:#e15759; }
+      .muted { fill:#f2f4f8; stroke:#9aa4b2; }
+      .title { font:700 32px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#172033; }
+      .panel-title { font:700 26px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#172033; }
+      .subtitle { font:500 16px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#59657a; }
+      .label { font:700 18px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#172033; }
+      .text { font:500 14px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#465166; }
+      .small { font:500 12px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill:#657188; }
+      .white { fill:#ffffff; }
+      .arrow { stroke:#657188; stroke-width:2.5; fill:none; marker-end:url(#arrow); }
+      .arrow-green { stroke:#59a14f; stroke-width:3; fill:none; marker-end:url(#arrowGreen); }
+      .arrow-orange { stroke:#f28e2b; stroke-width:3; fill:none; marker-end:url(#arrowOrange); }
+      .dashed { stroke-dasharray:8 7; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,8 L8,4 z" fill="#657188"/></marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,8 L8,4 z" fill="#59a14f"/></marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,8 L8,4 z" fill="#f28e2b"/></marker>
+  </defs>
+
+  <rect class="bg" width="1600" height="1120"/>
+  <text class="title" x="80" y="64">TeachMate：现在是什么样，成熟后应该是什么样</text>
+  <text class="subtitle" x="80" y="94">读图方法：从上往下看——教师操作 → 系统接单 → Agent 思考 → 可信数据与证据</text>
+
+  <!-- Current -->
+  <rect class="panel" x="60" y="125" width="710" height="720" rx="24"/>
+  <circle cx="102" cy="170" r="19" fill="#4c78a8"/>
+  <text class="label white" x="96" y="177">1</text>
+  <text class="panel-title" x="135" y="178">当前架构：能跑的“混合过渡版”</text>
+  <text class="subtitle" x="90" y="207">业务底座扎实，Agent 外层闭环已成形，但新旧运行路径仍并存</text>
+
+  <rect class="box ui" x="105" y="240" width="620" height="108" rx="18"/>
+  <text class="label" x="133" y="273">教师界面（浏览器中的单页应用）</text>
+  <text class="text" x="133" y="300">WorkBench 数据管理  ⇄  TeachMate 三栏对话</text>
+  <text class="small" x="133" y="325">原生 JavaScript 已拆成 API / 状态 / 视图 / 交互；UI 视觉已较统一</text>
+
+  <path class="arrow" d="M415 348 L415 386"/>
+  <text class="small" x="430" y="373">Token 保护的本机 API</text>
+
+  <rect class="box api" x="105" y="386" width="620" height="108" rx="18"/>
+  <text class="label" x="133" y="419">FastAPI：整个系统的“总服务台”</text>
+  <text class="text" x="133" y="446">接收页面请求、管理会话/运行/预算/证据、读写教学业务</text>
+  <text class="small" x="133" y="471">当前页面也由它直接托管；运行事件由前端每秒轮询</text>
+
+  <path class="arrow" d="M280 494 L280 536"/>
+  <path class="arrow" d="M552 494 L552 536"/>
+
+  <rect class="box agent" x="105" y="536" width="330" height="172" rx="18"/>
+  <text class="label" x="133" y="569">路径 A：Python Agent</text>
+  <text class="text" x="133" y="597">自研 Loop + 编排器 + Provider</text>
+  <text class="small" x="133" y="624">DeepSeek / Anthropic / OpenAI 兼容</text>
+  <text class="small" x="133" y="649">工具注册、隐私、证据、输出校验较完整</text>
+  <rect x="133" y="666" width="119" height="25" rx="12" fill="#f28e2b"/>
+  <text class="small white" x="148" y="683">旧主路径，仍保留</text>
+
+  <rect class="box warn" x="458" y="536" width="267" height="172" rx="18"/>
+  <text class="label" x="486" y="569">路径 B：Harness</text>
+  <text class="text" x="486" y="597">每次提问新开 Node 子进程</text>
+  <text class="small" x="486" y="624">Education 插件回调 FastAPI 工具</text>
+  <text class="small" x="486" y="649">当前不是真流式、无连续 Harness 会话</text>
+  <text class="small" x="486" y="674">Token / 费用记为 0，证据靠结果解析</text>
+
+  <path class="arrow" d="M270 708 L270 755"/>
+  <path class="arrow" d="M590 708 L590 755"/>
+
+  <rect class="box data" x="105" y="755" width="620" height="62" rx="16"/>
+  <text class="label" x="133" y="784">本地事实底座</text>
+  <text class="text" x="285" y="784">SQLite（教学 + Agent 记录）  ·  附件目录  ·  Alembic / 备份</text>
+  <text class="small" x="133" y="806">单教师、本机 127.0.0.1、原始成绩不交给模型修改</text>
+
+  <!-- Ideal -->
+  <rect class="panel" x="830" y="125" width="710" height="720" rx="24"/>
+  <circle cx="872" cy="170" r="19" fill="#59a14f"/>
+  <text class="label white" x="866" y="177">2</text>
+  <text class="panel-title" x="905" y="178">成熟架构：一条可信、连续、可恢复的主路径</text>
+  <text class="subtitle" x="860" y="207">UI 不只是聊天框，而是教师完成教学决策的工作空间</text>
+
+  <rect class="box ui" x="875" y="240" width="620" height="108" rx="18"/>
+  <text class="label" x="903" y="273">任务型 TeachMate 工作台</text>
+  <text class="text" x="903" y="300">对话 + 结构化报告画布 + 证据检查器 + 教师确认</text>
+  <text class="small" x="903" y="325">上传向导、进度时间线、差异确认、导出、恢复、无障碍与响应式</text>
+
+  <path class="arrow-green" d="M1185 348 L1185 386"/>
+  <text class="small" x="1201" y="373">SSE / WebSocket 真流式事件</text>
+
+  <rect class="box api" x="875" y="386" width="620" height="92" rx="18"/>
+  <text class="label" x="903" y="419">统一 Agent 网关（唯一入口）</text>
+  <text class="text" x="903" y="446">冻结本次教学范围、鉴权、预算、幂等、恢复、事件持久化</text>
+
+  <path class="arrow-green" d="M1020 478 L1020 520"/>
+  <path class="arrow-green" d="M1350 478 L1350 520"/>
+
+  <rect class="box agent" x="875" y="520" width="330" height="172" rx="18"/>
+  <text class="label" x="903" y="553">常驻 Harness Agent</text>
+  <text class="text" x="903" y="581">一个会话 = 连续上下文与事件日志</text>
+  <text class="small" x="903" y="608">模型可替换，Loop 只有一套</text>
+  <text class="small" x="903" y="633">工具调用、增量输出、取消和恢复原生化</text>
+  <text class="small" x="903" y="658">真实 Token / 成本 / 延迟可观测</text>
+
+  <rect class="box api" x="1228" y="520" width="267" height="172" rx="18"/>
+  <text class="label" x="1256" y="553">可信教学工具层</text>
+  <text class="text" x="1256" y="581">数值由程序算，模型只解释</text>
+  <text class="small" x="1256" y="608">固定 scope + 最小化脱敏</text>
+  <text class="small" x="1256" y="633">证据账本 + 结构化 Schema</text>
+  <text class="small" x="1256" y="658">工具白名单 + 输出上限</text>
+
+  <path class="arrow-green" d="M1040 692 L1040 735"/>
+  <path class="arrow-green" d="M1360 692 L1360 735"/>
+
+  <rect class="box data" x="875" y="735" width="390" height="82" rx="16"/>
+  <text class="label" x="903" y="766">业务事实库</text>
+  <text class="text" x="903" y="792">教学 SQLite / 文件，未来可换云数据库</text>
+
+  <rect class="box muted" x="1282" y="735" width="213" height="82" rx="16"/>
+  <text class="label" x="1310" y="766">持久任务与事件</text>
+  <text class="text" x="1310" y="792">队列、重放、审计、告警</text>
+
+  <!-- Gap -->
+  <rect class="panel" x="60" y="885" width="1480" height="185" rx="24"/>
+  <circle cx="102" cy="925" r="19" fill="#e15759"/>
+  <text class="label white" x="96" y="932">3</text>
+  <text class="panel-title" x="135" y="933">当前到成熟版，最关键的 6 个台阶</text>
+
+  <g transform="translate(95,965)">
+    <rect class="warn" x="0" y="0" width="215" height="70" rx="14"/>
+    <text class="label" x="18" y="29">① 收敛双运行时</text><text class="small" x="18" y="52">只保留一条生产主路径</text>
+    <rect class="warn" x="235" y="0" width="215" height="70" rx="14"/>
+    <text class="label" x="253" y="29">② 常驻 + 真流式</text><text class="small" x="253" y="52">连续会话，不再每问重启</text>
+    <rect class="warn" x="470" y="0" width="215" height="70" rx="14"/>
+    <text class="label" x="488" y="29">③ 证据链原生化</text><text class="small" x="488" y="52">工具事实直达引用与报告</text>
+    <rect class="warn" x="705" y="0" width="215" height="70" rx="14"/>
+    <text class="label" x="723" y="29">④ 持久任务系统</text><text class="small" x="723" y="52">崩溃恢复、重放、幂等</text>
+    <rect class="warn" x="940" y="0" width="215" height="70" rx="14"/>
+    <text class="label" x="958" y="29">⑤ UI 从聊到做</text><text class="small" x="958" y="52">报告、确认、导出和行动闭环</text>
+    <rect class="warn" x="1175" y="0" width="215" height="70" rx="14"/>
+    <text class="label" x="1193" y="29">⑥ 真实发布验证</text><text class="small" x="1193" y="52">真模型、性能、跨平台、可观测</text>
+  </g>
+
+  <text class="small" x="80" y="1100">基于 2026-08-17 工作区实际代码、页面实看与测试结果；橙色/红色表示仍处在过渡或风险状态。</text>
+</svg>

@@ -101,15 +101,32 @@ aside nav button.nav-item-child::before { content: ''; position: absolute; left:
 .growth-btn-batch-on { background: var(--md-primary, #3b6d11); color: #fff; border-color: var(--md-primary, #3b6d11); }
 
 .growth-detail-head { margin: 0 0 6px; }
-.growth-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-@media (max-width: 720px) { .growth-detail-grid { grid-template-columns: 1fr; } }
+.modal-content.growth-detail-modal { width: 1200px; max-width: calc(100vw - 40px); display: flex; flex-direction: column; overflow: hidden; }
+.growth-detail-modal .modal-header, .growth-detail-modal .modal-footer { flex-shrink: 0; }
+.growth-detail-modal .modal-body { min-height: 0; overflow-y: auto; }
+.growth-detail-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 28px; }
+.growth-detail-col { min-width: 0; }
+@media (max-width: 1000px) { .growth-detail-grid { grid-template-columns: minmax(0, 1fr); } }
 .growth-detail-col h4 { margin: 14px 0 6px; font-size: 15px; }
 .growth-table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; }
 .growth-table td, .growth-table th {
   border-bottom: 1px solid var(--md-outline-variant, rgba(0, 0, 0, .12));
   padding: 7px 5px; font-size: 14px; text-align: left; color: var(--md-text-primary, var(--text));
 }
-.growth-record-table td:nth-child(2) { white-space: nowrap; }
+.growth-record-scroll { overflow-x: auto; }
+.growth-record-table { table-layout: fixed; min-width: 540px; }
+.growth-record-table th:first-child { width: 100px; }
+.growth-record-table th:nth-child(2) { width: 140px; }
+.growth-record-table th:last-child { width: 60px; }
+.growth-record-table td { vertical-align: top; overflow-wrap: anywhere; }
+.growth-record-table td:first-child, .growth-record-table .growth-del { white-space: nowrap; }
+.growth-record-table .growth-cap { display: block; margin: 4px 0 0; white-space: normal; line-height: 1.5; }
+.growth-record-note { margin-top: 4px; line-height: 1.6; }
+.growth-detail-modal .growth-custom { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.growth-detail-modal #growthCustomType, .growth-detail-modal #growthCustomNote { grid-column: 1 / -1; width: 100%; box-sizing: border-box; }
+.growth-detail-modal #growthCustomPoints { min-width: 0; width: 100%; box-sizing: border-box; }
+.growth-points-label { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; white-space: nowrap; }
+.growth-points-label input { width: 90px; }
 .growth-quick { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
 .growth-custom { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
 .growth-input {
@@ -143,3 +160,98 @@ aside nav button.nav-item-child::before { content: ''; position: absolute; left:
 .growth-legacy-preview { margin-top: 10px; font-size: 13px; color: var(--md-text-primary, var(--text)); }
 .growth-btn-add { color: var(--md-success, #3b6d11); border-color: #9ec97a; background: #f2f8ea; }
 .growth-btn-add:hover { background: #e4f2d4; }
+
+/* 暖纸细节：保持森林网格与明细双栏，统一操作、数据与历史说明的层次。 */
+.growth-wrap { --growth-leaf: var(--wp-sage, #627a67); }
+.growth-heading-art { background: var(--wp-sage-soft, #eef1ed); border: 1px solid #dce3d8; transform: rotate(-5deg); }
+.growth-summary { background: var(--wp-card, #fffaf3); border: 1px solid var(--wp-hair, #ded5c8); border-radius: 14px; padding: 18px 8px; }
+.growth-stat { flex: 1; gap: 6px; }
+.growth-stat b { color: var(--wp-sage, #627a67); font-size: 28px; }
+.growth-chip { transition: background .18s, border-color .18s, box-shadow .18s; }
+.growth-chip:hover { border-color: var(--wp-sage, #627a67); background: var(--wp-sage-soft, #eef1ed); }
+.growth-chip.active { background: var(--wp-sage, #627a67); border-color: var(--wp-sage, #627a67); color: #fff; }
+.growth-card { background: linear-gradient(160deg, #fffaf3 65%, #f1f2e9); border-color: #ddd6c9; }
+.growth-card:hover .growth-tree-svg { transform: translateY(-3px) rotate(-3deg); }
+.growth-tree-svg { transition: transform .22s ease; }
+.growth-card:focus-visible { outline: 3px solid var(--wp-sage, #627a67); outline-offset: 3px; }
+.growth-card-sel { background: #f1f3e9; border-color: var(--wp-sage, #627a67); box-shadow: 0 0 0 2px #627a6725; }
+.growth-bar { background: #e8e6da; height: 6px; }
+.growth-bar span { background: var(--wp-sage, #627a67); transition: width .4s ease; }
+.growth-add { background: var(--wp-card, #fffaf3); transition: background .18s, border-color .18s; }
+.growth-add:hover { background: var(--wp-sage-soft, #eef1ed); border-color: var(--wp-sage, #627a67); }
+#workarea .growth-actions .btn.btn-secondary:not(:disabled) { background: var(--wp-card) !important; color: var(--wp-muted) !important; border-color: var(--wp-hair) !important; box-shadow: none !important; }
+#workarea .growth-actions .btn.btn-secondary:not(:disabled):hover { background: var(--wp-sand-soft) !important; color: var(--wp-ink) !important; border-color: var(--wp-hair-strong) !important; }
+#modal .growth-detail-modal { border-radius: 20px; max-height: calc(100dvh - 48px); }
+.growth-detail-modal .modal-header { padding: 22px 26px; }
+.growth-detail-modal .modal-body { padding: 24px 26px; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.growth-detail-modal .modal-footer:empty { display: none; }
+.growth-detail-overview { display: flex; align-items: center; gap: 22px; padding: 20px 24px; margin-bottom: 24px; border: 1px solid #dce0d1; border-radius: 14px; background: linear-gradient(110deg, #eef1e8, #faf7ef); }
+.growth-detail-tree { display: grid; place-items: center; width: 82px; height: 90px; flex-shrink: 0; }
+.growth-detail-tree .growth-tree-svg { width: 82px; height: 82px; }
+.growth-detail-progress { flex: 1; min-width: 0; }
+.growth-detail-head { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; color: var(--wp-muted); font-size: 13px; }
+.growth-stage-pill, .growth-week-pill { display: inline-block; border-radius: 6px; font-size: 12px; padding: 3px 8px; }
+.growth-stage-pill { background: #e1e8dc; color: #49614d; }
+.growth-week-pill { margin-left: auto; color: #49614d; background: #ffffff80; }
+.growth-detail-total { display: flex; align-items: baseline; gap: 10px; margin: 4px 0 10px; }
+.growth-detail-total strong { font-size: 34px; font-weight: 500; line-height: 1.1; color: #405943; font-variant-numeric: tabular-nums; }
+.growth-detail-total > span { font-size: 12px; color: var(--wp-muted); }
+.growth-progress-caption { display: flex; justify-content: space-between; gap: 12px; margin-top: 7px; color: var(--wp-muted); font-size: 12px; }
+.growth-detail-grid { gap: 24px; }
+.growth-detail-col > h4:first-child { margin-top: 0; }
+.growth-detail-col h4 { font-size: 15px; margin-top: 24px; line-height: 1.6; letter-spacing: .03em; }
+.growth-section-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.growth-section-title small { font-family: var(--wp-sans); font-size: 11px; font-weight: 400; letter-spacing: 0; color: var(--wp-muted); }
+.growth-subtle { line-height: 1.75; }
+.growth-quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0 18px; }
+#modal .growth-quick .btn.growth-btn-add:not(:disabled) { min-height: 44px; padding: 9px 10px; white-space: normal; line-height: 1.5; font-size: 13px; text-align: left; justify-content: flex-start; background: var(--wp-clay-soft, #f9ede8) !important; color: #934b35 !important; border: 1px solid #e8cfc2 !important; border-radius: 10px; box-shadow: none !important; }
+#modal .growth-quick .btn.growth-btn-add:not(:disabled):hover { background: #f1ded1 !important; border-color: #c78f73 !important; box-shadow: 0 3px 9px #8a4f3310 !important; transform: translateY(-1px); }
+#modal .growth-quick .btn.growth-btn-add:not(:disabled):active { transform: translateY(1px); }
+.growth-custom { padding: 14px; background: #f5efe5; border: 1px solid var(--wp-hair); border-radius: 12px; }
+.growth-detail .growth-input { min-height: 40px; font-family: inherit; line-height: 1.5; transition: border-color .18s, box-shadow .18s; }
+.growth-input:focus { outline: none; border-color: var(--wp-sage); box-shadow: 0 0 0 3px #627a671b; }
+.growth-input[aria-invalid="true"] { border-color: var(--wp-clay); box-shadow: 0 0 0 3px #b65f4218; }
+.growth-detail .growth-custom .btn-primary { min-height: 40px; font-size: 13px; padding: 8px 13px; }
+.growth-count { display: inline-block; margin-left: 5px; padding: 1px 7px; border: 1px solid var(--wp-hair); border-radius: 6px; font-size: 12px; color: var(--wp-muted); vertical-align: middle; }
+.growth-history-notice { display: grid; gap: 4px; padding: 11px 13px; margin: 12px 0; border: 1px solid #e4d5bb; border-radius: 10px; background: #f6f0e4; font-size: 12px; line-height: 1.7; color: #806440; }
+.growth-history-notice b { font-weight: 600; }
+.growth-record-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 12px 0; }
+.growth-record-filters button { border: 1px solid transparent; background: transparent; padding: 5px 10px; border-radius: 7px; color: var(--wp-muted); font: inherit; font-size: 12px; cursor: pointer; transition: background .16s, color .16s; }
+.growth-record-filters button:hover { background: #ece6dc; color: var(--wp-ink); }
+.growth-record-filters button[aria-pressed="true"] { background: var(--wp-sage-soft); border-color: #d3ddcf; color: #49614d; }
+.growth-filter-count { margin-left: auto; color: var(--wp-muted); font-size: 11px; }
+.growth-record-scroll { border: 1px solid var(--wp-hair); border-radius: 10px; background: var(--wp-card); }
+.growth-detail .growth-table:not(.growth-record-table) { min-width: 0; table-layout: fixed; }
+.growth-detail .growth-table:not(.growth-record-table) td:first-child { width: 25%; }
+.growth-record-table { margin: 0; min-width: 510px; }
+.growth-record-table th { font-size: 12px; font-weight: 500; color: var(--wp-muted); background: #f0eade; padding: 10px 8px; }
+.growth-record-table th:first-child { width: 100px; }
+.growth-record-table th:nth-child(2) { width: 108px; }
+.growth-record-table th:last-child { width: 60px; }
+.growth-record-table td { padding: 13px 8px; font-size: 13px; line-height: 1.5; transition: background .15s; }
+.growth-record-table td b { font-weight: 500; }
+.growth-record-table tbody tr:last-child td { border-bottom: none; }
+.growth-record-table tbody tr:hover td { background: #f4f2e9; }
+.growth-record-table tr[hidden], .growth-filter-empty[hidden] { display: none; }
+.growth-pos, .growth-neg, .growth-zero { font-variant-numeric: tabular-nums; font-size: 16px; }
+.growth-zero { color: var(--wp-muted); }
+.growth-record-table .growth-cap { font-size: 11px; }
+.growth-record-note { color: var(--wp-muted); font-size: 12px; }
+.growth-del { min-height: 28px; padding: 3px 7px; transition: color .15s, border-color .15s, background .15s; }
+.growth-del:hover { background: var(--wp-clay-soft); }
+.growth-filter-empty { padding: 20px; text-align: center; color: var(--wp-muted); font-size: 13px; }
+.growth-detail-footnote { border-top: 1px solid var(--wp-hair); padding-top: 14px; margin: 22px 0 0; }
+.growth-detail button:focus-visible { outline: 2px solid var(--wp-sage); outline-offset: 3px; }
+@media (max-width: 640px) {
+  #modal .growth-detail-modal { max-width: calc(100vw - 20px); max-height: calc(100dvh - 20px); border-radius: 14px; }
+  .growth-detail-modal .modal-body { padding: 16px; }
+  .growth-detail-modal .modal-header { padding: 16px 20px; }
+  .growth-detail-overview { padding: 16px; gap: 12px; }
+  .growth-detail-tree { width: 52px; }
+  .growth-detail-tree .growth-tree-svg { width: 58px; height: 58px; }
+  .growth-summary { padding: 14px 4px; }
+  .growth-stat b { font-size: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .growth-card, .growth-tree-svg, .growth-bar span, .growth-chip, .growth-detail button { transition: none !important; transform: none !important; }
+}

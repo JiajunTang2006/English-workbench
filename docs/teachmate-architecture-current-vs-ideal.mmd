@@ -1,0 +1,19 @@
+flowchart TB
+  subgraph Current["当前：混合过渡架构"]
+    UI1["浏览器单页 UI\nWorkBench ⇄ TeachMate"] --> API1["FastAPI 总服务台\n业务 API + Agent API"]
+    API1 --> Legacy["Python Agent\n自研 Loop / Provider / 工具 / 证据"]
+    API1 --> Harness1["Harness Headless\n每次提问启动一次 Node 子进程"]
+    Legacy --> DB1[("SQLite + 附件目录")]
+    Harness1 -->|"Education Bridge 回调"| API1
+    API1 --> DB1
+  end
+
+  subgraph Ideal["成熟：单一可信主路径"]
+    UI2["任务型教师工作台\n对话 + 报告 + 证据 + 确认"] -->|"SSE / WebSocket"| Gateway["统一 Agent 网关\nScope / 预算 / 幂等 / 恢复"]
+    Gateway --> Harness2["常驻 Harness Agent\n连续会话 + 原生事件"]
+    Harness2 --> Tools["可信教学工具层\n确定性计算 + 隐私 + 证据账本"]
+    Tools --> DB2[("业务事实库 + 文件")]
+    Gateway --> Jobs[("持久任务 / 事件 / 审计")]
+  end
+
+  Current -. "收敛双运行时、真流式、证据链、持久任务、任务型 UI、真实发布验证" .-> Ideal

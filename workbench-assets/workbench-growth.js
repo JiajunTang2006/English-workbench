@@ -219,6 +219,7 @@
           <button type="button" class="btn btn-primary" data-act="growth-batch-open">＋ 批量补录</button>
         </div>` : ''}
         ${growthError ? `<div class="growth-inline-warn">${escapeHtml(growthError)}</div>` : ''}
+        ${growthData.manual_entry_policy !== 'teacher_confirmed_v1' ? '<div class="growth-inline-warn" role="status">后台尚未加载新版补录规则。请重启工作台服务后再补录，仅刷新浏览器无法更新计分逻辑。</div>' : ''}
         <div class="growth-grid">${cards}</div>
         ${rows.length === 0 ? '<div class="empty">该范围暂无学生</div>' : ''}
       </div>`;
@@ -230,13 +231,13 @@
     const pct = Math.round(Math.max(0, Math.min(1, Number(row.stage_progress) || 0)) * 100);
     const selected = growthSelectedIds.has(String(row.student_id));
     const checkbox = growthSelectMode
-      ? `<label class="growth-check"><input type="checkbox" data-act="growth-check" data-id="${row.student_id}" ${selected ? 'checked' : ''}></label>`
+      ? `<label class="growth-check"><input type="checkbox" aria-label="选择${escapeAttr(row.name)}" data-act="growth-check" data-id="${row.student_id}" ${selected ? 'checked' : ''}></label>`
       : '';
     const dims = GROWTH_DIMENSION_ORDER
       .map(key => growthDimensionBadge((row.dimensions || {})[key] && row.dimensions[key].status))
       .join('');
     return `
-      <div class="growth-card ${selected && growthSelectMode ? 'growth-card-sel' : ''}" data-act="${growthSelectMode ? 'growth-check-card' : 'growth-student'}" data-id="${row.student_id}" title="${growthSelectMode ? '点卡片勾选/取消' : `查看 ${escapeAttr(row.name)} 的成长记录`}">
+      <div tabindex="0" role="button" aria-label="${escapeAttr(row.name)}的成长记录" ${growthSelectMode ? `aria-pressed="${selected}"` : ''} class="growth-card ${selected && growthSelectMode ? 'growth-card-sel' : ''}" data-act="${growthSelectMode ? 'growth-check-card' : 'growth-student'}" data-id="${row.student_id}" title="${growthSelectMode ? '点卡片勾选/取消' : `查看 ${escapeAttr(row.name)} 的成长记录`}">
         ${checkbox}
         <div class="growth-tree">${growthTreeSvg(row.stage_index)}</div>
         <div class="growth-name">${escapeHtml(row.name)}</div>
@@ -270,7 +271,9 @@
   function renderGrowthDetail(detail) {
     const snapshot = detail.snapshot || {};
     const records = Array.isArray(detail.records) ? detail.records : [];
-    const stages = Array.isArray(snapshot.stages) ? snapshot.stages : [];
+    const cappedReasons = new Set(['capped', 'category_daily_awards', 'category_weekly_awards']);
+    const historicalCapped = records.filter(record => record.source_type === 'teacher'
+      && record.scoring_mode !== 'teacher_confirmed_v1' && cappedReasons.has(record.cap_reason)).length;
     const next = snapshot.next_stage;
     const pct = Math.round(Math.max(0, Math.min(1, Number(snapshot.stage_progress) || 0)) * 100);
     const dimRows = GROWTH_DIMENSION_ORDER.map(key => {
@@ -294,8 +297,10 @@
 
     const recordRows = records.length ? records.map(record => {
       const reversible = record.reversible;
+      const oldCapped = record.source_type === 'teacher' && record.scoring_mode !== 'teacher_confirmed_v1'
+        && cappedReasons.has(record.cap_reason);
       const capNote = record.cap_reason && record.cap_reason !== 'none'
-        ? `<span class="growth-cap" title="封顶原因">${escapeHtml(growthCapReasonLabel(record.cap_reason))}</span>` : '';
+        ? `<span class="growth-cap" title="计分说明">${oldCapped ? '旧规则 · ' : ''}${escapeHtml(growthCapReasonLabel(record.cap_reason))}</span>` : '';
       const legacyNote = record.legacy_points != null ? `<span class="growth-legacy-tag">历史营养</span>` : '';
       const progressNote = growthProgressTag(record);
       const reverseBtn = reversible
@@ -303,10 +308,10 @@
       const pointsText = record.legacy_points != null
         ? `${record.legacy_points >= 0 ? '＋' : '－'}${Math.abs(record.legacy_points)}`
         : `${record.applied_points >= 0 ? '＋' : '－'}${Math.abs(record.applied_points)}`;
-      return `<tr>
+      return `<tr data-record-kind="${oldCapped ? 'limited' : Number(record.applied_points) > 0 ? 'credited' : 'other'}">
         <td>${escapeHtml(record.business_date || '')}</td>
-        <td><span class="${record.applied_points < 0 ? 'growth-neg' : 'growth-pos'}">${pointsText}</span>${capNote}${legacyNote}${progressNote}</td>
-        <td>${escapeHtml(record.event_label || record.event_type)}${record.note ? ` · ${escapeHtml(record.note)}` : ''}</td>
+        <td><span class="${record.applied_points < 0 ? 'growth-neg' : record.applied_points > 0 ? 'growth-pos' : 'growth-zero'}">${pointsText}</span>${capNote}${legacyNote}${progressNote}</td>
+        <td><b>${escapeHtml(record.event_label || record.event_type)}</b>${record.note && record.note !== record.event_label ? `<div class="growth-record-note">${escapeHtml(record.note)}</div>` : ''}</td>
         <td class="growth-del-cell">${reverseBtn}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="4">暂无补录记录</td></tr>';
@@ -321,22 +326,30 @@
 
     const body = `
       <div class="growth-detail">
-        <p class="growth-detail-head"><b>${escapeHtml(detail.name || '')}</b>（${escapeHtml(formatClassLabel(detail.class_name || '未分班'))}）　阶段：<b>${escapeHtml(snapshot.stage_name || '种子')}</b>　本学期营养：<b>${snapshot.term_points || 0}</b>${snapshot.legacy_points ? `　<span class="growth-legacy-tag">历史营养（旧规则）${snapshot.legacy_points}</span>` : ''}</p>
-        <div class="growth-bar growth-bar-detail"><span style="width:${pct}%"></span></div>
-        <div class="growth-sub">${next ? `距离${escapeHtml(next.name)}还差 ${Math.max(0, next.min - (snapshot.term_points || 0))}` : '已达最高阶段 🎉'}　·　本周 +${snapshot.week_points || 0}</div>
+        <div class="growth-detail-overview">
+          <div class="growth-detail-tree" aria-hidden="true">${growthTreeSvg(snapshot.stage_index || 0)}</div>
+          <div class="growth-detail-progress">
+            <p class="growth-detail-head"><span>${escapeHtml(formatClassLabel(detail.class_name || '未分班'))}</span><span class="growth-stage-pill">${escapeHtml(snapshot.stage_name || '种子')}</span><span class="growth-week-pill">本周 +${snapshot.week_points || 0}</span></p>
+            <div class="growth-detail-total"><strong>${snapshot.term_points || 0}</strong><span>本学期营养</span></div>
+            <div class="growth-bar growth-bar-detail" role="progressbar" aria-label="当前阶段进度" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>
+            <div class="growth-progress-caption"><span>${next ? `距离${escapeHtml(next.name)}还差 ${Math.max(0, next.min - (snapshot.term_points || 0))} 营养` : '已达最高阶段 🎉'}</span><span>${pct}%</span></div>
+            ${snapshot.legacy_points ? `<span class="growth-legacy-tag">历史营养（旧规则）${snapshot.legacy_points}</span>` : ''}
+          </div>
+        </div>
         <div class="growth-detail-grid">
           <div class="growth-detail-col">
-            <h4>🌱 快速补录（只加分，需有事由）</h4>
+            <h4 class="growth-section-title"><span>🌱 快速补录</span><small>点选即补录 · 只加分</small></h4>
+            <p class="growth-subtle">新补录按确认分值完整计入，不受每日、每周或类别上限限制。</p>
             <div class="growth-quick">${quickButtons}</div>
             <div class="growth-custom">
-              <select id="growthCustomType" class="growth-input">
+              <select id="growthCustomType" class="growth-input" aria-label="补录类别">
                 ${growthPresetsForTerm().map(preset => `<option value="${preset.type}">${escapeHtml(preset.label)}</option>`).join('')}
               </select>
-              <input type="text" id="growthCustomNote" placeholder="事由（必填，如：单元复习达标）" class="growth-input">
-              ${growthData && growthData.rule_version === 'growth-v3' ? '' : '<input type="number" id="growthCustomPoints" min="1" max="3" value="1" class="growth-input" aria-label="教师手工加分点数" title="仅教师手工加分使用，1至3点">'}
+              <input type="text" aria-label="补录事由（必填）" id="growthCustomNote" placeholder="事由（必填，如：单元复习达标）" class="growth-input">
+              <label class="growth-points-label">营养分值<input type="number" id="growthCustomPoints" min="1" step="1" value="2" class="growth-input" aria-label="营养分值"></label>
               <button type="button" class="btn btn-primary" data-act="growth-custom-add" data-id="${detail.student_id}">确认补录</button>
             </div>
-            <h4>📘 五个能力分支（来自可比测评，无证据显示「待记录」）</h4>
+            <h4>📘 五个能力分支</h4><p class="growth-subtle">来自可比测评，无证据显示「待记录」。</p>
             <table class="growth-table">${dimRows}</table>
             <h4>📋 待订正任务</h4>
             <ul class="growth-list">${pending}</ul>
@@ -344,16 +357,29 @@
             <ul class="growth-list">${history}</ul>
           </div>
           <div class="growth-detail-col">
-            <h4>补录记录（可撤销误录，不删除原记录）</h4>
-            <table class="growth-table growth-record-table">
-              <tr><th>日期</th><th>营养</th><th>事由</th><th></th></tr>
+            <h4 class="growth-section-title"><span>补录记录 <span class="growth-count">${records.length}</span></span><small>误录可撤销，保留原记录</small></h4>
+            ${historicalCapped ? `<div class="growth-history-notice"><b>${historicalCapped} 条旧补录曾受限额影响</b><span>下方「旧规则」记录保留当时计分，刷新不会补发。需要补足时，请核对事由后新增补录。</span></div>` : ''}
+            <div class="growth-record-filters" role="group" aria-label="筛选补录记录">
+              <button type="button" data-act="growth-record-filter" data-filter="all" aria-pressed="true">全部</button>
+              <button type="button" data-act="growth-record-filter" data-filter="credited" aria-pressed="false">已计入</button>
+              ${historicalCapped ? '<button type="button" data-act="growth-record-filter" data-filter="limited" aria-pressed="false">旧规则受限</button>' : ''}
+              <span class="growth-filter-count" role="status">${records.length} 条记录</span>
+            </div>
+            <div class="growth-record-scroll"><table class="growth-table growth-record-table">
+              <thead><tr><th>日期</th><th>营养 / 说明</th><th>事由</th><th>操作</th></tr></thead><tbody>
               ${recordRows}
-            </table>
+            </tbody></table><p class="growth-filter-empty" hidden>暂无符合条件的记录</p></div>
           </div>
         </div>
-        <p class="growth-subtle">记录覆盖：${snapshot.coverage ? `${snapshot.coverage.recorded_events} 条 · ${snapshot.coverage.active_days} 个活动日` : '—'}　规则版本：${escapeHtml(snapshot.rule_version || '')}</p>
+        <p class="growth-detail-footnote growth-subtle">记录覆盖：${snapshot.coverage ? `${snapshot.coverage.recorded_events} 条 · ${snapshot.coverage.active_days} 个活动日` : '—'}　规则版本：${escapeHtml(snapshot.rule_version || '')}</p>
       </div>`;
     openModal(`${escapeHtml(detail.name || '')} · 我的成长树`, body);
+    const content = document.querySelector('#modal .modal-content');
+    content?.classList.add('growth-detail-modal');
+    // Shared modals may retain the scroll position from an earlier entry form.
+    if (content) content.scrollTop = 0;
+    const modalBody = document.getElementById('modalBody');
+    if (modalBody) modalBody.scrollTop = 0;
   }
 
   function growthCapReasonLabel(reason) {
@@ -389,17 +415,30 @@
   // ---------- 补录 ----------
   async function growthRecordItems(studentIds, eventType, note, points) {
     if (!DATABASE_MODE) { showToast('成长森林需要连接本地数据库', 'error'); return; }
-    if (!note || !note.trim()) { showToast('补录必须填写事由', 'error'); return; }
+    if (!note || !note.trim()) {
+      const input = document.getElementById?.('growthCustomNote');
+      input?.setAttribute('aria-invalid', 'true');
+      input?.focus();
+      showToast('补录必须填写事由', 'error'); return;
+    }
     const ids = Array.isArray(studentIds) ? studentIds : [studentIds];
     if (!ids.length) { showToast('请先选择学生', 'error'); return; }
     if (growthSubmitting) return;
     if (growthModalTermId !== null && growthModalTermId !== currentTermId) {
       showToast('学期已切换，请重新打开补录窗口', 'error'); return;
     }
+    const confirmedPoints = points == null
+      ? (growthPresetsForTerm().find(preset => preset.type === eventType)?.pts || 1)
+      : Number(points);
+    if (!Number.isSafeInteger(confirmedPoints) || confirmedPoints < 1) {
+      const input = document.getElementById?.('growthCustomPoints');
+      input?.setAttribute('aria-invalid', 'true');
+      input?.focus();
+      showToast('营养分值必须为正整数', 'error'); return;
+    }
     const items = ids.map(studentId => {
       const item = { student_id: Number(studentId), event_type: eventType, note: note.trim() };
-      if (eventType === 'teacher_observation' && points) item.points = Math.max(1, Math.min(2, Number(points)));
-      if (eventType === 'teacher_bonus') item.points = Math.max(1, Math.min(3, Number(points) || 1));
+      item.points = confirmedPoints;
       return item;
     });
     const termId = currentTermId;
@@ -411,6 +450,13 @@
       };
     }
     growthSubmitting = true;
+    const controls = Array.from(document.querySelectorAll?.('#modal .growth-detail button, #modal .growth-detail input, #modal .growth-detail select') || []);
+    const previousControls = controls.map(control => ({ control, disabled: control.disabled }));
+    controls.forEach(control => { control.disabled = true; });
+    const submit = controls.find(control => control.dataset.act === 'growth-custom-add'
+      || (control.dataset.act === 'growth-batch-apply' && control.dataset.type === 'custom'));
+    const submitText = submit?.textContent;
+    if (submit) { submit.textContent = '正在补录…'; submit.setAttribute('aria-busy', 'true'); }
     try {
       const result = await apiRequest('/api/v1/growth/activities', {
         method: 'POST',
@@ -421,7 +467,11 @@
       growthPendingSubmission = null;
       const createdCount = (result.created || []).length;
       const skipped = (result.skipped || []).length;
-      showToast(createdCount ? `已记录 ${createdCount} 条成长活动${skipped ? `（${skipped} 条被跳过）` : ''}` : '没有可记录的条目', createdCount ? 'success' : 'error');
+      const awarded = (result.created || []).reduce((sum, item) => sum + Number(item.applied_points || 0), 0);
+      const hasAwardResult = createdCount && result.created.every(item => Number.isFinite(item.applied_points));
+      const pointsMessage = hasAwardResult ? `，营养合计 +${awarded}` : '';
+      const skippedReason = (result.skipped || []).map(item => item.reason).filter(Boolean)[0];
+      showToast(createdCount ? `已记录 ${createdCount} 条成长活动${pointsMessage}${skipped ? `（${skipped} 条跳过：${skippedReason || '请核查'}）` : ''}` : (skippedReason || '没有可记录的条目'), createdCount ? 'success' : 'error');
       growthInvalidate();
       growthResetSelection();
       closeModal();
@@ -430,6 +480,8 @@
       showToast(error && error.message ? error.message : '补录失败', 'error');
     } finally {
       growthSubmitting = false;
+      previousControls.forEach(({ control, disabled }) => { control.disabled = disabled; });
+      if (submit) { submit.textContent = submitText; submit.removeAttribute('aria-busy'); }
     }
   }
 
@@ -443,14 +495,14 @@
     ).join('');
     openModal(`为 ${escapeHtml(name)} 补录营养`, `
       <div class="growth-detail">
-        <p class="growth-subtle">选择预设或自定义事由；补录必须有事由，且不会从已完成活动中扣回营养。</p>
+        <p class="growth-subtle">教师补录按确认分值完整计入，不受每日、每周或类别上限限制；误录可撤销。</p>
         <div class="growth-quick">${buttons}</div>
         <div class="growth-custom">
-          <select id="growthCustomType" class="growth-input">
+          <select id="growthCustomType" class="growth-input" aria-label="补录类别">
             ${growthPresetsForTerm().map(preset => `<option value="${preset.type}">${escapeHtml(preset.label)}</option>`).join('')}
           </select>
-          <input type="text" id="growthCustomNote" placeholder="事由（必填）" class="growth-input">
-          ${growthData && growthData.rule_version === 'growth-v3' ? '' : '<input type="number" id="growthCustomPoints" min="1" max="3" value="1" class="growth-input" aria-label="教师手工加分点数" title="仅教师手工加分使用，1至3点">'}
+          <input type="text" aria-label="补录事由（必填）" id="growthCustomNote" placeholder="事由（必填）" class="growth-input">
+          <label class="growth-points-label">营养分值<input type="number" id="growthCustomPoints" min="1" step="1" value="2" class="growth-input" aria-label="营养分值"></label>
           <button type="button" class="btn btn-primary" data-act="growth-custom-add" data-id="${id}">确认补录</button>
         </div>
       </div>`);
@@ -465,14 +517,14 @@
     ).join('');
     openModal(`批量补录（${growthSelectedIds.size} 人）`, `
       <div class="growth-detail">
-        <p class="growth-subtle">将对 ${growthSelectedIds.size} 名学生补录同一条学习活动；每位学生各自按当天/当周额度封顶。</p>
+        <p class="growth-subtle">将对 ${growthSelectedIds.size} 名学生补录同一条学习活动；每位学生按确认分值完整计入，不受每日、每周或类别上限限制。</p>
         <div class="growth-quick">${buttons}</div>
         <div class="growth-custom">
-          <select id="growthCustomType" class="growth-input">
+          <select id="growthCustomType" class="growth-input" aria-label="补录类别">
             ${growthPresetsForTerm().map(preset => `<option value="${preset.type}">${escapeHtml(preset.label)}</option>`).join('')}
           </select>
-          <input type="text" id="growthCustomNote" placeholder="事由（必填）" class="growth-input">
-          ${growthData && growthData.rule_version === 'growth-v3' ? '' : '<input type="number" id="growthCustomPoints" min="1" max="3" value="1" class="growth-input" aria-label="教师手工加分点数" title="仅教师手工加分使用，1至3点">'}
+          <input type="text" aria-label="补录事由（必填）" id="growthCustomNote" placeholder="事由（必填）" class="growth-input">
+          <label class="growth-points-label">营养分值<input type="number" id="growthCustomPoints" min="1" step="1" value="2" class="growth-input" aria-label="营养分值"></label>
           <button type="button" class="btn btn-primary" data-act="growth-batch-apply" data-type="custom">确认补录</button>
         </div>
       </div>`);
@@ -595,7 +647,20 @@
     const act = target.dataset.act;
     if (!act || !act.startsWith('growth-')) return;
     const id = target.dataset.id;
-    if (act === 'growth-class') {
+    if (act === 'growth-record-filter') {
+      const detail = target.closest('.growth-detail');
+      const filter = target.dataset.filter;
+      let count = 0;
+      detail.querySelectorAll('[data-record-kind]').forEach(row => {
+        row.hidden = filter !== 'all' && row.dataset.recordKind !== filter;
+        if (!row.hidden) count++;
+      });
+      detail.querySelectorAll('[data-act="growth-record-filter"]').forEach(button => {
+        button.setAttribute('aria-pressed', String(button === target));
+      });
+      detail.querySelector('.growth-filter-count').textContent = `${count} 条记录`;
+      detail.querySelector('.growth-filter-empty').hidden = count > 0;
+    } else if (act === 'growth-class') {
       // 与其它模块一致：班级 chips 走全局范围分发（setGlobalClassFilter 会回调
       // growthSetClass 并清空批量勾选），避免出现两个互相不一致的班级过滤状态。
       setGlobalClassFilter(target.dataset.cls || '');
@@ -629,7 +694,7 @@
         const chosen = sel ? sel.value : 'task_completed';
         const bonus = document.getElementById('growthCustomPoints');
         growthRecordItems([...growthSelectedIds], chosen, note ? note.value : '',
-          chosen === 'teacher_bonus' ? (bonus ? bonus.value : 1) : null);
+          bonus ? bonus.value : null);
       } else {
         growthRecordItems([...growthSelectedIds], type, target.dataset.note || '', target.dataset.pts);
       }
@@ -641,7 +706,7 @@
       const bonus = document.getElementById('growthCustomPoints');
       const chosen = sel ? sel.value : 'task_completed';
       growthRecordItems([id], chosen, note ? note.value : '',
-        chosen === 'teacher_bonus' ? (bonus ? bonus.value : 1) : null);
+        bonus ? bonus.value : null);
     } else if (act === 'growth-reverse') {
       growthReverse(id);
     } else if (act === 'growth-legacy-open') {
@@ -653,12 +718,31 @@
     }
   });
 
+  document.addEventListener('keydown', e => {
+    if ((e.key !== 'Enter' && e.key !== ' ') || !e.target.matches('.growth-card')) return;
+    e.preventDefault();
+    const id = e.target.dataset.id;
+    e.target.click();
+    // Selection re-renders the card; keep keyboard focus on the same student.
+    document.querySelector(`.growth-card[data-id="${CSS.escape(id)}"]`)?.focus();
+  });
+
+  document.addEventListener('input', e => {
+    if (e.target.id === 'growthCustomNote' || e.target.id === 'growthCustomPoints') {
+      e.target.removeAttribute('aria-invalid');
+    }
+  });
+
   document.addEventListener('change', e => {
     const target = e.target;
     if (!target) return;
     if (target.dataset && target.dataset.act === 'growth-sort') {
       growthSort = target.value;
       render();
+    } else if (target.id === 'growthCustomType') {
+      const input = document.getElementById('growthCustomPoints');
+      const preset = growthPresetsForTerm().find(item => item.type === target.value);
+      if (input && preset) input.value = preset.pts;
     } else if (target.id === 'growthLegacyFile') {
       const file = target.files && target.files[0];
       if (!file) return;

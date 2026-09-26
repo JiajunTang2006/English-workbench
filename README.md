@@ -1,19 +1,6 @@
 # English Workbench
 
-> 本仓库为空白版源码快照，保留应用代码、构建脚本和依赖声明。教师/学生数据库、附件、密钥、测试数据、开发记录及安装包未随源码上传。本仓库包含成长值、学生快照导入和浏览器基线回归测试；下文其他测试命令和文档路径可能属于未包含的原项目内容。
-
-当前版本：0.9.0-beta.2（Beta，尚未正式发布）。正式程序代码不内置班级、学生或成绩数据；本仓库附带的回归测试在代码中生成合成数据，不需要真实学生资料。完整项目的 `tests/fixtures/`、`test_data/` 和 `release/` 目录未随此快照上传。
-
-## 本仓库包含的回归测试
-
-安装项目 Python 和 npm 依赖后，可运行：
-
-```bash
-python3 -m pytest backend/tests/test_growth*.py backend/tests/test_import_student_snapshot.py
-npm run test:e2e -- tests/e2e/baseline.spec.js
-```
-
-浏览器测试首次运行前需要安装 Playwright Chromium：`npx playwright install chromium`。测试会创建独立临时数据库，不修改正式教学数据。原项目的完整前端单元测试未包含在此快照中。
+当前版本：0.9.0-beta.2（Beta，尚未正式发布）。正式程序代码不内置班级、学生或成绩数据；自动化测试使用 `tests/fixtures/` 与 `test_data/` 中的匿名合成数据，`release/` 只保留当前空白安装包及其更新基线。
 
 ## 成绩导入约定
 

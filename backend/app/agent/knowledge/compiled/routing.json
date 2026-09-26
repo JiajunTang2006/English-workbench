@@ -1,0 +1,101 @@
+{
+  "书面表达": {
+    "entry_id": "QT-书面表达",
+    "error_causes": [
+      "审题",
+      "语法",
+      "表达",
+      "词汇"
+    ],
+    "points": [
+      "writing.task_completion",
+      "writing.organization",
+      "writing.coherence",
+      "writing.language_accuracy"
+    ]
+  },
+  "任务型阅读": {
+    "entry_id": "QT-任务型阅读",
+    "error_causes": [
+      "定位",
+      "推断",
+      "表达",
+      "审题"
+    ],
+    "points": [
+      "reading.detail",
+      "writing.task_completion",
+      "reading.multimodal"
+    ]
+  },
+  "听力": {
+    "entry_id": "QT-听力理解",
+    "error_causes": [
+      "词汇",
+      "定位",
+      "推断",
+      "审题"
+    ],
+    "points": [
+      "listening.gist",
+      "listening.detail",
+      "listening.inference"
+    ]
+  },
+  "完形填空": {
+    "entry_id": "QT-完形填空",
+    "error_causes": [
+      "词汇",
+      "推断",
+      "定位"
+    ],
+    "points": [
+      "vocab.collocation",
+      "grammar.conjunction",
+      "reading.structure"
+    ]
+  },
+  "词汇运用": {
+    "entry_id": "QT-词汇运用",
+    "error_causes": [
+      "词汇",
+      "语法",
+      "审题"
+    ],
+    "points": [
+      "vocab.meaning_context",
+      "vocab.part_of_speech",
+      "vocab.word_formation",
+      "vocab.spelling"
+    ]
+  },
+  "语法填空": {
+    "entry_id": "QT-语法填空",
+    "error_causes": [
+      "语法",
+      "审题",
+      "词汇"
+    ],
+    "points": [
+      "grammar.tense",
+      "grammar.voice",
+      "grammar.nonfinite",
+      "grammar.number"
+    ]
+  },
+  "阅读理解": {
+    "entry_id": "QT-阅读理解",
+    "error_causes": [
+      "定位",
+      "推断",
+      "审题",
+      "词汇"
+    ],
+    "points": [
+      "reading.detail",
+      "reading.main_idea",
+      "reading.inference",
+      "reading.structure"
+    ]
+  }
+}

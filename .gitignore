@@ -110,3 +110,15 @@ vendor/**/build/
 vendor/**/*.tsbuildinfo
 vendor/**/__pycache__/
 vendor/**/*.py[cod]
+
+# --- 发布仓库排除项：空白版只上传源码、测试与文档 ---
+# 以下内容属于本地临时工作区、设计稿、构建校验产物或工具配置，
+# 不属于应用源码，发布仓库一律不入库。
+clone_work/
+design-preview/
+release/
+release-manifest.sha256
+docs/.obsidian/
+process-message-preview.html
+.agents/
+vendor/**/.claude/
