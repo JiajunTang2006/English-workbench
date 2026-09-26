@@ -96,11 +96,18 @@ def sync_exam_growth_events(session, *, term_id: int) -> dict[str, Any]:
             GrowthEvent.source_type == "auto_exam",
         ).order_by(GrowthEvent.id)
     ))
-    reversals = {event.reverses_event_id for event in session.scalars(
-        select(GrowthEvent).where(
-            GrowthEvent.term_id == term_id,
-            GrowthEvent.reverses_event_id.is_not(None),
-        ))}
+    reversal_events = {
+        event.reverses_event_id: event
+        for event in session.scalars(
+            select(GrowthEvent)
+            .where(
+                GrowthEvent.term_id == term_id,
+                GrowthEvent.reverses_event_id.is_not(None),
+            )
+            .order_by(GrowthEvent.id)
+        )
+    }
+    reversals = set(reversal_events)
     by_source: dict[str, list[GrowthEvent]] = {}
     for event in event_rows:
         by_source.setdefault(event.source_id or "", []).append(event)
@@ -146,15 +153,19 @@ def sync_exam_growth_events(session, *, term_id: int) -> dict[str, Any]:
             last = previous[-1] if previous else None
             if last and last.source_revision is None and rate is not None:
                 old = last.payload_json or {}
+                reversal = reversal_events.get(last.id)
                 if (old.get("score_rate") == round(rate, 4)
                         and old.get("baseline_rate") == (
                             None if baseline is None else round(baseline, 4))
-                        and old.get("progress_points") == progress):
+                        and old.get("progress_points") == progress
+                        and (reversal is None or reversal.actor != "system")):
                     skipped += 1
                     continue
             if last and last.source_revision == revision:
-                skipped += 1
-                continue
+                reversal = reversal_events.get(last.id)
+                if reversal is None or reversal.actor != "system":
+                    skipped += 1
+                    continue
             if active is not None:
                 growth_events.record_event(
                     session, student_id=score.student_id, term_id=term_id,
