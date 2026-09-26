@@ -104,58 +104,6 @@ python3 tools/restore_backup.py /path/to/backup-directory \
 
 ---
 
-## 从源码构建与开发
-
-### 环境准备
-
-Python 3.11（开发与正式基线版本）：
-
-```bash
-python3.11 -m venv .venv
-. .venv/bin/activate
-python -m pip install --upgrade pip
-# Harness SDK 来自仓库内 vendor/（不从 PyPI 下载）
-python -m pip install -e vendor/deepseek-harness-upstream/python/sdk-runtime
-python -m pip install -e vendor/deepseek-harness-upstream/python/sdk
-python -m pip install -r backend/requirements.lock
-python -m pip install 'pywebview>=5.3,<7'   # 需要内嵌桌面窗口时安装
-npm install
-```
-
-Windows 激活环境使用 `.venv\Scripts\activate`。依赖事实源：`backend/pyproject.toml`（声明）与 `backend/requirements.lock`（固定版本）。
-
-### 开发运行
-
-```bash
-python3 launcher.py                              # 默认入口（TeachMate）
-WORKBENCH_FRONTEND=legacy python3 launcher.py    # 临时回到旧 WorkBench 页面
-WORKBENCH_PORT=9000 python3 launcher.py          # 自定义端口
-```
-
-### 打包
-
-```bash
-python3 tools/build_teachmate_runtime.py   # 生成随包分发的 Node/Harness 运行时（约数百 MB）
-./build_macos_app.sh                       # macOS：生成 dist/EnglishWorkBench.app
-build_windows.bat                          # Windows：生成 dist\EnglishWorkBench\EnglishWorkBench.exe
-```
-
-桌面软件打包与 WebView 行为见 [docs/DESKTOP_APP_BUILD.md](docs/DESKTOP_APP_BUILD.md)。
-
-### 测试
-
-全部测试使用项目内匿名 fixture 或独立临时数据目录，不读写正式应用数据目录，也不会为测试关闭鉴权。
-
-```bash
-npm run check          # JavaScript 语法检查
-npm test               # 前端 Node 回归与安全测试（jsdom）
-npm run test:backend   # 后端测试（迁移、备份、API、代理、后台任务、附件解析等）
-npm run test:e2e       # 浏览器端到端测试（自动拉起临时服务）
-npm run release_check  # 统一发布质量门禁，任一阶段失败返回非零
-```
-
----
-
 ## 安全边界
 
 - 只监听 `127.0.0.1`，不对外暴露服务；
@@ -179,4 +127,3 @@ npm run release_check  # 统一发布质量门禁，任一阶段失败返回非�
 
 第三方资源版本与许可见 [workbench-assets/THIRD_PARTY_NOTICES.md](workbench-assets/THIRD_PARTY_NOTICES.md)，完整性校验见 [workbench-assets/checksums.sha256](workbench-assets/checksums.sha256)。
 
-本项目为 iCAN 大学生创新创业大赛参赛作品（华南赛区 · 高校组）。
