@@ -16,6 +16,8 @@ English Workbench 把这条链路放进一个本地工作台：以**学期、班
 
 ## 下载
 
+### 1.0.0
+
 1.0.0 空白版不附带教学数据库或 API 密钥。新数据目录首次启动无预置教学数据；升级已有空白版会保留原数据。
 
 | 平台 | 系统要求 | 安装包 | 大小 |
@@ -32,7 +34,14 @@ f0422b26194957fa685995ff21d2962db23026f7f4ab7d4cf0091bbdda598a0f  EnglishWorkBen
 0162e27fd3ca5245ed5ad28602d99c6c097957b195195dd065076ada41c021f2  EnglishWorkBench_Windows_x64_Blank_1.0.0.zip
 ```
 
-历史版本见 [Releases](https://github.com/JiajunTang2006/English-workbench/releases)。
+### 0.9.0 历史版本（0.9.0-beta.2）
+
+| 平台 | 安装包 |
+| --- | --- |
+| macOS · Apple Silicon（arm64） | [macOS 0.9.0-beta.2 空白版](https://github.com/JiajunTang2006/English-workbench/releases/download/v0.9.0-beta.2/EnglishWorkBench_macOS_arm64_Blank_0.9.0-beta.2.dmg) |
+| Windows · x64 | [Windows 0.9.0-beta.2 空白版](https://github.com/JiajunTang2006/English-workbench/releases/download/v0.9.0-beta.2/EnglishWorkBench_Windows_x64_Blank_0.9.0-beta.2.zip) |
+
+该版本的功能与 1.0.0 不同。更多历史版本见 [Releases](https://github.com/JiajunTang2006/English-workbench/releases)。
 
 ### 安装
 
