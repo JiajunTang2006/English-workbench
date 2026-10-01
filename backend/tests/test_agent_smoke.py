@@ -41,7 +41,7 @@ def test_agent_config_defaults():
 def test_default_registries_instantiate():
     tool_reg = create_default_registry()
     cap_reg = create_default_capability_registry()
-    assert len(tool_reg.list_all()) == 17
+    assert len(tool_reg.list_all()) == 24
     assert len(cap_reg.list_all()) == 4
     assert cap_reg.validate_tools(tool_reg) == []
 

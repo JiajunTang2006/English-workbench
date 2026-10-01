@@ -37,6 +37,32 @@ class GrowthReversalRequest(BaseModel):
     reason: str = Field(default="误录撤销", max_length=500)
 
 
+class GrowthTeacherCreate(BaseModel):
+    """新建本机教师档案（单机软件，不含密码）。
+
+    ``activate`` 默认 True：老师新建自己的档案通常就是准备以自己的身份开始
+    记录，因此默认顺带切换当前教师；替别人建档案时可显式传 False。
+    """
+
+    name: str = Field(min_length=1, max_length=32)
+    presets: dict[str, Any] = Field(default_factory=dict)
+    activate: bool = True
+
+
+class GrowthTeacherRename(BaseModel):
+    name: str = Field(min_length=1, max_length=32)
+
+
+class GrowthTeacherPresetsUpdate(BaseModel):
+    """覆盖某位教师的补录预设：``{event_type: {"points": int, "visible": bool}}``。
+
+    只约束形状；分值范围与类别合法性由服务层按当前规则版本校验。
+    """
+
+    term_id: int | None = Field(default=None, gt=0)
+    presets: dict[str, Any] = Field(default_factory=dict)
+
+
 class GrowthLegacyPreviewRequest(BaseModel):
     """旧版导入预览（只读）。"""
 

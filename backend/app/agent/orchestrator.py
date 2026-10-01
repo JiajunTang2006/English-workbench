@@ -175,6 +175,9 @@ class AgentOrchestrator:
             )
 
         # 3.5 预注册学生匿名映射（fail-closed 隐私保护）
+        if db_session is not None and request.scope.get("run_id"):
+            from ..services.agent_analysis.conversation import mapper_for_run
+            context.privacy_mapper = mapper_for_run(db_session, request.scope)
         self._pre_register_students(context, db_session)
 
         # 4. 构建工具列表（按 capability 白名单 + 作用域过滤）
@@ -184,6 +187,9 @@ class AgentOrchestrator:
             # 会话 scope 过滤无 exam_id 的工具，模型无法提交 scope 参数。
             from .registry.capabilities import GENERAL_CHAT_READ_TOOLS
             available_tool_names = list(GENERAL_CHAT_READ_TOOLS)
+        if capability.requires_evidence and request.scope.get("exam_id"):
+            from .registry.capabilities import GENERAL_CHAT_READ_TOOLS
+            available_tool_names = list(dict.fromkeys(available_tool_names + list(GENERAL_CHAT_READ_TOOLS)))
         if capability.name == "exam_analysis" and request.scope.get("exam_id") is None:
             # 未绑定数据库考试时，只允许提交报告；数据库考试查询工具会因
             # 缺少 exam_id 被过滤。正式资料正文由 FormalContextProvider 注入。
@@ -197,6 +203,12 @@ class AgentOrchestrator:
                 success=False, session_id=session_id, answer="",
                 error="当前作用域下无可用工具",
             )
+        provider_capabilities = self._text_provider.get_capabilities(self._config.text_model_name)
+        if not provider_capabilities.supports_tool_calls:
+            tools = []
+            if capability.requires_evidence:
+                return OrchestratorResponse(success=False, session_id=session_id, answer="",
+                    error="该模型不支持工具调用，无法执行正式分析。")
 
         # 5. 成本预估（粗略）
         from .token_budget import resolve_token_budget
@@ -217,6 +229,35 @@ class AgentOrchestrator:
 
         # 6. 构建系统提示词
         system_prompt = self._build_system_prompt(capability, context, db_session=db_session)
+        if not provider_capabilities.supports_tool_calls:
+            system_prompt += "\n当前模型为无工具对话模式，只使用已提供事实；没有提供的数据不得声称已查询。"
+            if db_session is not None and context.student_id and capability.name == "general_chat":
+                from ..services.student_learning import learning_evidence
+                import json
+                facts = learning_evidence(db_session, context.scope, context.privacy_mapper)
+                system_prompt += "\n【本地预查学习证据】\n" + context.privacy_mapper.sanitize_text(
+                    json.dumps(context.privacy_mapper.sanitize_for_model(facts), ensure_ascii=False, default=str))
+            elif db_session is not None and context.exam_id:
+                from .tools.tool_context import ToolContext, set_tool_context, reset_tool_context
+                from .tools.student_tools import _get_student_scores
+                from .tools.exam_tools import _get_exam_statistics
+                token = set_tool_context(ToolContext(db_session=db_session, scope=context.scope))
+                try:
+                    facts = _get_student_scores() if context.student_id else _get_exam_statistics()
+                finally:
+                    reset_tool_context(token)
+                import json
+                system_prompt += "\n【本地预查事实】\n" + context.privacy_mapper.sanitize_text(
+                    json.dumps(context.privacy_mapper.sanitize_for_model(facts), ensure_ascii=False, default=str))
+        if db_session is not None and request.scope.get("run_id"):
+            from ..models.agent_entities import AnalysisRun
+            current_run = db_session.get(AnalysisRun, request.scope["run_id"])
+            turn_context = (current_run.input_summary_json or {}).get("conversation_context") if current_run else None
+            if turn_context:
+                import json
+                system_prompt += "\n【当前讨论对象与教师纠正】\n" + context.privacy_mapper.sanitize_text(
+                    json.dumps(turn_context, ensure_ascii=False))
+
 
         # P0-7: 构建多轮上下文消息（如果存在数据库会话）
         multi_turn_messages: list[dict] | None = None
@@ -229,6 +270,7 @@ class AgentOrchestrator:
                     system_prompt=system_prompt,
                     user_message=request.user_message,
                     privacy_mapper=context.privacy_mapper,
+                    current_run_id=request.scope.get("run_id"),
                     formal_context_token_budget=token_budget.formal_context_limit,
                     history_token_budget=token_budget.history_limit,
                 )
@@ -514,7 +556,7 @@ class AgentOrchestrator:
             if capability.requires_evidence
             else [
                 "1. 普通对话默认直接回答；如果问题涉及当前班级/考试的分组、分层、复习或教学建议，应先自主选择合适的只读查询工具获取真实统计，再结合结果回答。",
-                "2. 如果问题与真实教学数据无关，不要调用工具；如果当前会话没有对应考试范围，或工具返回空数据，明确说明数据不可用，不要猜测或反复尝试查数。",
+                "2. 一般教学问题可直接回答，不要求考试数据；缺数据只限制相关事实判断，仍可提供一般建议。必要时简短追问，不反复尝试相同失败查询。",
                 "3. 只读查询结果仅用于本轮回答，不得修改学生画像、考试或其他数据库事实。",
             ]
         )
@@ -524,13 +566,24 @@ class AgentOrchestrator:
             "",
             "重要规则：",
             *evidence_rules,
-            "4. 使用匿名编号引用学生（如 student_01），不要使用真实姓名",
+            "4. 沿用输入与工具提供的学生称呼或引用，不猜测身份对应关系",
             "5. 如果数据不足，明确说明而非臆测",
-            "6. 回复必须有清晰层次：先给结论摘要，再按‘主要发现 / 证据 / 建议 / 局限’组织内容；自然语言回复使用 Markdown（##/### 标题、短段落、项目符号和表格），每段只表达一个重点，禁止把全部数字和结论挤在一段中",
+            "6. 按问题选择长度与形式；简短追问直接回应，不重复套用报告章节；区分事实、解释和建议",
+            "教师明确要求只查某题或只比较某项时，就在该范围回答；不附加未请求的总分、能力标签或继续提问。",
             "7. 若当前能力要求输出结构化 JSON，严格只输出 JSON；JSON 字段中的自然语言仍保持短句、可读和分层",
             "",
             f"当前作用域: {context.to_model_context()}",
         ]
+        if db_session is not None:
+            from ..services.subjects import get_selected_subject
+            subject = get_selected_subject(db_session)
+            prompt_parts.extend([
+                "",
+                f"当前任教学科是「{subject.label}」（{subject.key}）。可参考的分析维度："
+                f"{'、'.join(subject.analysis_dimensions)}。错误归因候选："
+                f"{'、'.join(subject.error_causes)}。只能在证据支持时使用，"
+                "证据不足时标为待观察；英语专用知识点和课标不得套用于其他学科。",
+            ])
 
         # exam_analysis 支持不绑定数据库考试的“资料分析”模式。
         # 明确提示模型不要把上传资料臆称为数据库事实，也不要尝试写入考试数据。

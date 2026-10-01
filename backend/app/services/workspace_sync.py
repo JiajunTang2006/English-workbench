@@ -91,6 +91,7 @@ def sync_workspace_domains(session: Session, term_id: int, state: dict) -> None:
             continue
         source_key = str(raw.get("id") or f"workspace_exam_{index}")[:100]
         exam = existing_exams.get(source_key)
+        is_new_exam = exam is None
         if exam is None:
             exam = Exam(term_id=term_id, source_key=source_key, name=name)
             session.add(exam)
@@ -105,6 +106,9 @@ def sync_workspace_domains(session: Session, term_id: int, state: dict) -> None:
         exam.tier_b_cutoff = _number(lines.get("b"))
         exam.tier_c_cutoff = _number(lines.get("c"))
         exam.status = "active"
+        if is_new_exam:
+            from .paper_distribution import ensure_exam_distribution
+            ensure_exam_distribution(session, exam)
         raw_scores = raw.get("scores") if isinstance(raw.get("scores"), dict) else {}
         for student_no, raw_score in raw_scores.items():
             student = student_by_number.get(str(student_no))

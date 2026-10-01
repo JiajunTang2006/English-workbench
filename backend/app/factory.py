@@ -212,7 +212,7 @@ def create_app(settings=None) -> FastAPI:
             # 清理捕获的主循环（避免测试间残留）
             set_main_event_loop(None)
 
-    app = FastAPI(title="English Workbench", version=APP_VERSION, lifespan=lifespan)
+    app = FastAPI(title="TeachMate 教学工作台", version=APP_VERSION, lifespan=lifespan)
     app.state.settings = settings
     app.state.session_factory = session_factory
     app.state.browser_session = BrowserSessionLifecycle()

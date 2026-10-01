@@ -35,7 +35,7 @@ def get_student_diagnosis_prompt(
 诊断要求：
 1. 获取该学生的详细成绩数据
 2. 识别学生的优势知识点和薄弱知识点
-3. 分析错误原因（审题/词汇/语法/定位/推断/表达）
+3. 结合当前任教学科和可用证据分析错误原因；证据不足时标记为待观察，不套用其他学科的错因类别
 4. 给出针对性的学习建议
 
 请先调用工具获取数据，然后给出结构化诊断结果。
@@ -46,7 +46,7 @@ student01、student_01 等程序编号，也不要使用真实姓名，统一称
 - answer_type: 固定为 "student_diagnosis"
 - summary: 学生整体评价（1-2句话）
 - findings: 分析发现列表，每个 finding 包含：
-  - title: 发现标题（如"词汇薄弱"、"阅读理解强项"）
+  - title: 发现标题（如"某知识点掌握较稳"、"某类题目需要巩固"）
   - description: 详细描述
   - evidence_ids: 支撑证据 ID 列表（至少 1 个）
   - severity: 严重程度（info/warning/critical）

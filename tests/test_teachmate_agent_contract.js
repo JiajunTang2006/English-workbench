@@ -61,23 +61,16 @@ test('TeachMate assistant identity uses the product mark instead of the legacy a
   assert.match(css, /#f4dda0|#f2dda5/);
 });
 
-test('TeachMate welcome page keeps decorative doodles restrained and responsive', () => {
+test('TeachMate home restores original chat and analysis entry points', () => {
   const views = read('teachmate-views.js');
-  const css = read('teachmate.css');
-  for (const asset of [
-    'illustrations/teachmate-doodle-books.svg',
-    'illustrations/teachmate-doodle-underline.svg',
-    'illustrations/teachmate-doodle-card-analytics.svg',
-    'illustrations/teachmate-doodle-card-student.svg',
-    'illustrations/teachmate-doodle-card-plan.svg',
-  ]) {
-    assert.ok(fs.existsSync(path.join(root, asset)), `missing doodle asset ${asset}`);
+  assert.doesNotMatch(views, /teachMateTasks\.home\(\)/);
+  assert.match(views, /你可以这样问我/);
+  for (const capability of ['exam_analysis', 'student_diagnosis', 'review_plan']) {
+    assert.ok(views.includes('data-quick-task="' + capability + '"'));
   }
-  assert.doesNotMatch(views, /tm-welcome-illustration/);
-  assert.match(views, /tm-welcome-underline/);
-  assert.match(views, /tm-welcome-books/);
-  assert.match(views, /aria-hidden="true" draggable="false"/);
-  assert.doesNotMatch(css, /tm-welcome-illustration/);
+  assert.match(views, /quickUnavailable\('exam_analysis'\)/);
+  assert.match(views, /quickUnavailable\('student_diagnosis'\)/);
+  assert.match(views, /quickUnavailable\('review_plan'\)/);
 });
 
 test('TeachMate keeps a newly created empty conversation on the welcome page', () => {
@@ -148,7 +141,7 @@ test('TeachMate sends the selected model id and does not disable cards while pro
   const interactions = read('teachmate-interactions.js');
   assert.match(api, /if \(modelId\) body\.model_id = modelId/);
   assert.match(interactions, /currentModelId \|\| null/);
-  assert.match(interactions, /sendMessage\(sessionId, text, quickTask, attachmentIds, modelId\)/);
+  assert.match(interactions, /sendMessage\(sessionId, text, quickTask, attachmentIds, modelId,\s*null, initialSnapshot\.selectedPluginId === 'targeted_practice' \? 'targeted_practice' : null\)/);
   assert.match(views, /if \(!provider\) return ''/);
   assert.match(views, /\(provider && unavailableReason\)/);
   assert.match(views, /tm-composer-actions[^\n]*modelPicker \+ sendBtn/);

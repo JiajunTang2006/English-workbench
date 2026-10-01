@@ -53,7 +53,7 @@ def build_growth_summary(session, *, student_id: int, term_id: int) -> dict[str,
 
     dimensions = {
         key: {field: (value or {}).get(field) for field in (
-            "status", "value", "latest_rate", "observations",
+            "label", "status", "value", "latest_rate", "observations",
             "distinct_dates", "span_days", "latest_date", "trend",
             "scale_source", "sample_note")}
         for key, value in (snapshot.get("dimensions") or {}).items()
@@ -61,7 +61,7 @@ def build_growth_summary(session, *, student_id: int, term_id: int) -> dict[str,
 
     limitations: list[str] = []
     for key, value in dimensions.items():
-        label = rules.DIMENSION_LABELS.get(key, key)
+        label = (value.get("label") if isinstance(value, dict) else None) or rules.DIMENSION_LABELS.get(key, key)
         status = value.get("status")
         if status == "no_evidence":
             limitations.append(f"{label}暂无记录，不能判断稳定提升")
@@ -74,7 +74,9 @@ def build_growth_summary(session, *, student_id: int, term_id: int) -> dict[str,
     if int(snapshot.get("legacy_points") or 0):
         limitations.append(
             f"含历史营养（旧规则）{snapshot['legacy_points']}，不参与本学期规则计分")
-    limitations.append("成长积分为学习活动记录，不等于英语能力水平；纪律扣分不进入能力值")
+    from ..subjects import get_selected_subject
+    subject = get_selected_subject(session)
+    limitations.append(f"成长积分为学习活动记录，不等于{subject.label}能力水平；纪律扣分不进入能力值")
 
     evidence_status = "recorded" if evidence_refs else "no_evidence"
 

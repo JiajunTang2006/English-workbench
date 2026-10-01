@@ -237,6 +237,8 @@ class CostEstimator:
         output_tokens: int,
     ) -> float | None:
         """计算实际调用成本（CNY）。未知模型返回 None（表示费用未知）。"""
+        if self.get_pricing(model_name) is None:
+            return None
         try:
             return self.actual_cost(model_name, input_tokens, output_tokens)
         except UnknownModelPricingError:

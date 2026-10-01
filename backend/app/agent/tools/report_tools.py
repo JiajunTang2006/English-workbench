@@ -38,6 +38,28 @@ _REPORT_PARAMETERS_SCHEMA: dict[str, Any] = {
             "type": "string",
             "description": "学生画像摘要（自然语言段落；仅学生诊断使用）",
         },
+        "timeline": {
+            "type": "string",
+            "description": "复习计划的阶段安排（复习计划使用）",
+        },
+        "sections": {
+            "type": "array",
+            "description": "可审核和导出的教学材料分节",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": ["lesson_flow", "student_handout", "teacher_key", "followup_assessment"],
+                    },
+                    "title": {"type": "string"},
+                    "body": {"type": "string"},
+                    "items": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["kind", "title", "body", "items"],
+                "additionalProperties": False,
+            },
+        },
         "findings": {
             "type": "array",
             "description": "发现列表，每项必须引用至少一个 evidence_id",

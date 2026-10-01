@@ -62,7 +62,7 @@ def test_tool_registry_has_seventeen_tools():
     """17 个工具全部注册。"""
     reg = create_default_registry()
     names = {t.name for t in reg.list_all()}
-    assert names == EXPECTED_TOOLS
+    assert names == EXPECTED_TOOLS | {"get_practice_context", "resolve_student", "get_exam_overview", "get_wrong_questions", "get_student_trend", "get_student_learning_evidence", "get_original_question"}
 
 
 def test_all_capability_tools_exist_in_registry():

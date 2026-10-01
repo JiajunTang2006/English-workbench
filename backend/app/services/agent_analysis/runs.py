@@ -54,7 +54,9 @@ class RunService:
         作用域通过独立列 (class_id/exam_id/student_id) 存储，不使用 scope_json。
         支持幂等：如 idempotency_key 已存在，返回已创建的 run。
         """
-        # 幂等检查
+        from ..subjects import get_selected_subject
+        subject_key = get_selected_subject(self._db).key
+        # 幂等键只在当前学科内生效，避免旧运行被另一个学科复用。
         if idempotency_key:
             existing = self._db.scalar(
                 select(AnalysisRun).where(
@@ -68,6 +70,7 @@ class RunService:
                     select(AnalysisRun).where(
                         AnalysisRun.capability == capability,
                         AnalysisRun.term_id == term_id,
+                        AnalysisRun.subject_key == subject_key,
                     )
                 ).all()
                 for r in all_runs:
@@ -80,6 +83,7 @@ class RunService:
             session_id=session_id,
             capability=capability,
             term_id=term_id,
+            subject_key=subject_key,
             class_id=class_id,
             exam_id=exam_id,
             student_id=student_id,
@@ -90,6 +94,15 @@ class RunService:
             prompt_version=prompt_version,
             input_summary_json={"idempotency_key": idempotency_key} if idempotency_key else {},
         )
+        if session_id:
+            from ...models.agent_entities import AgentSession
+            conversation = self._db.get(AgentSession, session_id)
+            if conversation and conversation.teaching_task_id:
+                from ..teaching import require_task, build_task_context
+                task = require_task(self._db, conversation.teaching_task_id, writable=True)
+                run.input_summary_json = {**run.input_summary_json,
+                    "teaching_task_id": task.id,
+                    "teaching_context": build_task_context(self._db, task.id)}
         self._db.add(run)
         self._db.commit()
         self._db.refresh(run)

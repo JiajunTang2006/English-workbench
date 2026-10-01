@@ -4,7 +4,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from ..models import ChangeLog, Class, Enrollment, Exam, ExamClassMetric, ExamDimensionScore, ExamScore, ScoreDimension, Student, WorkspaceState, ExamPaperVersion, ExamQuestion, StudentItemResult
@@ -42,6 +42,8 @@ def create_exam(session: Session, payload: ExamCreate, *, term_id: int) -> Exam:
     exam.dimensions = [ScoreDimension(**item.model_dump()) for item in payload.dimensions]
     session.add(exam)
     session.flush()
+    from .paper_distribution import ensure_exam_distribution
+    ensure_exam_distribution(session, exam)
     session.add(ChangeLog(entity="exam", entity_id=str(exam.id), action="create", detail_json={"name": exam.name}))
     return exam
 
@@ -413,6 +415,8 @@ def question_metrics(
             "exam_id": exam_id,
             "question_id": question.id,
             "question_no": question.question_no,
+            # 题型 + 题号 + 小题号三者构成小分表里的定位键；前端上传界面用它做骨架提示。
+            "sub_question_no": question.sub_question_no,
             "section_name": question.section_name,
             "question_type": question.question_type,
             "max_score": question.max_score,
@@ -421,8 +425,8 @@ def question_metrics(
             "missing_count": max(0, len(participant_ids) - len(scored)),
             "average_score": average,
             "score_rate": round(average / question.max_score, 4) if average is not None and question.max_score else None,
-            "full_mark_count": sum(1 for value in scored if value >= question.max_score),
-            "full_mark_rate": round(sum(1 for value in scored if value >= question.max_score) / len(scored), 4) if scored else None,
+            "full_mark_count": sum(1 for value in scored if value >= question.max_score) if question.max_score > 0 else None,
+            "full_mark_rate": round(sum(1 for value in scored if value >= question.max_score) / len(scored), 4) if scored and question.max_score > 0 else None,
         })
     return result
 
@@ -515,7 +519,7 @@ def override_student_item_result(
     ))
     if question is None:
         raise HTTPException(404, "题目不存在或不属于当前试卷版本")
-    if payload.score > question.max_score:
+    if question.max_score > 0 and payload.score > question.max_score:
         raise HTTPException(422, "单题得分不能超过该题满分")
     item = session.scalar(select(StudentItemResult).where(
         StudentItemResult.exam_id == exam.id,
@@ -536,7 +540,7 @@ def override_student_item_result(
     item.score_rate = (
         round(payload.score / question.max_score, 4) if question.max_score else None
     )
-    item.correct = payload.score >= question.max_score
+    item.correct = payload.score >= question.max_score if question.max_score > 0 else None
     item.teacher_override = True
     item.override_note = payload.override_note
     session.add(ChangeLog(
@@ -548,3 +552,327 @@ def override_student_item_result(
     session.flush()
     rows = student_item_results(session, exam.id, student_id, term_id=term_id)
     return next(row for row in rows if row["question_id"] == question_id)
+
+
+# 本接口写入的小分在 source_record_id 上留痕，用于区分「上次上传」与「教师单题修正」：
+# 两者都带 teacher_override，但重传一份修正过的表不该被自己上一次的上传挡住。
+ITEM_SCORE_SOURCE_PREFIX = "item-scores:"
+
+
+def _item_score_lookup_keys(question: ExamQuestion) -> list[str]:
+    """一道题可被引用的题型名。
+
+    视觉识别把学科题型写进 ``question_type``，学校同步与试卷录入把卷面小节写进
+    ``section_name``。教师手上的小分表两种写法都可能出现，所以两个字段都接受；
+    这里只用于定位，不改写字段本身。
+    """
+    keys: list[str] = []
+    for value in (question.question_type, question.section_name):
+        from ..question_types import canonical_question_type
+        text = canonical_question_type((value or "").strip())
+        if text and text not in keys:
+            keys.append(text)
+    return keys
+
+
+def _section_key(question: ExamQuestion) -> str:
+    """题型分聚合键。与 ``school_sync`` / ``student_score_details`` 同一口径。"""
+    return (question.section_name or question.question_type or "其他").strip() or "其他"
+
+
+def bulk_upsert_item_scores(session: Session, exam_id: int, payload, *, term_id: int) -> dict:
+    """按「题型 + 题号」批量写入逐题小分。
+
+    写入口径与学校数据源同步（``services/school_sync.py``）一致：只有本次批次明确
+    带到的题目才写分数，未出现在批次里的题目保留已有事实——不写空、不补零，也不把
+    「本批次没取到」当成 0 分。
+
+    刻意不做的三件事，都是为了让逐题小分保持唯一事实源：
+
+    - **不推导总分**：批次可能只含部分题型，用不完整的小分合计覆盖总分等于编造事实；
+      总分仍由 ``PUT /exams/{id}/scores`` 录入，两者不一致由 ``score-details`` 的
+      ``total_reconciliation`` 如实报出。
+    - **不写题型分**（``exam_dimension_scores``）：与单题修正接口
+      ``override_student_item_result`` 同口径，题型分由读取侧按小分实时聚合
+      （``student_score_details.section_scores``），避免同一事实出现第二份。
+    - **不新建成绩记录**：该生在这场考试没有成绩记录时整批拒绝，避免上传动作顺手造出
+      一条没有总分的考试记录。
+
+    校验是整批的：任何一行定位不到、超满分、学生不在名单或缺考，都会整批取消并返回
+    逐行原因，不会写一半。
+    """
+    from .paper_versions import select_paper_version
+
+    exam = get_exam(session, exam_id, term_id=term_id)
+    from .paper_distribution import ensure_exam_distribution, question_label
+    ensure_exam_distribution(session, exam)
+    version, paper_status = select_paper_version(
+        session, exam.id, allow_draft=payload.include_draft
+    )
+    if version is None:
+        raise HTTPException(404, "该考试还没有已确认的试卷结构，无法按题型写入小分")
+
+    questions = list(session.scalars(
+        select(ExamQuestion)
+        .where(ExamQuestion.paper_version_id == version.id)
+        .order_by(ExamQuestion.question_no, ExamQuestion.id)
+    ))
+    if not questions:
+        raise HTTPException(404, "该试卷版本没有题目，无法按题型写入小分")
+
+    question_by_id = {question.id: question for question in questions}
+    candidates: dict[tuple[str, str], set[int]] = {}
+    known_types: list[str] = []
+    # 定位失败时要把「这个题型有哪些题号」回给教师，否则他们只能靠猜。
+    numbers_by_type: dict[str, list[str]] = {}
+    for question in questions:
+        label = question.question_no.strip()
+        sub_no = (question.sub_question_no or "").strip()
+        if sub_no:
+            label = f"{label}-{sub_no}"
+        for key in _item_score_lookup_keys(question):
+            candidates.setdefault((key, question.question_no.strip()), set()).add(question.id)
+            if key not in known_types:
+                known_types.append(key)
+            numbers = numbers_by_type.setdefault(key, [])
+            if label not in numbers:
+                numbers.append(label)
+
+    def locate(row) -> tuple[ExamQuestion | None, str]:
+        from ..question_types import canonical_question_type
+        kind = canonical_question_type((row.question_type or "").strip())
+        if kind:
+            ids = candidates.get((kind, row.question_no.strip())) or set()
+        else:
+            ids = {q.id for q in questions if row.question_no.strip() in (q.question_no.strip(), question_label(q))}
+        if row.sub_question_no is not None:
+            wanted = row.sub_question_no.strip()
+            ids = {
+                qid for qid in ids
+                if (question_by_id[qid].sub_question_no or "").strip() == wanted
+            }
+        if not ids:
+            return None, "question_not_found"
+        if len(ids) > 1:
+            return None, "question_ambiguous"
+        return question_by_id[next(iter(ids))], ""
+
+    # --- 学生：只认当前学期在册名单，未在名单内的整批拒绝 ---
+    id_filter = sorted({row.student_id for row in payload.rows if row.student_id is not None})
+    no_filter = sorted({
+        (row.student_no or "").strip() for row in payload.rows if (row.student_no or "").strip()
+    })
+    conditions = []
+    if id_filter:
+        conditions.append(Student.id.in_(id_filter))
+    if no_filter:
+        conditions.append(Student.student_no.in_(no_filter))
+    students_by_id: dict[int, Student] = {}
+    if conditions:
+        students_by_id = {
+            student.id: student
+            for student in session.scalars(
+                select(Student)
+                .join(Enrollment, Enrollment.student_id == Student.id)
+                .where(
+                    Enrollment.term_id == exam.term_id,
+                    Enrollment.status == "active",
+                    or_(*conditions),
+                )
+                .distinct()
+            )
+        }
+    students_by_no = {student.student_no: student for student in students_by_id.values()}
+
+    scores_by_student: dict[int, ExamScore] = {}
+    if students_by_id:
+        scores_by_student = {
+            item.student_id: item
+            for item in session.scalars(
+                select(ExamScore).where(
+                    ExamScore.exam_id == exam.id,
+                    ExamScore.student_id.in_(list(students_by_id)),
+                )
+            )
+        }
+
+    # --- 第一阶段：全量校验，不落库 ---
+    problems: list[dict] = []
+    prepared: list[tuple] = []
+    seen_resolved = set()
+    for index, row in enumerate(payload.rows):
+        report = {
+            "index": index,
+            "student_no": (row.student_no or "").strip() or None,
+            "question_type": row.question_type,
+            "question_no": row.question_no,
+        }
+        student = (
+            students_by_id.get(row.student_id) if row.student_id is not None
+            else students_by_no.get((row.student_no or "").strip())
+        )
+        if student is None:
+            problems.append({**report, "reason": "student_not_found",
+                             "message": "学生不存在或不在当前学期的在册名单里"})
+            continue
+        report["student_no"] = student.student_no
+        question, reason = locate(row)
+        if question is None:
+            if reason == "question_ambiguous":
+                message = "该题型 + 题号在当前试卷里对应多道小题，请补上小题号（sub_question_no）"
+            else:
+                kind = (row.question_type or "").strip()
+                numbers = numbers_by_type.get(kind)
+                message = (
+                    f"「{kind}」在当前试卷里没有题号"
+                    f"「{row.question_no.strip()}」；可用题号：" + "、".join(numbers[:40])
+                    if numbers
+                    else ("当前试卷里没有这个题型；可用题型：" + "、".join(known_types) if kind
+                          else "该题号未配置，请在成绩管理的“考试设置”中填写题型分布")
+                )
+            problems.append({**report, "reason": reason, "message": message})
+            continue
+        if question.max_score > 0 and row.score > question.max_score:
+            problems.append({**report, "reason": "score_exceeds_max",
+                             "message": f"该题满分 {question.max_score}，提交 {row.score}"})
+            continue
+        score = scores_by_student.get(student.id)
+        if score is None:
+            problems.append({**report, "reason": "score_row_missing",
+                             "message": "该生在这场考试还没有成绩记录，请先录入总分"})
+            continue
+        if score.attendance_status != "present":
+            problems.append({**report, "reason": "attendance_not_present",
+                             "message": "该生在这场考试是缺考或免考状态，不能写入小分"})
+            continue
+        identity = (student.id, question.id)
+        if identity in seen_resolved:
+            problems.append({**report, "reason": "duplicate_question", "message": "同一学生的同一道题重复提交"})
+            continue
+        seen_resolved.add(identity)
+        prepared.append((student, question, score, row))
+
+    if problems:
+        raise HTTPException(422, {
+            "code": "item_score_rows_invalid",
+            "message": f"{len(problems)} 条小分无法写入，已整批取消，未改动任何数据",
+            "problems": problems[:50],
+        })
+
+    # --- 第二阶段：写入。已存在的小分只在未被保护时覆盖 ---
+    existing_items = {
+        (item.student_id, item.question_id): item
+        for item in session.scalars(
+            select(StudentItemResult).where(
+                StudentItemResult.exam_id == exam.id,
+                StudentItemResult.student_id.in_(list(students_by_id)) if students_by_id else False,
+            )
+        )
+    }
+    provenance = f"{ITEM_SCORE_SOURCE_PREFIX}{version.version}"
+    written = 0
+    overwritten_overrides = 0
+    touched_students: set[int] = set()
+    touched_questions: set[int] = set()
+    skipped: list[dict] = []
+    for student, question, _score, row in prepared:
+        item = existing_items.get((student.id, question.id))
+        if item is None:
+            item = StudentItemResult(
+                exam_id=exam.id, student_id=student.id, question_id=question.id,
+            )
+            session.add(item)
+            existing_items[(student.id, question.id)] = item
+        elif item.teacher_override and not payload.overwrite_teacher_override:
+            same_score = item.score is not None and abs(float(item.score) - float(row.score)) < 1e-9
+            skipped_item = {
+                "student_no": student.student_no,
+                "question_type": row.question_type or _section_key(question),
+                "question_no": row.question_no,
+                "reason": ("previous_upload" if same_score and str(item.source_record_id or "").startswith(ITEM_SCORE_SOURCE_PREFIX)
+                           else "score_changed" if str(item.source_record_id or "").startswith(ITEM_SCORE_SOURCE_PREFIX)
+                           else "teacher_override"),
+            }
+            if skipped_item["reason"] == "score_changed":
+                skipped_item.update(existing_score=item.score, incoming_score=row.score)
+            skipped.append(skipped_item)
+            continue
+        elif item.teacher_override:
+            overwritten_overrides += 1
+        item.score = row.score
+        # 派生字段与单题修正接口同口径：知识点分析优先用 score_rate，错因判定依赖 correct。
+        item.score_rate = round(row.score / question.max_score, 4) if question.max_score else None
+        item.correct = row.score >= question.max_score if question.max_score > 0 else None
+        item.attendance_status = "present"
+        item.teacher_override = True
+        item.override_note = payload.note
+        item.source_record_id = provenance
+        written += 1
+        touched_students.add(student.id)
+        touched_questions.add(question.id)
+    session.flush()
+
+    # --- 回显：本次涉及题型的落库情况，以及仍然没有总分的学生数 ---
+    sections: list[dict] = []
+    touched_section_keys: list[str] = []
+    for question in questions:
+        if question.id in touched_questions:
+            key = _section_key(question)
+            if key not in touched_section_keys:
+                touched_section_keys.append(key)
+    for key in touched_section_keys:
+        section_questions = [item for item in questions if _section_key(item) == key]
+        question_ids = [item.id for item in section_questions]
+        rows = list(session.scalars(select(StudentItemResult).where(
+            StudentItemResult.exam_id == exam.id,
+            StudentItemResult.student_id.in_(sorted(touched_students)),
+            StudentItemResult.question_id.in_(question_ids),
+        )))
+        by_student: dict[int, list[float | None]] = {}
+        for item in rows:
+            by_student.setdefault(item.student_id, []).append(item.score)
+        # 只有该题型全部题目都有小分的学生才计入平均：缺失不补零，否则平均分会被压低。
+        complete_totals = [
+            sum(value for value in values if value is not None)
+            for values in by_student.values()
+            if len(values) == len(section_questions) and all(value is not None for value in values)
+        ]
+        sections.append({
+            "section_name": key,
+            "max_score": sum(item.max_score for item in section_questions),
+            "expected_items": len(section_questions) * len(touched_students),
+            "scored_items": sum(1 for item in rows if item.score is not None),
+            "complete_student_count": len(complete_totals),
+            "average_score": round(sum(complete_totals) / len(complete_totals), 2) if complete_totals else None,
+        })
+
+    session.add(ChangeLog(
+        entity="student_item_result",
+        entity_id=str(exam.id),
+        action="batch_upload",
+        detail_json={
+            "paper_version": version.version,
+            "written": written,
+            "student_count": len(touched_students),
+            "question_types": touched_section_keys,
+            "skipped": len(skipped),
+            "overwritten_overrides": overwritten_overrides,
+            "note": payload.note,
+        },
+    ))
+    session.flush()
+    return {
+        "exam_id": exam.id,
+        "paper_version": version.version,
+        "paper_status": paper_status,
+        "written": written,
+        "student_count": len(touched_students),
+        "overwritten_overrides": overwritten_overrides,
+        "total_score_missing_count": sum(
+            1 for student_id in touched_students
+            if scores_by_student[student_id].total_score is None
+        ),
+        "question_types": touched_section_keys,
+        "sections": sections,
+        "skipped": skipped,
+    }

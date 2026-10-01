@@ -156,11 +156,21 @@ class SyncApplyResponse(SyncPreviewResponse):
     status: str
 
 
-class SchoolDataSourceCreate(BaseModel):
-    source_key: str = Field(min_length=1, max_length=100)
+class SchoolDataSourceWrite(BaseModel):
+    """自定义 MCP 数据源的写入体。
+
+    ``config`` 承载端点、鉴权、路径模板与字段映射；令牌单独通过 ``bearer_token``
+    传入并只写 keyvault，任何读取接口都不会回显原文。
+    """
+
     name: str = Field(min_length=1, max_length=150)
-    kind: Literal["mock", "api", "mcp"] = "mock"
     config: dict = Field(default_factory=dict)
+    bearer_token: str | None = Field(default=None, max_length=4096)
+    enabled: bool = True
+
+
+class SchoolDataSourceCreate(SchoolDataSourceWrite):
+    source_key: str = Field(min_length=2, max_length=64)
 
 
 class SchoolDataSourceRead(BaseModel):

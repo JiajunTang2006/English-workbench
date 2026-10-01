@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 try {
-  for (const filename of ['workbench-core.js', 'workbench-views.js', 'workbench-interactions.js']) {
+  for (const filename of fs.readdirSync(path.join(__dirname, '..', 'workbench-assets')).filter(name => name.endsWith('.js') && !name.endsWith('.min.js'))) {
     const source = fs.readFileSync(path.join(__dirname, '..', 'workbench-assets', filename), 'utf8');
     new Function(source);
   }

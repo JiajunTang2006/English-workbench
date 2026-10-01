@@ -77,6 +77,8 @@ def create_student_group(
         shard_size=shard_size,
     )
     normalized_ids = [student_id for shard in plan.shards for student_id in shard.student_ids]
+    from .subjects import get_selected_subject
+    subject_key = get_selected_subject(session).key
     snapshot_id, snapshot = build_scope_snapshot(
         term_id=term_id,
         class_id=class_id,
@@ -104,6 +106,7 @@ def create_student_group(
             session_id=session_id,
             capability="exam_analysis",
             term_id=term_id,
+            subject_key=subject_key,
             class_id=class_id,
             exam_id=exam_id,
             status="queued",
@@ -133,6 +136,7 @@ def create_student_group(
             session_id=session_id,
             capability="student_diagnosis",
             term_id=term_id,
+            subject_key=subject_key,
             class_id=class_id,
             exam_id=exam_id,
             student_id=student_id,
@@ -192,6 +196,7 @@ def _queue_task_retry(
         session_id=run.session_id,
         capability=run.capability,
         term_id=run.term_id,
+        subject_key=run.subject_key,
         class_id=run.class_id,
         exam_id=run.exam_id,
         student_id=run.student_id,

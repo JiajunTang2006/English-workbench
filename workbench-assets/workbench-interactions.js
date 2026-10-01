@@ -203,6 +203,8 @@
         else if (act.startsWith('term-')) handleTermAction(act, t, id);
         else if (act === 'about-close') closeModal();
         else if (act === 'modal-close') closeModal();
+        else if (act === 'subject-choose') openSubjectPicker();
+        else if (act === 'subject-confirm') void confirmSubjectChoice();
         else if (act === 'stu-add') openStuModal();
         else if (act === 'stu-edit') openStuModal(id);
         else if (act === 'stu-transfer') openStudentTransferModal(id);
@@ -215,6 +217,7 @@
         else if (act === 'tag-lock-inline') toggleEvaluationTagInline(t.dataset.tagId, id);
         else if (act === 'tag-delete-inline') deleteEvaluationTagInline(t.dataset.tagId, id);
         else if (act === 'tag-batch-confirm') confirmTagBatchDelete(id);
+        else if (act === 'student-profile-retry') reloadStudentLearningProfile(id);
         else if (act === 'student-profile-confirm') confirmStudentProfileRevision(id);
         else if (act === 'student-profile-reject') rejectStudentProfileRevision(id);
         else if (act === 'student-profile-edit') openStudentProfileEditModal(id);
@@ -295,6 +298,8 @@
         else if (act === 'archived-exam-purge-confirm') purgeArchivedExam(id);
         else if (act === 'score-add-exam') openExamModal();
         else if (act === 'score-batch-paste') openBatchScorePasteModal();
+        else if (act === 'score-item-upload') openItemScoreUploadModal();
+        else if (act === 'score-paper-settings') openExamPaperSettingsModal();
         else if (act === 'score-save-pending') {
           savePendingScoreEdits().then(saved => { render(); showToast(saved ? '成绩更改已保存' : '保存失败', saved ? 'success' : 'error'); });
         }
@@ -549,10 +554,27 @@
         else if (act === 'todo-import-confirm') confirmTodoImport();
         else if (act === 'record-view-mode') { recordViewModes[t.dataset.module] = t.dataset.mode === 'all' ? 'all' : 'single'; render(); }
         else if (act === 'settings-save') saveSettings();
+        else if (act === 'paper-default-save') savePaperDistributionDefaultsUi();
         else if (act === 'moni-save-config') saveMoniConfigUi();
         else if (act === 'moni-open-tutorial') { if (typeof window.tmOpenTutorial === 'function') window.tmOpenTutorial('moni'); }
         else if (act === 'moni-test-config') testMoniConfigUi();
         else if (act === 'moni-sync-now') syncMoniNowUi();
+        else if (act === 'growth-preset-save') saveGrowthPresetsUi();
+        else if (act === 'growth-preset-reset') resetGrowthPresetsUi();
+        else if (act === 'growth-teacher-add') addGrowthTeacherUi();
+        else if (act === 'growth-teacher-remove') removeGrowthTeacherUi();
+        else if (act === 'growth-teacher-remove-cancel') closeModal();
+        else if (act === 'growth-teacher-remove-confirm') confirmRemoveGrowthTeacherUi();
+        else if (act === 'school-source-new') openSchoolSourceEditor(null);
+        else if (act === 'school-source-refresh') loadSchoolSourcesUi();
+        else if (act === 'school-source-edit') openSchoolSourceEditor(t.dataset.key);
+        else if (act === 'school-source-test') testSchoolSourceUi(t.dataset.key);
+        else if (act === 'school-source-sync') syncSchoolSourceUi(t.dataset.key);
+        else if (act === 'school-source-delete') deleteSchoolSourceUi(t.dataset.key);
+        else if (act === 'school-source-delete-cancel') closeModal();
+        else if (act === 'school-source-delete-confirm') confirmDeleteSchoolSourceUi(t.dataset.key);
+        else if (act === 'school-source-save') saveSchoolSourceUi();
+        else if (act === 'school-source-cancel') closeSchoolSourceEditor();
         else if (act === 'model-add') openModelProfileModal();
         else if (act === 'model-edit') openModelProfileModal(id);
         else if (act === 'model-activate') activateModelProfileUi(id);
@@ -567,12 +589,21 @@
       });
 
       document.addEventListener('change', e => {
-        if (e.target.dataset.act === 'tm-chat-model' && typeof window.tmSwitchModel === 'function') {
+        if (e.target.id === 'sett-subject-key') {
+          void applySubjectFromSettings(e.target.value);
+        } else if (e.target.dataset.act === 'tm-chat-model' && typeof window.tmSwitchModel === 'function') {
           window.tmSwitchModel(e.target.value);
         } else if (e.target.id === 'model-profile-provider') {
           syncModelProfileProviderFields();
         } else if (e.target.id === 'termSelect') {
           switchTerm(e.target.value);
+        } else if (e.target.dataset.act === 'growth-teacher-select') {
+          selectGrowthTeacherUi(e.target.value);
+        } else if (e.target.id === 'school-source-field-map' || e.target.id === 'school-source-path-exams') {
+          renderSchoolSourceMissing();
+          renderSchoolSourceAliasStatus();
+        } else if (e.target.id === 'school-source-alias-map' || e.target.id === 'school-source-tier-aliases') {
+          renderSchoolSourceAliasStatus();
         } else if (e.target.id === 'error-doc-file') {
           handleErrorDocumentUpload(e.target.files?.[0]);
           e.target.value = '';
@@ -879,14 +910,18 @@
     // 这样两个 tab 之间的切换有"滑块滑动"的连贯感，而非原地变色。
     let _tabSwitchTimer = null;
     function animateTabSwitch(targetTab) {
-      if (targetTab === activeTab) return;
+      // Every click supersedes the pending transition, including a return to the current tab.
+      if (_tabSwitchTimer) { clearTimeout(_tabSwitchTimer); _tabSwitchTimer = null; }
       const sw = document.querySelector('.nav-tab-switcher');
+      if (targetTab === activeTab) {
+        if (sw) sw.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
+        syncTabIndicator(false);
+        return;
+      }
       const btn = sw && sw.querySelector('.tab-btn[data-tab="' + targetTab + '"]');
       const ind = sw && sw.querySelector('.nav-tab-indicator');
       const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (!sw || !btn || !ind || reduced) { finishTabSwitch(targetTab); return; }
-      // 防止快速连点：清除上一次未完成的定时器
-      if (_tabSwitchTimer) { clearTimeout(_tabSwitchTimer); _tabSwitchTimer = null; }
       // 先让滑块滑到目标按钮（GPU transform，丝滑）
       ind.style.transition = 'transform .32s cubic-bezier(.4, 0, .2, 1), width .32s cubic-bezier(.4, 0, .2, 1)';
       ind.style.width = btn.offsetWidth + 'px';
@@ -944,7 +979,10 @@
     }
     function disposeStudentCharts() {
       const charts = Array.isArray(studentCharts) ? studentCharts.splice(0) : [];
-      charts.forEach(chart => { try { chart.dispose(); } catch (error) {} });
+      charts.forEach(chart => {
+        try { chart.__workbenchResizeObserver?.disconnect(); } catch (error) {}
+        try { chart.dispose(); } catch (error) {}
+      });
       // 兼容图表初始化失败或热更新后未被数组记录的实例，避免旧画布遮住新弹窗。
       document.querySelectorAll('.student-history-chart').forEach(node => {
         try { if (typeof echarts !== 'undefined') echarts.dispose(node); } catch (error) {}
@@ -1093,6 +1131,379 @@
         closeModal();
         render();
         showToast(`已暂存 ${changed} 项成绩，请检查后保存`);
+      };
+    }
+
+    // ================= 默认试卷分布与单场考试设置 =================
+    function paperDistributionRanges(text) {
+      const groups = new Map();
+      let unsupported = false;
+      String(text || '').split(/[,，、;；\s]+/).filter(Boolean).forEach(part => {
+        const grouped = part.match(/^(\d+)-(\d+)[~～至–—](\d+)-(\d+)$/);
+        const flat = part.match(/^(\d+)[~～至–—-](\d+)$/);
+        const one = part.match(/^\d+$/);
+        let prefix = '', start, end;
+        if (grouped && grouped[1] === grouped[3]) {
+          prefix = grouped[1]; start = Number(grouped[2]); end = Number(grouped[4]);
+        } else if (flat) { start = Number(flat[1]); end = Number(flat[2]); }
+        else if (one) { start = end = Number(part); }
+        else { unsupported = true; return; }
+        if (start < 1 || end < start || end > 1000) { unsupported = true; return; }
+        if (!groups.has(prefix)) groups.set(prefix, new Set());
+        for (let n = start; n <= end; n++) groups.get(prefix).add(n);
+      });
+      const ranges = [];
+      for (const [prefix, values] of groups) {
+        for (const n of [...values].sort((a, b) => a - b)) {
+          const last = ranges[ranges.length - 1];
+          if (last && last.prefix === prefix && last.end + 1 === n) last.end = n;
+          else ranges.push({ prefix, start: n, end: n });
+        }
+      }
+      return { ranges: ranges.length ? ranges : [{ prefix: '', start: '', end: '' }], unsupported };
+    }
+
+    function paperDistributionRowsHtml(rows) {
+      return rows.map(row => {
+        const parsed = paperDistributionRanges(row.question_numbers);
+        const kind = escapeAttr(row.question_type);
+        const fields = parsed.ranges.map(range => `<div class="paper-distribution-range" data-range-prefix="${escapeAttr(range.prefix)}">${range.prefix ? `<small>第${escapeHtml(range.prefix)}大题</small>` : ''}<span>第</span><input type="number" min="1" max="1000" step="1" data-range-start aria-label="${kind}起始题号" value="${range.start}" placeholder="起始"><span>题，到第</span><input type="number" min="1" max="1000" step="1" data-range-end aria-label="${kind}结束题号" value="${range.end}" placeholder="结束"><span>题</span></div>`).join('');
+        return `<div class="paper-distribution-row" data-paper-type="${kind}" data-range-unsupported="${parsed.unsupported}"><span>${escapeHtml(row.question_type)}</span><div>${fields}${parsed.unsupported ? `<small class="paper-distribution-warning">无法识别题号：${escapeHtml(row.question_numbers)}。请重新设置范围。</small>` : ''}</div></div>`;
+      }).join('');
+    }
+
+    function paperDistributionPayload(container, metadata) {
+      return {
+        subject_key: metadata.subject_key,
+        expected_revision: metadata.revision,
+        expected_paper_version_id: metadata.paper_version_id || null,
+        rows: [...container.querySelectorAll('[data-paper-type]')].map(row => {
+          const kind = row.dataset.paperType;
+          const ranges = [...row.querySelectorAll('.paper-distribution-range')].map(range => {
+            const startText = range.querySelector('[data-range-start]').value.trim();
+            const endText = range.querySelector('[data-range-end]').value.trim();
+            if (!startText && !endText) return '';
+            if (!startText || !endText) throw new Error(`${kind}请填写起止两个题号；没有该题型时都留空`);
+            const start = Number(startText), end = Number(endText);
+            if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || end > 1000) throw new Error(`${kind}的起始题号不能大于结束题号，请填1到1000的整数`);
+            const prefix = range.dataset.rangePrefix;
+            return prefix ? `${prefix}-${start}～${prefix}-${end}` : `${start}～${end}`;
+          }).filter(Boolean);
+          if (!ranges.length && row.dataset.rangeUnsupported === 'true') throw new Error(`${kind}请重新设置范围`);
+          return { question_type: kind, question_numbers: ranges.join('、') };
+        }),
+      };
+    }
+
+    async function loadPaperDistributionDefaultsUi() {
+      const rows = document.getElementById('paper-default-rows');
+      if (!rows || !DATABASE_MODE) return;
+      const button = document.querySelector('[data-act="paper-default-save"]');
+      const status = document.getElementById('paper-default-status');
+      try {
+        const data = await apiRequest('/api/v1/exams/paper-distribution/default');
+        if (!rows.isConnected) return;
+        rows.innerHTML = paperDistributionRowsHtml(data.rows);
+        rows._paperDistribution = data;
+        button.disabled = false;
+        status.textContent = data.revision ? '' : '未设置';
+      } catch (error) {
+        if (rows.isConnected) { rows.textContent = '试卷设置读取失败'; status.textContent = error.message || '请重新进入设置页'; }
+      }
+    }
+
+    async function savePaperDistributionDefaultsUi() {
+      const rows = document.getElementById('paper-default-rows');
+      const metadata = rows?._paperDistribution;
+      const button = document.querySelector('[data-act="paper-default-save"]');
+      const status = document.getElementById('paper-default-status');
+      if (!metadata || button.disabled) return;
+      button.disabled = true;
+      status.textContent = '正在保存…';
+      try {
+        const data = await apiRequest('/api/v1/exams/paper-distribution/default', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(paperDistributionPayload(rows, metadata)),
+        });
+        if (!rows.isConnected) return;
+        rows._paperDistribution = data;
+        status.textContent = '已保存';
+        showToast('试卷设置已保存');
+      } catch (error) {
+        if (rows.isConnected) status.textContent = error.message || '保存失败，请重试';
+      } finally { if (button.isConnected) button.disabled = false; }
+    }
+
+    async function openExamPaperSettingsModal() {
+      const exam = getCurrentExam();
+      if (!exam || !DATABASE_MODE) return showToast('请先选择考试', 'error');
+      const termId = currentTermId;
+      openModal('考试设置', `<p><strong>${escapeHtml(exam.name)}</strong></p><div id="exam-paper-rows" class="paper-distribution-rows">正在读取考试设置…</div><div id="exam-paper-status" class="paper-distribution-status" role="status"></div>`, '<button class="btn btn-text" onclick="closeModal()">取消</button><button class="btn btn-secondary" id="exam-paper-use-default" disabled>使用默认分布</button><button class="btn btn-primary" id="exam-paper-save" disabled>保存考试设置</button>');
+      const rows = document.getElementById('exam-paper-rows');
+      const status = document.getElementById('exam-paper-status');
+      const save = document.getElementById('exam-paper-save');
+      const useDefault = document.getElementById('exam-paper-use-default');
+      try {
+        const examId = await resolveItemScoreExamId(exam);
+        if (!rows.isConnected) return;
+        if (!examId) throw new Error('没有找到这场考试的数据库记录');
+        const url = `/api/v1/exams/${examId}/paper-distribution?term_id=${encodeURIComponent(termId)}`;
+        const data = await apiRequest(url);
+        if (!rows.isConnected) return;
+        rows.innerHTML = paperDistributionRowsHtml(data.rows);
+        status.textContent = data.unassigned_questions?.length
+          ? `未分配题型：${data.unassigned_questions.join('、')}`
+          : data.source === 'default' ? '使用默认分布' : '';
+        save.disabled = false;
+        useDefault.disabled = !data.default_rows.some(row => row.question_numbers);
+        useDefault.onclick = () => {
+          rows.innerHTML = paperDistributionRowsHtml(data.default_rows);
+          status.textContent = '已填入默认分布，待保存';
+        };
+        save.onclick = async () => {
+          if (save.disabled) return;
+          save.disabled = true;
+          useDefault.disabled = true;
+          status.textContent = '正在保存…';
+          try {
+            await apiRequest(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(paperDistributionPayload(rows, data)) });
+            if (!rows.isConnected) return;
+            closeModal();
+            showToast('考试设置已保存');
+          } catch (error) {
+            if (rows.isConnected) status.textContent = error.message || '保存失败，请重试';
+          } finally {
+            if (save.isConnected) { save.disabled = false; useDefault.disabled = !data.default_rows.some(row => row.question_numbers); }
+          }
+        };
+      } catch (error) {
+        if (rows.isConnected) { rows.textContent = '考试设置读取失败'; status.textContent = error.message || '请重试'; }
+      }
+    }
+
+    // ================= 逐题小分上传（按题型） =================
+    // 前端 state.exams[].id 是后端 Exam.source_key，而小分接口要的是数字 exam_id，
+    // 所以上传前先做一次映射；映射不到就不发请求，避免把错数据写到别的考试上。
+    async function resolveItemScoreExamId(exam) {
+      if (!DATABASE_MODE || !exam) return null;
+      try {
+        return await teachMateApi.findExamIdByKey(exam.id, currentTermId);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    const ITEM_SCORE_HEADER_RE = /^(题型|板块|题目类型|question_?type|section|题号|question_?no)$/i;
+    const ITEM_SCORE_LINE_HELP = '每行一条：题号 · 学号或姓名 · 得分；也兼容题型 · 题号 · 学号 · 得分（有小题号时为 5 列）';
+
+    function matchItemScoreStudent(students, identity) {
+      const key = String(identity == null ? '' : identity).trim();
+      if (!key) return { error: '学号不能为空' };
+      const byNumber = students.filter(student => String(student.id) === key);
+      if (byNumber.length === 1) return { student: byNumber[0] };
+      // 学号认不出来时才回退到姓名；同名歧义直接报错，不替教师选人。
+      const byName = students.filter(student => String(student.name) === key);
+      if (byName.length === 1) return { student: byName[0] };
+      if (byName.length > 1) return { error: `名单里有 ${byName.length} 名学生都叫“${key}”，请改写学号` };
+      return { error: `名单里没有学号“${key}”对应的学生` };
+    }
+
+    /**
+     * 解析小分粘贴文本。返回 { rows:[{row, name}], errors:[string] }，不抛异常——
+     * 教师的输入问题要逐行列出来，而不是让整个界面报错。
+     */
+    function parseItemScorePaste(text, students) {
+      const rows = [];
+      const errors = [];
+      const seen = new Set();
+      String(text || '').split(/\r?\n/).forEach((rawLine, index) => {
+        const line = rawLine.trim();
+        if (!line) return;
+        const lineNo = index + 1;
+        // 有制表符/逗号就按它们切并保留空列（教师可用空列表示「这题没有小题号」）；
+        // 只写了空格的行才退回按空白切。
+        const cells = (line.indexOf('\t') >= 0 || /[,，]/.test(line) ? line.split(/\t|,|，/) : line.split(/\s+/))
+          .map(value => String(value == null ? '' : value).trim());
+        if (!rows.length && !errors.length && ITEM_SCORE_HEADER_RE.test(cells[0] || '')) return;
+        const simple = cells.length === 3 && /^\d/.test(cells[0]);
+        if ((!simple && cells.length < 4) || cells.length > 5) {
+          errors.push(`第${lineNo}行：${ITEM_SCORE_LINE_HELP}`);
+          return;
+        }
+        const five = cells.length === 5;
+        const questionType = simple ? '' : cells[0];
+        const questionNo = simple ? cells[0] : cells[1];
+        const subNo = five ? cells[2] : '';
+        const identity = simple ? cells[1] : five ? cells[3] : cells[2];
+        const scoreRaw = simple ? cells[2] : five ? cells[4] : cells[3];
+        if ((!simple && !questionType) || !questionNo) { errors.push(`第${lineNo}行：题型和题号都不能为空`); return; }
+        const matched = matchItemScoreStudent(students, identity);
+        if (matched.error) { errors.push(`第${lineNo}行：${matched.error}`); return; }
+        const score = Number(scoreRaw);
+        if (scoreRaw === '' || !Number.isFinite(score) || score < 0) {
+          errors.push(`第${lineNo}行：得分“${scoreRaw}”要填 0 或正数`);
+          return;
+        }
+        const row = { student_no: String(matched.student.id), question_no: questionNo, score };
+        if (questionType) row.question_type = questionType;
+        if (subNo) row.sub_question_no = subNo;
+        const key = [row.student_no, questionType, questionNo, subNo].join('\u0000');
+        if (seen.has(key)) {
+          errors.push(`第${lineNo}行：${matched.student.name} 的「${questionType} ${questionNo}${subNo ? '-' + subNo : ''}」在一批里重复提交`);
+          return;
+        }
+        seen.add(key);
+        rows.push({ row: row, name: matched.student.name });
+      });
+      return { rows: rows, errors: errors };
+    }
+
+    function renderItemScoreProblems(detail, errorBox) {
+      const problems = detail && Array.isArray(detail.problems) ? detail.problems : [];
+      if (!problems.length) {
+        errorBox.innerHTML = `<strong>上传未完成：</strong><p>${escapeHtml((detail && detail.message) || '接口拒绝了这批小分')}</p>`;
+        return;
+      }
+      const lines = problems.map(problem => {
+        const where = [problem.question_type, problem.question_no].filter(Boolean).join(' ');
+        const who = problem.student_no || '（未填学号）';
+        const lineNo = Number.isInteger(problem.index) ? `第${problem.index + 1}行 ` : '';
+        return `${lineNo}${who} · ${where || '（未填题型）'}：${problem.message || problem.reason || '无法写入'}`;
+      });
+      errorBox.innerHTML = `<strong>${escapeHtml((detail && detail.message) || `${problems.length} 条小分无法写入`)}</strong>`
+        + `<ul>${lines.slice(0, 20).map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`
+        + (lines.length > 20 ? `<p>另有 ${lines.length - 20} 条问题未显示。</p>` : '');
+    }
+
+    function renderItemScoreResult(result, errorBox, exam) {
+      const sections = Array.isArray(result.sections) ? result.sections : [];
+      const sectionRows = sections.map(item => {
+        const average = item.average_score == null ? '样本较少' : fmt(item.average_score);
+        return `<tr><td>${escapeHtml(item.section_name)}</td><td class="numeric">${item.max_score > 0 ? fmt(item.max_score) : '未提供'}</td>`
+          + `<td class="numeric">${item.scored_items}/${item.expected_items}</td>`
+          + `<td class="numeric">${average}</td><td class="numeric">${item.complete_student_count}</td></tr>`;
+      }).join('');
+      const skipped = Array.isArray(result.skipped) ? result.skipped : [];
+      const skippedBlock = skipped.length
+        ? `<p class="item-score-result-note">另有 ${skipped.length} 条被跳过（教师已修正或上次上传过的小分默认保留）：</p>`
+          + `<ul>${skipped.slice(0, 10).map(item => {
+            const message = item.reason === 'previous_upload'
+              ? '与上次上传相同，未重复写入'
+              : item.reason === 'score_changed'
+                ? `本次为 ${fmt(item.incoming_score)} 分，已有 ${fmt(item.existing_score)} 分，默认保留已有成绩`
+                : '小分已被单独修正，未覆盖';
+            return `<li>${escapeHtml(`${item.student_no} · ${item.question_type} ${item.question_no}：${message}`)}</li>`;
+          }).join('')}</ul>`
+        : '';
+      const missingBlock = result.total_score_missing_count
+        ? `<p class="item-score-result-note">其中 ${result.total_score_missing_count} 名学生这场考试还没有总分，${escapeHtml(subjectText('score_total'))}与题型合计暂不一致；小分已按原样保存，不用重传。</p>`
+        : '';
+      errorBox.className = 'item-score-result';
+      errorBox.innerHTML = `<strong>已写入 ${result.written} 条小分，覆盖 ${result.student_count} 名学生（试卷版本 ${result.paper_version}）</strong>`
+        + (sectionRows
+          ? `<table class="item-score-result-table"><thead><tr><th>题型</th><th class="numeric">满分</th><th class="numeric">已录/应有</th><th class="numeric">平均分</th><th class="numeric">完整人数</th></tr></thead><tbody>${sectionRows}</tbody></table>`
+          : '')
+        + missingBlock + skippedBlock
+        + `<p class="item-score-result-note">总分未被本次上传改写；${escapeHtml(subjectText('score_total'))}仍以「${escapeHtml(exam.name)}」成绩表里的值为准。</p>`;
+    }
+
+    function openItemScoreUploadModal() {
+      const exam = getCurrentExam();
+      if (!exam) return showToast('请先创建考试', 'error');
+      if (!DATABASE_MODE) return showToast('上传小分需要在连接数据库的版本里使用', 'error');
+      const classLabel = scoreClass ? formatClassLabel(scoreClass) : '全部班级';
+      const roster = Array.isArray(state.students) ? state.students : [];
+      openModal('上传逐题小分', `
+        <p class="hint" style="margin-bottom:12px;">写入 ${escapeHtml(exam.name)} 的逐题小分（${escapeHtml(classLabel)}）。只需题号、学号或姓名、得分，程序按试卷设置匹配题型。请先在“考试设置”检查分布；没有单独结构时会使用默认分布。</p>
+        <div class="form-group">
+          <label>${escapeHtml(ITEM_SCORE_LINE_HELP)}</label>
+          <textarea id="m-item-score-paste" rows="10" placeholder="题号\t学号\t得分\n1\t01\t2\n2\t01\t1.5\n3\t张三\t0"></textarea>
+        </div>
+        <details class="item-score-skeleton">
+          <summary>查看这场考试可用的题型 / 题号 / 满分</summary>
+          <div id="item-score-skeleton-body" class="item-score-skeleton-body">正在读取试卷结构…</div>
+        </details>
+        <label class="item-score-overwrite"><input type="checkbox" id="m-item-score-overwrite"> 覆盖我已经上传过或单独改过的小分</label>
+        <div id="item-score-errors" class="batch-paste-errors" role="alert"></div>
+      `, '<button class="btn btn-text" onclick="closeModal()">取消</button><button class="btn btn-primary" id="m-item-score-submit">校验并写入</button>');
+
+      const errorBox = document.getElementById('item-score-errors');
+      const submit = document.getElementById('m-item-score-submit');
+      // exam_id 映射是异步的，但按钮必须立刻可用：先存下 Promise，点击时再 await。
+      const examIdPromise = resolveItemScoreExamId(exam);
+
+      // 试卷骨架：只做提示，读不到也不阻塞上传（真正的判定在后端）。
+      const skeleton = document.getElementById('item-score-skeleton-body');
+      if (skeleton) {
+        examIdPromise.then(examId => {
+          if (!document.body.contains(skeleton)) return;
+          if (examId == null) {
+            skeleton.textContent = '没找到这场考试在后端对应的考试记录，暂时无法列出题型。';
+            return;
+          }
+          teachMateApi.getQuestionMetrics(examId, currentTermId).then(payload => {
+            const questions = (payload && Array.isArray(payload.questions)) ? payload.questions : [];
+            if (!questions.length) {
+              skeleton.innerHTML = '<p>这场考试还没有已确认的试卷结构。请在成绩管理的“考试设置”填写题号分布，或先在“班级与设置 → 试卷设置”保存默认分布，首次上传时会自动应用。</p>';
+              return;
+            }
+            const rows = questions.map(item => {
+              const type = item.section_name || item.question_type || '其他';
+              const no = `${item.question_no}${item.sub_question_no ? '-' + item.sub_question_no : ''}`;
+              return `<tr><td>${escapeHtml(type)}</td><td>${escapeHtml(no)}</td><td class="numeric">${item.max_score > 0 ? fmt(item.max_score) : '未提供'}</td></tr>`;
+            }).join('');
+            skeleton.innerHTML = `<table class="item-score-skeleton-table"><thead><tr><th>题型</th><th>题号</th><th class="numeric">满分</th></tr></thead><tbody>${rows}</tbody></table>`;
+          }).catch(() => {
+            skeleton.textContent = '试卷结构读取失败，可直接粘贴上传，错误会逐行报出。';
+          });
+        });
+      }
+
+      submit.onclick = async () => {
+        const parsed = parseItemScorePaste(document.getElementById('m-item-score-paste').value, roster);
+        if (!parsed.rows.length && !parsed.errors.length) {
+          errorBox.className = 'batch-paste-errors';
+          errorBox.innerHTML = '<p>请先粘贴小分数据。</p>';
+          return;
+        }
+        if (parsed.errors.length) {
+          errorBox.className = 'batch-paste-errors';
+          errorBox.innerHTML = `<strong>发现 ${parsed.errors.length} 个问题，尚未上传：</strong><ul>${parsed.errors.slice(0, 20).map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>${parsed.errors.length > 20 ? `<p>另有 ${parsed.errors.length - 20} 个问题未显示。</p>` : ''}`;
+          return;
+        }
+        const examId = await examIdPromise;
+        if (examId == null) {
+          errorBox.className = 'batch-paste-errors';
+          errorBox.innerHTML = '<p>没找到这场考试在后端对应的考试记录，无法写入。请先保存一次成绩，让考试同步到数据库后重试。</p>';
+          return;
+        }
+        submit.disabled = true;
+        submit.textContent = '正在写入…';
+        teachMateApi.putItemScores(examId, {
+          rows: parsed.rows.map(item => item.row),
+          note: '成绩表上传小分',
+          overwrite_teacher_override: Boolean(document.getElementById('m-item-score-overwrite')?.checked),
+        }, currentTermId).then(result => {
+          submit.disabled = false;
+          submit.textContent = '校验并写入';
+          errorBox.className = 'batch-paste-errors';
+          renderItemScoreResult(result || {}, errorBox, exam);
+          render();
+          showToast(`已写入 ${(result && result.written) || 0} 条小分`);
+        }).catch(error => {
+          submit.disabled = false;
+          submit.textContent = '校验并写入';
+          errorBox.className = 'batch-paste-errors';
+          const detail = error && error.detail;
+          if (detail && typeof detail === 'object' && !Array.isArray(detail) && detail.code === 'item_score_rows_invalid') {
+            renderItemScoreProblems(detail, errorBox);
+            return;
+          }
+          const status = error && error.status;
+          const prefix = status === 404
+            ? '这场考试还没有已确认的试卷结构，无法按题型写入小分。'
+            : '上传失败：';
+          errorBox.innerHTML = `<strong>${escapeHtml(prefix)}</strong><p>${escapeHtml((error && error.message) || '请稍后重试')}</p>`;
+        });
       };
     }
 
@@ -1310,7 +1721,7 @@
           <div class="form-group"><label>班级</label><select id="m-stu-class">${state.classes.map(c=>`<option value="${escapeAttr(c)}" ${s.class===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>入学英语</label><input type="number" min="0" step="0.5" id="m-stu-english" value="${s.english||''}"></div>
+          <div class="form-group"><label>${subjectHtml('entrance_score')}</label><input type="number" min="0" step="0.5" id="m-stu-english" value="${s.english ?? ''}"></div>
           <div class="form-group"><label>家长电话</label><input id="m-stu-phone" value="${escapeAttr(s.phone||'')}"></div>
         </div>
       `, `<button class="btn" onclick="closeModal()">取消</button><button class="btn btn-primary" id="m-stu-save">保存</button>`);
@@ -1321,7 +1732,7 @@
         const englishRaw = document.getElementById('m-stu-english').value.trim();
         const english = englishRaw === '' ? 0 : Number(englishRaw);
         if (!Number.isFinite(english) || english < 0) {
-          return showToast('入学英语必须是非负数', 'error');
+          return showToast(`${subjectText('entrance_score')}必须是非负数`, 'error');
         }
         const obj = {
           id: sid, name,
@@ -1370,7 +1781,7 @@
 
     async function renderStudentComparisonChart(history) {
       const chartDefs = [
-        { id: 'student-chart-score', title: '英语分数趋势', name: '英语分数', color: '#0b57d0', yName: '分数', data: item => item.score },
+        { id: 'student-chart-score', title: subjectText('score_trend'), name: subjectText('score_short'), color: '#0b57d0', yName: '分数', data: item => item.score },
         { id: 'student-chart-grade-rank', title: '年级排名趋势', name: '年级排名', color: '#f29900', yName: '名次', inverse: true, data: item => item.gradeRank },
         { id: 'student-chart-class-rank', title: '班级排名趋势', name: '班级排名', color: '#0f9d58', yName: '名次', inverse: true, data: item => item.classRank },
         { id: 'student-chart-tier', title: '层级变化趋势', name: '层级', color: '#7c4dff', yName: '层级', tier: true, data: item => ({ A: 4, B: 3, C: 2, D: 1 }[item.tier] || null) },
@@ -1455,7 +1866,8 @@
       const meta = payload?.learning_profile_meta || {};
       const tracking = payload?.question_type_tracking || {};
       const trackingAverages = Array.isArray(tracking.averages) ? tracking.averages : [];
-      const measuredTypeCount = trackingAverages.filter(item => item && item.score_rate !== null && item.score_rate !== undefined).length;
+      const hasRate = value => value !== null && value !== undefined && String(value).trim() !== '' && Number.isFinite(Number(value));
+      const measuredTypeCount = trackingAverages.filter(item => item && hasRate(item[tracking.metric_key || 'score_rate'])).length;
       let summary = String(profile.summary || '').trim();
       // 兼容旧版只有列表字段的档案；新版本只展示一段连贯摘要。
       if (!summary) {
@@ -1466,9 +1878,13 @@
         });
         if (legacy.length) summary = `根据已有记录，${legacy.join('；')}。后续结合新的学习表现持续更新。`;
       }
-      const summaryHtml = summary
-        ? `<p class="student-profile-summary">${escapeHtml(summary)}</p>`
-        : (meta.version ? '' : '<p class="student-profile-summary">暂无画像摘要。使用 TeachMate 的“学生诊断”后，画像会自动更新。</p>');
+      const summaryHtml = payload?.loading
+        ? '<div class="student-profile-skeleton" role="status"><strong>正在加载学生画像</strong><span class="wb-skeleton wb-skeleton-line"></span><span class="wb-skeleton wb-skeleton-line sm"></span></div>'
+        : payload?.profile_error
+          ? `<div class="student-profile-load-error" role="alert"><span>${escapeHtml(payload.profile_error.message || '学生画像暂时无法加载')}</span><button class="btn btn-sm" data-act="student-profile-retry" data-id="${escapeAttr(studentId)}">重新加载</button></div>`
+          : summary
+            ? `<p class="student-profile-summary">${escapeHtml(summary)}</p>`
+            : '<p class="student-profile-summary">暂无画像摘要。使用 TeachMate 的“学生诊断”后，画像会自动更新。</p>';
       const pending = Array.isArray(payload?.pending_profile_revisions) ? payload.pending_profile_revisions : [];
       const pendingHtml = pending.length ? pending.map(revision => {
         const patch = revision.patch || {};
@@ -1476,30 +1892,48 @@
           .replace(/\bstudent[ _-]?\d+\b/gi, '该生')
           .replace(/学生[ _-]?\d+/g, '该生');
         const changed = proposed ? `<li>${escapeHtml(proposed)}</li>` : '';
-        return `<div class="student-profile-pending"><div><strong>待确认画像变更</strong><span class="subtle">第 ${escapeHtml(String(revision.base_version))} 版 → 新建议</span></div><ul>${changed || '<li>本次建议将更新学生画像，确认后可在学生管理中查看新的画像摘要。</li>'}</ul><div class="student-profile-actions"><button class="btn btn-sm btn-primary" data-act="student-profile-confirm" data-id="${escapeAttr(revision.id)}">确认写入画像</button><button class="btn btn-sm btn-text" data-act="student-profile-reject" data-id="${escapeAttr(revision.id)}">拒绝</button></div></div>`;
+        return `<div class="student-profile-pending"><div><strong>待确认画像变更</strong><span class="subtle">新建议</span></div><ul>${changed || '<li>本次建议将更新学生画像，确认后可在学生管理中查看新的画像摘要。</li>'}</ul><div class="student-profile-actions"><button class="btn btn-sm btn-primary" data-act="student-profile-confirm" data-id="${escapeAttr(revision.id)}">确认写入画像</button><button class="btn btn-sm btn-text" data-act="student-profile-reject" data-id="${escapeAttr(revision.id)}">拒绝</button></div></div>`;
       }).join('') : '';
-      const updated = meta.updated_at ? String(meta.updated_at).slice(0, 10) : '尚未建立';
+      const updated = payload?.loading ? '正在同步' : (meta.updated_at ? String(meta.updated_at).slice(0, 10) : '尚未建立');
       const editButton = (typeof DATABASE_MODE !== 'undefined' && DATABASE_MODE)
         ? `<button class="btn btn-sm" data-act="student-profile-edit" data-id="${escapeAttr(studentId)}">编辑画像</button>` : '';
-      const trackingCountLabel = tracking.exam_count ? `${tracking.exam_count} 场考试均值` : '等待小题成绩';
-      const sourceLabel = tracking.data_source || 'MONI 小题成绩';
-      return `<div id="student-learning-profile-${escapeAttr(studentId)}" class="card student-profile-card" style="margin:0 0 16px;"><div class="card-header"><h3 class="card-title">学生画像</h3><div style="display:flex;align-items:center;gap:8px;"><span class="badge badge-blue">${meta.version ? `第 ${escapeHtml(String(meta.version))} 版` : '未建立'}</span>${editButton}</div></div><div class="card-body"><div class="student-profile-layout"><div class="student-profile-copy">${summaryHtml || '<div class="empty">暂无画像摘要</div>'}<div class="subtle" style="margin-top:12px;">最近确认：${escapeHtml(updated)}${meta.updated_by ? ` · ${escapeHtml(String(meta.updated_by))}` : ''}</div>${pendingHtml}</div><aside class="student-profile-radar-panel" aria-label="题型能力图"><div class="student-profile-radar-head"><div><strong>题型能力图</strong><small>各场考试题型得分率的平均值</small></div><span class="student-profile-radar-count">${escapeHtml(trackingCountLabel)}</span></div><div id="student-ability-radar-${escapeAttr(studentId)}" class="student-ability-radar" data-measured-count="${measuredTypeCount}"><div class="trend-empty">正在读取 MONI 小题数据…</div></div><div class="student-profile-radar-foot"><span>${escapeHtml(sourceLabel)}</span><span>缺失题型不计入均值</span></div></aside></div></div></div>`;
+      const trackingCountLabel = payload?.loading ? '正在读取' : (tracking.exam_count ? `${tracking.exam_count} 场考试均值` : '等待小题成绩');
+      const sourceLabel = tracking.data_source || '已录入的小题成绩';
+      return `<div id="student-learning-profile-${escapeAttr(studentId)}" class="card student-profile-card" style="margin:0 0 16px;"><div class="card-header"><h3 class="card-title">学生画像</h3><div style="display:flex;align-items:center;gap:8px;">${editButton}</div></div><div class="card-body"><div class="student-profile-layout"><div class="student-profile-copy" role="region" aria-label="学生画像内容" tabindex="0">${summaryHtml}<div class="subtle" style="margin-top:12px;">最近确认：${escapeHtml(updated)}${meta.updated_by ? ` · ${escapeHtml(String(meta.updated_by))}` : ''}</div>${pendingHtml}</div><aside class="student-profile-radar-panel" aria-label="题型能力图"><div class="student-profile-radar-head"><div><strong>题型能力图</strong><small>${escapeHtml(tracking.metric_label || '各场考试题型得分率的平均值')}</small></div><span class="student-profile-radar-count">${escapeHtml(trackingCountLabel)}</span></div><div id="student-ability-radar-${escapeAttr(studentId)}" class="student-ability-radar" data-measured-count="${measuredTypeCount}"><div class="trend-empty">正在读取逐题成绩…</div></div><div class="student-profile-radar-foot"><span>${escapeHtml(sourceLabel)}</span><span>缺失或未录全的题型不计入均值</span></div></aside></div></div></div>`;
     }
 
     async function renderStudentAbilityRadar(tracking, studentId) {
       const node = document.getElementById(`student-ability-radar-${studentId}`);
       if (!node) return;
-      const categories = Array.isArray(tracking?.categories) && tracking.categories.length
-        ? tracking.categories
-        : ['听力理解', '阅读理解', '完形填空', '词汇运用', '语法填空', '任务型阅读', '书面表达'];
+      if (tracking?.error) {
+        node.innerHTML = `<div class="student-ability-empty" role="alert"><span>${escapeHtml(tracking.error)}</span><button class="btn btn-sm" data-act="student-profile-retry" data-id="${escapeAttr(studentId)}">重新加载</button></div>`;
+        return;
+      }
+      if (tracking?.loading) {
+        node.innerHTML = '<div class="student-ability-empty" role="status"><span class="wb-skeleton wb-skeleton-block" aria-hidden="true"></span><span>正在读取能力数据</span></div>';
+        return;
+      }
+      const allCategories = Array.isArray(tracking?.categories) ? tracking.categories : [];
       const averages = Array.isArray(tracking?.averages) ? tracking.averages : [];
       const averageMap = new Map(averages.map(item => [String(item?.type || ''), item]));
-      const measured = categories.some(name => {
-        const rate = averageMap.get(String(name))?.score_rate;
-        return rate !== null && rate !== undefined && Number.isFinite(Number(rate));
+      const metric = tracking?.metric_key || 'score_rate';
+      const unit = tracking?.unit || '%';
+      const categories = allCategories.filter(name => {
+        const value = averageMap.get(String(name))?.[metric];
+        return value !== null && value !== undefined && String(value).trim() !== '' && Number.isFinite(Number(value));
       });
-      if (!measured) {
-        node.innerHTML = '<div class="student-ability-empty"><span class="material-symbols-rounded" aria-hidden="true">insights</span><span>完成一次带小题分的考试后，这里会形成题型能力图</span></div>';
+      const missing = allCategories.filter(name => !categories.includes(name));
+      const panel = node.closest('.student-profile-radar-panel');
+      panel?.querySelector('.student-ability-missing')?.remove();
+      if (missing.length || metric === 'mean_score') {
+        const note = document.createElement('small');
+        note.className = 'student-ability-missing';
+        note.textContent = (missing.length ? `暂无完整数据：${missing.join('、')}。` : '')
+          + (metric === 'mean_score' ? '显示实际每题平均得分，题型间分值可能不同，不作为掌握率。' : '');
+        panel?.appendChild(note);
+      }
+      if (!categories.length) {
+        node.innerHTML = '<div class="student-ability-empty"><span class="material-symbols-rounded" aria-hidden="true">insights</span><span>设置试卷分布并录入完整题型的小分后，这里会形成能力图</span></div>';
         return;
       }
       if (typeof echarts === 'undefined' && typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent || '')) {
@@ -1524,33 +1958,43 @@
       }
       try {
         const values = categories.map(name => {
-          const rate = averageMap.get(String(name))?.score_rate;
-          return rate === null || rate === undefined || !Number.isFinite(Number(rate)) ? null : Number(rate);
+          const rate = averageMap.get(String(name))?.[metric];
+          return rate === null || rate === undefined || String(rate).trim() === '' || !Number.isFinite(Number(rate)) ? null : Number(rate);
         });
         const chart = echarts.init(node);
-        chart.setOption({
+        if (typeof ResizeObserver === 'function') {
+          chart.__workbenchResizeObserver = new ResizeObserver(() => {
+            if (node.isConnected) chart.resize();
+          });
+          chart.__workbenchResizeObserver.observe(node);
+        }
+        const scaleMaximum = metric === 'score_rate' ? 100 : Math.max(1, Math.ceil(Math.max(...values) * 1.15));
+        const caption = metric === 'score_rate' ? '题型得分率' : '每题平均得分';
+        const option = {
           animationDuration: 320,
           tooltip: {
             trigger: 'item',
             confine: true,
-            formatter: () => categories.map((name, index) => `${name}：${values[index] == null ? '暂无数据' : `${fmt(values[index])}%`}`).join('<br>'),
+            formatter: () => categories.map((name, index) => `${name}：${values[index] == null ? '暂无数据' : `${fmt(values[index])}${unit}`}`).join('<br>'),
           },
           radar: {
-            center: ['50%', '53%'],
-            radius: '68%',
+            center: ['50%', '51%'],
+            // Leave a small, fixed label gutter inside the locked panel so
+            // long subject names never get clipped at the canvas edge.
+            radius: '64%',
             startAngle: 90,
             splitNumber: 4,
-            indicator: categories.map(name => ({ name, max: 100 })),
-            axisName: { color: '#667085', fontSize: 11 },
+            indicator: categories.map(name => ({ name, max: scaleMaximum })),
+            axisName: { color: '#667085', fontSize: 13 },
             axisLine: { lineStyle: { color: '#d0d5dd' } },
             splitLine: { lineStyle: { color: '#d0d5dd' } },
             splitArea: { areaStyle: { color: ['rgba(67,97,238,.035)', 'rgba(67,97,238,.075)'] } },
           },
           series: [{
-            name: '题型得分率',
+            name: caption,
             type: 'radar',
             symbol: 'circle',
-            symbolSize: 7,
+            symbolSize: 9,
             data: [{
               value: values,
               name: '多场考试平均',
@@ -1559,7 +2003,15 @@
               areaStyle: { color: 'rgba(67,97,238,.22)' },
             }],
           }],
-        });
+        };
+        if (categories.length < 3) {
+          delete option.radar;
+          option.grid = { left: 100, right: 32, top: 35, bottom: 35 };
+          option.xAxis = { type: 'value', max: scaleMaximum };
+          option.yAxis = { type: 'category', data: categories };
+          option.series = [{ name: caption, type: 'bar', data: values, barMaxWidth: 34, itemStyle: { color: '#4361ee' }, label: { show: true, position: 'right', formatter: item => `${fmt(item.value)}${unit}` } }];
+        }
+        chart.setOption(option);
         studentCharts.push(chart);
       } catch (error) {
         node.innerHTML = '<div class="trend-empty">当前环境无法绘制能力图，请使用浏览器打开</div>';
@@ -1577,6 +2029,18 @@
       } catch (error) {
         return { learning_profile: {}, learning_profile_meta: {}, profile_error: error };
       }
+    }
+
+    async function reloadStudentLearningProfile(studentId) {
+      const loadingNode = document.getElementById(`student-learning-profile-${studentId}`);
+      if (!loadingNode) return;
+      loadingNode.outerHTML = renderStudentLearningProfile({ loading: true }, studentId);
+      const student = state.students.find(item => String(item.id) === String(studentId));
+      const payload = await loadStudentLearningProfile(student);
+      const profileNode = document.getElementById(`student-learning-profile-${studentId}`);
+      if (!profileNode || !payload) return;
+      profileNode.outerHTML = renderStudentLearningProfile(payload, studentId);
+      renderStudentAbilityRadar(payload.profile_error ? { error: payload.profile_error.message } : payload.question_type_tracking, studentId);
     }
 
     async function confirmStudentProfileRevision(revisionId) {
@@ -1639,7 +2103,7 @@
       if (!student) return;
       // 先打开详情，画像接口异步加载，避免网络较慢时阻塞学生评价等已有操作。
       const learningProfilePromise = loadStudentLearningProfile(student);
-      const learningProfile = {};
+      const learningProfile = { loading: true };
       student.evaluationTags = Array.isArray(student.evaluationTags) ? student.evaluationTags : [];
       student.evaluationNote = String(student.evaluationNote || '');
       // 学生明细默认保留全部考试；缺考或未录入的考试以空值显示，趋势图保留对应时间点。
@@ -1648,20 +2112,20 @@
         const rankMap = calculateClassRanks(exam, state.students);
         return { exam, score, gradeRank: getStudentGradeRank(exam, student), classRank: rankMap[student.id] || null, tier: getExamTier(exam, score) };
       });
-      const rows = history.length ? history.map(item => `<tr><td>${escapeHtml(item.exam.name)}${item.exam.examKind === 'entrance' ? ' <span class="badge badge-blue">入学基线</span>' : ''}</td><td>${escapeHtml(item.exam.date || '—')}</td><td class="text-right">${item.score ?? '缺考'}</td><td class="text-center">${item.gradeRank ?? '—'}</td><td class="text-center">${item.classRank ?? '—'}</td><td class="text-center"><strong>${item.tier}</strong></td></tr>`).join('') : '<tr><td colspan="6" class="empty">暂时没有英语考试记录</td></tr>';
+      const rows = history.length ? history.map(item => `<tr><td>${escapeHtml(item.exam.name)}${item.exam.examKind === 'entrance' ? ' <span class="badge badge-blue">入学基线</span>' : ''}</td><td>${escapeHtml(item.exam.date || '—')}</td><td class="text-right">${item.score ?? '缺考'}</td><td class="text-center">${item.gradeRank ?? '—'}</td><td class="text-center">${item.classRank ?? '—'}</td><td class="text-center"><strong>${item.tier}</strong></td></tr>`).join('') : '<tr><td colspan="6" class="empty">暂时没有' + escapeHtml(subjectText('exam_default')) + '记录</td></tr>';
       const tags = state.studentTags || [];
       const assignedTags = tags.filter(tag => student.evaluationTags.includes(tag.id));
       const tagRows = assignedTags.length ? assignedTags.map(tag => `<div class="student-evaluation-row"><input class="student-evaluation-input" type="text" data-act="tag-name-change" data-tag-id="${escapeAttr(tag.id)}" value="${escapeAttr(tag.name)}" maxlength="100" ${tag.locked ? 'readonly' : ''} aria-label="文字评价"><span class="student-evaluation-lock">${tag.locked ? '已锁定' : ''}</span><button class="btn btn-sm" data-act="tag-lock-inline" data-id="${escapeAttr(student.id)}" data-tag-id="${escapeAttr(tag.id)}">${tag.locked ? '解锁' : '锁定'}</button><button class="btn btn-sm btn-danger" data-act="tag-delete-inline" data-id="${escapeAttr(student.id)}" data-tag-id="${escapeAttr(tag.id)}">删除</button></div>`).join('') : '<div style="color:var(--md-text-secondary);">还没有文字评价，请点击“新建评价”。</div>';
-      const chartCards = '<div class="student-chart-grid"><div class="student-chart-card"><h4>英语分数趋势</h4><div id="student-chart-score" class="student-history-chart"></div></div><div class="student-chart-card"><h4>年级排名趋势</h4><div id="student-chart-grade-rank" class="student-history-chart"></div></div><div class="student-chart-card"><h4>班级排名趋势</h4><div id="student-chart-class-rank" class="student-history-chart"></div></div><div class="student-chart-card"><h4>层级变化趋势</h4><div id="student-chart-tier" class="student-history-chart"></div></div></div>';
-      openModal(`学生明细 · ${student.name}`, `<div class="card" style="margin:0 0 16px;"><div class="card-body"><div style="display:flex;gap:28px;flex-wrap:wrap;"><span><b>学号：</b>${escapeHtml(student.id)}</span><span><b>班级：</b>${escapeHtml(student.class)}</span><span><b>当前入学英语：</b>${student.english || '—'}</span></div></div></div>${renderStudentLearningProfile(learningProfile, student.id)}<div class="card" style="margin:0 0 16px;"><div class="card-header"><h3 class="card-title">历次考试横向对比</h3></div><div class="card-body">${chartCards}</div></div><div class="card" style="margin:0 0 16px;"><div class="card-header"><h3 class="card-title">英语考试历史</h3></div><div class="card-body" style="padding:0;overflow:auto;"><table><thead><tr><th>考试</th><th>日期</th><th>英语分数</th><th>年级排名</th><th>班级排名</th><th>层级</th></tr></thead><tbody>${rows}</tbody></table></div></div>${renderStudentReciteHistory(student)}${renderStudentDictationHistory(student)}${renderStudentHomeworkHistory(student)}${renderStudentWritingHistory(student)}<div class="card"><div class="card-header"><h3 class="card-title">文字评价</h3><div style="display:flex;gap:8px;"><button class="btn btn-sm btn-primary" data-act="tag-add" data-id="${escapeAttr(student.id)}">新建评价</button><button class="btn btn-sm" data-act="tag-batch-delete" data-id="${escapeAttr(student.id)}">批量管理</button></div></div><div class="card-body"><div class="student-evaluation-list">${tagRows}</div></div></div>`, '<button class="btn btn-primary" onclick="closeModal()">关闭</button>');
+      const chartCards = '<div class="student-chart-grid"><div class="student-chart-card"><h4>' + escapeHtml(subjectText('score_trend')) + '</h4><div id="student-chart-score" class="student-history-chart"></div></div><div class="student-chart-card"><h4>年级排名趋势</h4><div id="student-chart-grade-rank" class="student-history-chart"></div></div><div class="student-chart-card"><h4>班级排名趋势</h4><div id="student-chart-class-rank" class="student-history-chart"></div></div><div class="student-chart-card"><h4>层级变化趋势</h4><div id="student-chart-tier" class="student-history-chart"></div></div></div>';
+      openModal(`学生明细 · ${student.name}`, `<div class="card" style="margin:0 0 16px;"><div class="card-body"><div style="display:flex;gap:28px;flex-wrap:wrap;"><span><b>学号：</b>${escapeHtml(student.id)}</span><span><b>班级：</b>${escapeHtml(student.class)}</span><span><b>当前${subjectHtml('entrance_score')}：</b>${student.english ?? '—'}</span></div></div></div>${renderStudentLearningProfile(learningProfile, student.id)}<div class="card" style="margin:0 0 16px;"><div class="card-header"><h3 class="card-title">历次考试横向对比</h3></div><div class="card-body">${chartCards}</div></div><div class="card" style="margin:0 0 16px;"><div class="card-header"><h3 class="card-title">${subjectHtml('exam_default')}历史</h3></div><div class="card-body" style="padding:0;overflow:auto;"><table><thead><tr><th>考试</th><th>日期</th><th>${subjectHtml('score_short')}</th><th>年级排名</th><th>班级排名</th><th>层级</th></tr></thead><tbody>${rows}</tbody></table></div></div>${renderStudentReciteHistory(student)}${renderStudentDictationHistory(student)}${renderStudentHomeworkHistory(student)}${renderStudentWritingHistory(student)}<div class="card"><div class="card-header"><h3 class="card-title">文字评价</h3><div style="display:flex;gap:8px;"><button class="btn btn-sm btn-primary" data-act="tag-add" data-id="${escapeAttr(student.id)}">新建评价</button><button class="btn btn-sm" data-act="tag-batch-delete" data-id="${escapeAttr(student.id)}">批量管理</button></div></div><div class="card-body"><div class="student-evaluation-list">${tagRows}</div></div></div>`, '<button class="btn btn-primary" onclick="closeModal()">关闭</button>');
       document.querySelector('#modal .modal-content')?.classList.add('student-detail-modal');
       renderStudentComparisonChart(history);
-      renderStudentAbilityRadar(learningProfile.question_type_tracking, student.id);
+      renderStudentAbilityRadar({ loading: true }, student.id);
       learningProfilePromise.then(function (payload) {
         const profileNode = document.getElementById(`student-learning-profile-${student.id}`);
         if (profileNode && payload) {
           profileNode.outerHTML = renderStudentLearningProfile(payload, student.id);
-          renderStudentAbilityRadar(payload.question_type_tracking, student.id);
+          renderStudentAbilityRadar(payload.profile_error ? { error: payload.profile_error.message } : payload.question_type_tracking, student.id);
         }
       }).catch(function () {});
     }
@@ -1798,7 +2262,7 @@
         </div>
         <div class="form-row">
           <div class="form-group"><label>满分</label><input type="number" min="1" step="0.5" id="m-exam-full" value="${fullScore}"></div>
-          <div class="form-group"><label>考试类型</label><select id="m-exam-type"><option value="english_total" ${exam?.type!=='question_type'?'selected':''}>英语总分</option><option value="question_type" ${exam?.type==='question_type'?'selected':''}>按题型</option></select></div>
+          <div class="form-group"><label>考试类型</label><select id="m-exam-type"><option value="english_total" ${exam?.type!=='question_type'?'selected':''}>${subjectHtml('score_total')}</option><option value="question_type" ${exam?.type==='question_type'?'selected':''}>按题型</option></select></div>
         </div>
         <hr style="margin:18px 0;border:0;border-top:1px solid var(--border);">
         <h4 style="margin:0 0 6px;">本次考试分层线</h4>
@@ -1857,7 +2321,7 @@
       const current = Number(exam.classGradeRanks?.[resolveClassName(cls)]);
       const currentValue = Number.isInteger(current) && current > 0 ? current : '';
       openModal('设置年级排名', `
-        <p style="margin:0 0 18px;color:var(--md-text-secondary);">${escapeHtml(exam.name)} · ${escapeHtml(formatClassLabel(cls))}<br><small>填写这个班本次英语成绩在全年级各班中的名次。</small></p>
+        <p style="margin:0 0 18px;color:var(--md-text-secondary);">${escapeHtml(exam.name)} · ${escapeHtml(formatClassLabel(cls))}<br><small>填写这个班本次${escapeHtml(subjectText('score_column'))}在全年级各班中的名次。</small></p>
         <div class="form-group"><label>班级年级名次</label><input id="m-class-grade-rank" type="number" min="1" step="1" inputmode="numeric" value="${currentValue}" placeholder="例如：3"></div>
       `, '<button class="btn" onclick="closeModal()">取消</button><button class="btn btn-primary" id="m-class-grade-rank-save">保存</button>');
       const input = document.getElementById('m-class-grade-rank');
@@ -1957,7 +2421,7 @@
       openModal('录入高频错题', `
         <div class="form-row">
           <div class="form-group"><label>题号</label><input id="m-err-qnum"></div>
-          <div class="form-group"><label>题型</label><select id="m-err-type">${QUESTION_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}</select></div>
+          <div class="form-group"><label>题型</label><select id="m-err-type">${subjectQuestionTypes().map(t=>`<option value="${escapeAttr(t)}">${escapeHtml(t)}</option>`).join('')}</select></div>
         </div>
         <div class="form-row"><div class="form-group"><label>考点</label><input id="m-err-point"></div><div class="form-group"><label>错误人数</label><input type="number" id="m-err-count"></div></div>
         <div class="form-row"><div class="form-group"><label>关联原卷</label><select id="m-err-document"><option value="">不关联原卷</option>${(state.paperDocuments || []).map(item => `<option value="${escapeAttr(item.id)}" ${item.id === errorSelectedDocumentId ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}</select></div><div class="form-group"><label>原卷页码</label><input type="number" min="1" id="m-err-page" placeholder="例如：3"></div></div>
@@ -2519,6 +2983,12 @@
 
     async function syncMoniNowUi() {
       const status = document.getElementById('moni-config-status');
+      if (subjectKey !== 'english') {
+        const message = `MONI 当前同步器读取英语单科数据；切到${subjectName()}时请使用该学科对应的数据源。`;
+        if (status) status.textContent = message;
+        showToast(message, 'warning');
+        return;
+      }
       if (status) status.textContent = '正在读取并同步学生数据，请稍候…';
       try {
         const result = await apiRequest('/api/v1/school-sync/moni/sync', { method: 'POST', timeoutMs: 120000 });
@@ -2538,8 +3008,8 @@
           showToast('同步完成，但没有发现可导入数据', 'warning');
         } else {
           if (scoreStudents === 0) {
-            if (status) status.textContent = `同步完成 · 学生 ${students} 人 · 班级 ${classes} 个 · 考试 ${exams} 场 · ${detail} · MONI 未返回英语单科成绩`;
-            showToast('同步完成，但未返回英语单科成绩（未使用全科总分）', 'warning');
+            if (status) status.textContent = `同步完成 · 学生 ${students} 人 · 班级 ${classes} 个 · 考试 ${exams} 场 · ${detail} · MONI 未返回${subjectText('score_single')}`;
+            showToast(`同步完成，但未返回${subjectText('score_single')}（未使用全科总分）`, 'warning');
           } else {
             if (status) status.textContent = `同步完成 · 学生 ${students} 人 · 班级 ${classes} 个 · 考试 ${exams} 场 · ${detail}`;
             showToast('MONI 学生数据同步完成', 'success');
@@ -2551,6 +3021,847 @@
     }
 
     window.loadMoniConfigUi = loadMoniConfigUi;
+
+    // ---------- 成长加分标准（每位老师各自一套） ----------
+    // 设置页只维护「本机有哪几位老师」与「每位老师的快捷补录分值」。分值不进入计分
+    // 引擎：已入账的历史记录仍按当时确认的分值保留，所以改标准不必新建规则版本。
+    let growthStandardsState = null;
+    let growthStandardsBusy = false;
+
+    function growthStandardStatus(text, isError) {
+      const el = document.getElementById('growth-preset-status');
+      if (!el) return;
+      el.textContent = text;
+      el.classList.toggle('growth-status-error', Boolean(isError));
+    }
+
+    function growthStandardSelectedId() {
+      const select = document.getElementById('growth-teacher-select');
+      const picked = Number(select && select.value);
+      if (Number.isSafeInteger(picked) && picked > 0) return picked;
+      return Number(growthStandardsState && growthStandardsState.active_teacher
+        && growthStandardsState.active_teacher.id) || null;
+    }
+
+    function growthStandardOwnerName() {
+      const active = growthStandardsState && growthStandardsState.active_teacher;
+      const name = active && active.name ? String(active.name).trim() : '';
+      return name || '当前教师';
+    }
+
+    function renderGrowthTeacherOptions(payload) {
+      const select = document.getElementById('growth-teacher-select');
+      if (!select) return;
+      const rows = Array.isArray(payload && payload.teachers) ? payload.teachers : [];
+      const activeId = Number(payload && payload.active_teacher && payload.active_teacher.id) || null;
+      select.innerHTML = rows.map(teacher =>
+        `<option value="${teacher.id}" ${teacher.id === activeId ? 'selected' : ''}>${escapeHtml(teacher.name)}${teacher.id === activeId ? '（当前）' : ''}</option>`
+      ).join('');
+      // 至少保留一位教师：只剩一人时不允许删除，也不需要用下拉切换。
+      const onlyOne = rows.length <= 1;
+      select.disabled = onlyOne;
+      const removeBtn = document.querySelector('[data-act="growth-teacher-remove"]');
+      if (removeBtn) {
+        removeBtn.disabled = onlyOne;
+        removeBtn.title = onlyOne ? '至少保留一位教师' : '删除当前选中的教师档案';
+      }
+    }
+
+    function renderGrowthPresetRows(payload) {
+      const box = document.getElementById('growth-preset-rows');
+      if (!box) return;
+      const presets = Array.isArray(payload && payload.presets) ? payload.presets : [];
+      const maxPoints = Number(payload && payload.max_points) || 10;
+      if (!presets.length) {
+        box.innerHTML = '<div class="growth-inline-warn">当前学期规则版本没有可手工补录的类别，或后台尚未返回加分标准。请重启工作台服务后重试。</div>';
+        return;
+      }
+      box.innerHTML = presets.map(preset => {
+        const label = preset.label || preset.type;
+        const flag = preset.customized
+          ? `<span class="growth-preset-flag">已自定义 · 出厂 ${Number(preset.default_points) || 1}</span>` : '';
+        const hidden = preset.visible === false ? '<span class="growth-preset-flag">快捷区已隐藏</span>' : '';
+        return `<div class="growth-preset-row" data-growth-preset="${escapeAttr(preset.type)}">
+          <span class="growth-preset-name">${escapeHtml(label)}</span>
+          <label class="growth-preset-points">分值<input type="number" data-role="points" min="1" max="${maxPoints}" step="1" value="${Number(preset.points) || 1}" aria-label="${escapeAttr(label)}分值"></label>
+          <label class="growth-preset-visible"><input type="checkbox" data-role="visible" ${preset.visible !== false ? 'checked' : ''}>快捷显示</label>
+          <span class="growth-preset-note">${flag}${hidden}</span>
+        </div>`;
+      }).join('');
+    }
+
+    function renderGrowthStandardConflict(payload) {
+      const notice = document.getElementById('growth-preset-conflict');
+      if (!notice) return;
+      const conflict = (payload && payload.conflict) || {};
+      if (!conflict.conflict) { notice.innerHTML = ''; return; }
+      const presets = (payload && payload.presets) || [];
+      const labels = (conflict.divergent_types || []).map(type => {
+        const preset = presets.find(item => item.type === type);
+        return preset ? preset.label : type;
+      });
+      const detail = labels.length ? `（${labels.map(escapeHtml).join('、')}）` : '';
+      notice.innerHTML = `<div class="growth-inline-warn" role="status">本机 ${Number(conflict.teachers) || 2} 位老师使用了不同的加分标准${detail}。学生之间的营养值不宜直接横向比较；阶段与「森林之星」只表示学习活动记录量，${escapeHtml(subjectText('ability_disclaimer'))}。</div>`;
+    }
+
+    function applyGrowthStandardsPayload(payload) {
+      growthStandardsState = payload;
+      renderGrowthTeacherOptions(payload);
+      renderGrowthPresetRows(payload);
+      renderGrowthStandardConflict(payload);
+    }
+
+    async function loadGrowthStandardsUi() {
+      const box = document.getElementById('growth-preset-rows');
+      if (!box) return;
+      growthStandardStatus('正在读取配置…');
+      try {
+        const payload = await apiRequest(`/api/v1/growth/teacher-presets?term_id=${encodeURIComponent(currentTermId)}`);
+        applyGrowthStandardsPayload(payload);
+        const count = (payload && payload.presets ? payload.presets.length : 0);
+        growthStandardStatus(`当前生效：${growthStandardOwnerName()} · ${count} 个补录类别`);
+      } catch (error) {
+        box.innerHTML = `<div class="growth-inline-warn">读取加分标准失败：${escapeHtml(error && error.message ? error.message : error)}</div>`;
+        growthStandardStatus('读取失败', true);
+      }
+    }
+
+    async function saveGrowthPresetsUi() {
+      if (growthStandardsBusy) return;
+      if (!DATABASE_MODE) { growthStandardStatus('浏览器存储版不支持加分标准', true); return; }
+      const box = document.getElementById('growth-preset-rows');
+      const teacherId = growthStandardSelectedId();
+      if (!box || !teacherId) { growthStandardStatus('请先选择教师', true); return; }
+      const maxPoints = Number(growthStandardsState && growthStandardsState.max_points) || 10;
+      const presets = {};
+      const problems = [];
+      box.querySelectorAll('[data-growth-preset]').forEach(row => {
+        const type = row.dataset.growthPreset;
+        const pointsInput = row.querySelector('[data-role="points"]');
+        const visibleInput = row.querySelector('[data-role="visible"]');
+        const raw = Number(String(pointsInput ? pointsInput.value : '').trim());
+        const label = (row.querySelector('.growth-preset-name') || {}).textContent || type;
+        if (!Number.isSafeInteger(raw) || raw < 1 || raw > maxPoints) {
+          problems.push(`「${label}」的分值需为 1–${maxPoints} 的整数`);
+          return;
+        }
+        presets[type] = { points: raw, visible: visibleInput ? visibleInput.checked : true };
+      });
+      if (problems.length) {
+        growthStandardStatus(problems[0], true);
+        showToast(problems[0], 'error');
+        return;
+      }
+      growthStandardsBusy = true;
+      growthStandardStatus('正在保存…');
+      try {
+        const payload = await apiRequest(`/api/v1/growth/teacher-presets?teacher_id=${encodeURIComponent(teacherId)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ term_id: Number(currentTermId), presets })
+        });
+        applyGrowthStandardsPayload(payload);
+        growthStandardStatus(`已保存 · ${growthStandardOwnerName()} · ${Object.keys(presets).length} 个补录类别`);
+        showToast('加分标准已保存', 'success');
+        // 森林页缓存的预设已过期，作废以便下次进入时按新标准渲染。
+        if (typeof window.growthInvalidate === 'function') window.growthInvalidate();
+      } catch (error) {
+        const message = error && error.message ? error.message : String(error);
+        growthStandardStatus(`保存失败：${message}`, true);
+        showToast('加分标准保存失败', 'error');
+      } finally {
+        growthStandardsBusy = false;
+      }
+    }
+
+    async function resetGrowthPresetsUi() {
+      if (growthStandardsBusy) return;
+      const teacherId = growthStandardSelectedId();
+      if (!teacherId) { growthStandardStatus('请先选择教师', true); return; }
+      growthStandardsBusy = true;
+      growthStandardStatus('正在恢复默认分值…');
+      try {
+        const payload = await apiRequest(`/api/v1/growth/teacher-presets?teacher_id=${encodeURIComponent(teacherId)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ term_id: Number(currentTermId), presets: {} })
+        });
+        applyGrowthStandardsPayload(payload);
+        growthStandardStatus(`已恢复出厂默认 · ${growthStandardOwnerName()}`);
+        showToast('已恢复默认分值', 'success');
+        if (typeof window.growthInvalidate === 'function') window.growthInvalidate();
+      } catch (error) {
+        growthStandardStatus(`恢复失败：${error && error.message ? error.message : error}`, true);
+        showToast('恢复默认分值失败', 'error');
+      } finally {
+        growthStandardsBusy = false;
+      }
+    }
+
+    async function selectGrowthTeacherUi(teacherId) {
+      if (!teacherId) return;
+      growthStandardStatus('正在切换教师…');
+      try {
+        await apiRequest(`/api/v1/growth/teachers/${encodeURIComponent(teacherId)}/activate`, { method: 'POST' });
+        await loadGrowthStandardsUi();
+        if (typeof window.growthInvalidate === 'function') window.growthInvalidate();
+      } catch (error) {
+        growthStandardStatus(`切换失败：${error && error.message ? error.message : error}`, true);
+        showToast('切换教师失败', 'error');
+      }
+    }
+
+    async function addGrowthTeacherUi() {
+      const input = document.getElementById('growth-teacher-new');
+      const name = input ? String(input.value || '').trim() : '';
+      if (!name) { showToast('请输入教师姓名', 'error'); return; }
+      try {
+        const payload = await apiRequest('/api/v1/growth/teachers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, activate: true })
+        });
+        if (input) input.value = '';
+        applyGrowthStandardsPayload(payload);
+        await loadGrowthStandardsUi();
+        if (typeof window.growthInvalidate === 'function') window.growthInvalidate();
+        showToast(`已新增教师「${name}」并切换为当前`, 'success');
+      } catch (error) {
+        showToast(error && error.message ? error.message : '新增教师失败', 'error');
+      }
+    }
+
+    async function removeGrowthTeacherUi() {
+      const teacherId = growthStandardSelectedId();
+      if (!teacherId) return;
+      const name = growthStandardOwnerName();
+      openModal('删除教师档案？', `<p>将删除「${escapeHtml(name)}」的加分标准档案。</p><p style="color:var(--md-text-secondary);">已入账的成长记录与署名不受影响，仍保留在事件账本中；至少需保留一位教师。</p>`, `<button class="btn btn-text" data-act="growth-teacher-remove-cancel">取消</button><button class="btn btn-danger" data-act="growth-teacher-remove-confirm">确认删除</button>`);
+    }
+
+    async function confirmRemoveGrowthTeacherUi() {
+      const teacherId = growthStandardSelectedId();
+      closeModal();
+      if (!teacherId) return;
+      try {
+        const payload = await apiRequest(`/api/v1/growth/teachers/${encodeURIComponent(teacherId)}`, { method: 'DELETE' });
+        applyGrowthStandardsPayload(payload);
+        await loadGrowthStandardsUi();
+        if (typeof window.growthInvalidate === 'function') window.growthInvalidate();
+        showToast('教师档案已删除', 'success');
+      } catch (error) {
+        showToast(error && error.message ? error.message : '删除教师失败', 'error');
+      }
+    }
+
+    window.loadGrowthStandardsUi = loadGrowthStandardsUi;
+
+    // ---------- 其他学校数据源（自定义 MCP） ----------
+    // 内置 MONI 的取数逻辑不动；换学校只是换一份配置：端点、鉴权、路径模板、字段映射。
+    // 保存时后端会先校验、再把配置物化成插件清单，因此这里不做第二份规则判断——
+    // 只做「表单能不能拼成一份 JSON」与「关键映射是否填了」的即时提示。
+    // 字段映射模板：左边是 WorkBench 认的逻辑字段，右边是学校可能用的列名（按顺序取
+    // 第一个有值的）。这里的候选名只是「同名写法」的起点，不是对学校字段的断言——
+    // 取不到就留空，不会被当成 0；用不到的行可以直接删掉。
+    const SCHOOL_SOURCE_FIELD_TEMPLATE = {
+      'term.external_id': ['termId', 'term_id'],
+      'term.name': ['termName', 'term_name'],
+      'term.code': ['termCode', 'term_code'],
+      'class.external_id': ['classId', 'class_id', 'id'],
+      'class.name': ['className', 'class_name', 'name'],
+      'class.grade': ['grade', 'gradeName'],
+      'exam.external_id': ['examId', 'exam_id', 'id'],
+      'exam.name': ['examName', 'exam_name', 'name'],
+      'exam.date': ['examDate', 'exam_date', 'date'],
+      'exam.full_score': ['fullScore', 'full_score'],
+      'exam.kind': ['examKind', 'exam_kind'],
+      'exam.paper_revision': ['paperRevision', 'paper_revision'],
+      'exam.tier_a_cutoff': ['tierACutoff'],
+      'exam.tier_b_cutoff': ['tierBCutoff'],
+      'exam.tier_c_cutoff': ['tierCCutoff'],
+      'question.external_id': ['questionId', 'question_id', 'id'],
+      'question.no': ['questionNo', 'number'],
+      'question.sub_no': ['subNo', 'sub_no'],
+      'question.section': ['sectionName', 'section'],
+      'question.type': ['questionType', 'question_type'],
+      'question.content': ['contentText', 'content'],
+      'question.answer': ['correctAnswer', 'answer'],
+      'question.max_score': ['maxScore', 'fullScore'],
+      'question.difficulty': ['difficultyLevel', 'difficulty'],
+      'question.cognitive': ['cognitiveLevel', 'cognitive'],
+      'question.knowledge': ['knowledgeNodes', 'knowledge'],
+      'question.ability': ['abilityNodes', 'ability'],
+      'question.pitfall': ['pitfallTags', 'pitfall'],
+      'question.teaching_block': ['teachingBlocks', 'teachingBlock'],
+      'item.list': ['items', 'itemScores'],
+      'item.question_external_id': ['questionId', 'question_id'],
+      'item.score': ['score'],
+      'item.score_rate': ['scoreRate', 'score_rate'],
+      'item.answer': ['studentAnswer', 'answer'],
+      'item.correct': ['isCorrect', 'correct'],
+      'item.selected_option': ['selectedOption', 'selected_option'],
+      'item.time_spent_ms': ['timeSpentMs', 'time_spent_ms'],
+      'item.modify_count': ['modifyCount', 'modify_count'],
+      'item.hesitation_time_ms': ['hesitationTimeMs', 'hesitation_time_ms'],
+      'item.pitfall': ['pitfallTags', 'pitfall'],
+      'item.teaching_block': ['teachingBlocks', 'teachingBlock'],
+      'student.external_id': ['studentId', 'student_id', 'id'],
+      'student.name': ['name', 'studentName'],
+      'student.student_no': ['studentNo', 'student_no'],
+      'student.gender': ['gender', 'sex'],
+      'student.status': ['status'],
+      'student.total_score': ['totalScore', 'score'],
+      'student.class_rank': ['classRank'],
+      'student.grade_rank': ['gradeRank'],
+      'student.global_rank': ['globalRank', 'global_rank'],
+      'student.tier': ['tier', 'tierLevel']
+    };
+    const SCHOOL_SOURCE_REQUIRED_BASE = ['class.external_id', 'class.name', 'student.external_id', 'student.name'];
+    const SCHOOL_SOURCE_REQUIRED_EXAM = ['exam.external_id', 'exam.name'];
+    const SCHOOL_SOURCE_PATH_FIELDS = ['term', 'classes', 'roster', 'exams', 'questions', 'students'];
+
+    // 可以填「上游叫法 → 统一叫法」对照表的字段。与后端 KNOWN_FIELDS 里的分类字段
+    // 保持同一份命名：字段名写错时后端会直接报错，所以这里也提前挡一道。
+    const SCHOOL_SOURCE_ALIAS_FIELDS = [
+      ['question.difficulty', '题目难度'],
+      ['question.cognitive', '认知层级'],
+      ['question.knowledge', '知识点（多值）'],
+      ['question.ability', '能力点（多值）'],
+      ['question.pitfall', '易错点（多值）'],
+      ['question.teaching_block', '教学模块（多值）'],
+      ['item.pitfall', '逐题易错点（多值）'],
+      ['item.teaching_block', '逐题教学模块（多值）'],
+      ['exam.kind', '考试类型（entrance / regular）'],
+      ['student.tier', '学生分层（A / B / C / D）']
+    ];
+    const SCHOOL_SOURCE_ALIAS_FIELD_NAMES = new Set(SCHOOL_SOURCE_ALIAS_FIELDS.map(item => item[0]));
+    const SCHOOL_SOURCE_TIER_LEVELS = ['A', 'B', 'C', 'D'];
+    // 多值用逗号、顿号或分号分隔；与后端 as_str_list 的分隔约定一致。
+    const SCHOOL_SOURCE_ALIAS_SEPARATOR = /[,，、;；|]/;
+
+    let schoolSourceState = { rows: [], editing: null, busy: false };
+
+    function schoolSourceStatus(text, isError) {
+      const el = document.getElementById('school-source-status');
+      if (!el) return;
+      el.textContent = text;
+      el.classList.toggle('growth-status-error', Boolean(isError));
+    }
+
+    function schoolSourceEditorStatus(text, isError) {
+      const el = document.getElementById('school-source-editor-status');
+      if (!el) return;
+      el.textContent = text;
+      el.classList.toggle('growth-status-error', Boolean(isError));
+    }
+
+    function schoolSourceValue(id) {
+      const el = document.getElementById(id);
+      return el ? String(el.value || '').trim() : '';
+    }
+
+    function schoolSourceSetValue(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.value = value === null || value === undefined ? '' : String(value);
+    }
+
+    function schoolSourceRequiredMissing(fieldMap, hasExams) {
+      const required = SCHOOL_SOURCE_REQUIRED_BASE.concat(hasExams ? SCHOOL_SOURCE_REQUIRED_EXAM : []);
+      return required.filter(key => !Object.prototype.hasOwnProperty.call(fieldMap, key));
+    }
+
+    function renderSchoolSourceMissing() {
+      const box = document.getElementById('school-source-missing');
+      if (!box) return;
+      let parsed = null;
+      const raw = schoolSourceValue('school-source-field-map');
+      try {
+        parsed = raw ? JSON.parse(raw) : {};
+      } catch (error) {
+        box.className = 'school-source-missing is-error';
+        box.textContent = `字段映射不是合法 JSON：${error && error.message ? error.message : error}`;
+        return;
+      }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        box.className = 'school-source-missing is-error';
+        box.textContent = '字段映射需要是一个 JSON 对象。';
+        return;
+      }
+      const missing = schoolSourceRequiredMissing(parsed, Boolean(schoolSourceValue('school-source-path-exams')));
+      if (missing.length) {
+        box.className = 'school-source-missing is-error';
+        box.textContent = `还缺关键字段映射：${missing.join('、')}。补齐后才能保存。`;
+        return;
+      }
+      box.className = 'school-source-missing';
+      box.textContent = '关键字段映射已齐全。';
+    }
+
+    // ---------- 分类取值对照表 ----------
+    // 字段「名」靠字段映射解决，字段「取值」还得靠这张表：同一个知识点，上游可能叫
+    // 「宾语从句」也可能叫「从句」。教师填「统一叫法 → 上游叫法」，保存时后端反转成
+    // 归一表。这里只做「能不能解析成一份配置」的即时提示，不做模糊自动归一。
+
+    function schoolSourceAliasKey(value) {
+      return String(value === null || value === undefined ? '' : value)
+        .trim().normalize('NFKC').toLowerCase();
+    }
+
+    function splitSchoolSourceAliasNames(raw) {
+      return String(raw || '')
+        .split(SCHOOL_SOURCE_ALIAS_SEPARATOR)
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+
+    function schoolSourceConfigLines(raw) {
+      return String(raw || '').split(/\r?\n/).map((text, index) => ({
+        lineNo: index + 1, text: text.trim()
+      })).filter(line => line.text && !line.text.startsWith('#'));
+    }
+
+    function parseSchoolSourceAliasMap(raw) {
+      const valueAliases = {};
+      const errors = [];
+      schoolSourceConfigLines(raw).forEach(line => {
+        const colon = line.text.indexOf(':');
+        const equals = line.text.indexOf('=');
+        if (colon < 0 || equals < 0 || equals < colon) {
+          errors.push(`第 ${line.lineNo} 行：请写成「逻辑字段: 统一叫法 = 上游叫法1, 上游叫法2」`);
+          return;
+        }
+        const field = line.text.slice(0, colon).trim();
+        const canonical = line.text.slice(colon + 1, equals).trim();
+        const upstream = splitSchoolSourceAliasNames(line.text.slice(equals + 1));
+        if (!SCHOOL_SOURCE_ALIAS_FIELD_NAMES.has(field)) {
+          errors.push(`第 ${line.lineNo} 行：「${field}」不是可以归一的分类字段`);
+          return;
+        }
+        if (!canonical) {
+          errors.push(`第 ${line.lineNo} 行：统一叫法不能为空`);
+          return;
+        }
+        if (!upstream.length) {
+          errors.push(`第 ${line.lineNo} 行：至少写一个上游叫法`);
+          return;
+        }
+        const groups = valueAliases[field] || (valueAliases[field] = {});
+        const target = groups[canonical] || (groups[canonical] = []);
+        upstream.forEach(name => {
+          // 同一个上游叫法被映射成两个统一值时直接报错，不做「谁先谁赢」的静默取舍。
+          const conflict = Object.keys(groups).find(other =>
+            other !== canonical &&
+            groups[other].some(item => schoolSourceAliasKey(item) === schoolSourceAliasKey(name)));
+          if (conflict) {
+            errors.push(`第 ${line.lineNo} 行：「${name}」已经被映射成「${conflict}」，请只保留一个`);
+            return;
+          }
+          if (!target.some(item => schoolSourceAliasKey(item) === schoolSourceAliasKey(name))) {
+            target.push(name);
+          }
+        });
+      });
+      return { value_aliases: valueAliases, errors };
+    }
+
+    function parseSchoolSourceTierAliases(raw) {
+      const tierAliases = {};
+      const errors = [];
+      schoolSourceConfigLines(raw).forEach(line => {
+        const equals = line.text.indexOf('=');
+        if (equals < 0) {
+          errors.push(`第 ${line.lineNo} 行：请写成「上游叫法 = A」`);
+          return;
+        }
+        const label = line.text.slice(0, equals).trim();
+        // 与后端 normalize_tier 同口径：忽略大小写与空格，「A 层」也算 A。
+        const level = line.text.slice(equals + 1).trim().toUpperCase().replace(/\s+/g, '').replace(/层$/, '');
+        if (!label) {
+          errors.push(`第 ${line.lineNo} 行：上游叫法不能为空`);
+          return;
+        }
+        if (SCHOOL_SOURCE_TIER_LEVELS.indexOf(level) < 0) {
+          errors.push(`第 ${line.lineNo} 行：目标层只能是 A/B/C/D，收到「${level}」`);
+          return;
+        }
+        tierAliases[label] = level;
+      });
+      return { tier_aliases: tierAliases, errors };
+    }
+
+    function formatSchoolSourceAliasMap(aliases) {
+      if (!aliases || typeof aliases !== 'object') return '';
+      const lines = [];
+      Object.keys(aliases).forEach(field => {
+        const groups = aliases[field];
+        if (!groups || typeof groups !== 'object') return;
+        Object.keys(groups).forEach(canonical => {
+          const names = Array.isArray(groups[canonical]) ? groups[canonical] : [];
+          if (!names.length) return;
+          lines.push(`${field}: ${canonical} = ${names.join(', ')}`);
+        });
+      });
+      return lines.join('\n');
+    }
+
+    function formatSchoolSourceTierAliases(aliases) {
+      if (!aliases || typeof aliases !== 'object') return '';
+      return Object.keys(aliases)
+        .map(label => `${label} = ${aliases[label]}`)
+        .join('\n');
+    }
+
+    function schoolSourceAliasFieldsNotMapped(aliasMap) {
+      // 对照表里的字段必须先说明读哪一列，否则后端会拒绝整份配置。
+      let fieldMap = {};
+      try {
+        const parsed = JSON.parse(schoolSourceValue('school-source-field-map') || '{}');
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) fieldMap = parsed;
+      } catch (error) {
+        return [];
+      }
+      return Object.keys(aliasMap).filter(field => !Object.prototype.hasOwnProperty.call(fieldMap, field));
+    }
+
+    function renderSchoolSourceAliasStatus() {
+      const box = document.getElementById('school-source-alias-status');
+      if (!box) return { ok: true };
+      const aliasResult = parseSchoolSourceAliasMap(schoolSourceValue('school-source-alias-map'));
+      const tierResult = parseSchoolSourceTierAliases(schoolSourceValue('school-source-tier-aliases'));
+      const errors = aliasResult.errors.concat(tierResult.errors);
+      if (errors.length) {
+        box.className = 'school-source-missing is-error';
+        box.textContent = errors.slice(0, 3).join('；') + (errors.length > 3 ? `（共 ${errors.length} 处）` : '');
+        return { ok: false };
+      }
+      const unmapped = schoolSourceAliasFieldsNotMapped(aliasResult.value_aliases);
+      if (unmapped.length) {
+        box.className = 'school-source-missing is-error';
+        box.textContent = `对照表里的 ${unmapped.join('、')} 还没有在字段映射里说明读哪一列，保存会被拒绝。`;
+        return { ok: false };
+      }
+      const rules = Object.keys(aliasResult.value_aliases).reduce(
+        (total, field) => total + Object.keys(aliasResult.value_aliases[field]).length, 0);
+      const tierRules = Object.keys(tierResult.tier_aliases).length;
+      box.className = 'school-source-missing';
+      if (!rules && !tierRules) {
+        box.textContent = '没有填对照表：上游取值会按原样保留，不会猜。';
+      } else {
+        box.textContent = `已配置 ${rules} 条取值归一${tierRules ? `、${tierRules} 条分层别名` : ''}。`
+          + '没有写进对照表的上游取值会按原样保留。';
+      }
+      return { ok: true };
+    }
+
+    function renderSchoolSourceAliasReference() {
+      const box = document.getElementById('school-source-alias-reference');
+      if (!box) return;
+      box.innerHTML = SCHOOL_SOURCE_ALIAS_FIELDS.map(([field, label]) =>
+        `<li><code>${escapeHtml(field)}</code><span>${escapeHtml(label)}</span></li>`).join('');
+    }
+
+    function renderSchoolSourceList(rows) {
+      const box = document.getElementById('school-source-list');
+      if (!box) return;
+      if (!rows.length) {
+        box.innerHTML = '<div class="subtle">还没有登记任何数据源。</div>';
+        return;
+      }
+      box.innerHTML = rows.map(row => {
+        const key = String(row.source_key || '');
+        const builtin = Boolean(row.builtin);
+        const configurable = row.configurable !== false;
+        const config = row.config || {};
+        const endpoint = config.endpoint ? escapeHtml(config.endpoint) : '（内置地址）';
+        const tokenState = row.token_configured
+          ? `令牌已保存${row.key_hint ? `（${escapeHtml(row.key_hint)}）` : ''}`
+          : '未配置令牌';
+        const note = row.config_error
+          ? `<div class="school-source-note is-error">配置有问题：${escapeHtml(row.config_error)}</div>`
+          : `<div class="school-source-note">${escapeHtml(config.name || '')}${config.name ? ' · ' : ''}${endpoint} · ${tokenState}</div>`;
+        let actions;
+        if (builtin) {
+          actions = '<span class="school-source-badge">内置</span>';
+        } else if (!configurable) {
+          // 导入过程自动登记的来源没有可编辑的字段映射配置，只列出不提供编辑入口。
+          actions = '<span class="school-source-badge">自动登记</span>';
+        } else {
+          actions = `<button class="btn btn-sm btn-secondary" data-act="school-source-edit" data-key="${escapeAttr(key)}">编辑</button>
+             <button class="btn btn-sm btn-secondary" data-act="school-source-test" data-key="${escapeAttr(key)}">测试连接</button>
+             <button class="btn btn-sm btn-secondary" data-act="school-source-sync" data-key="${escapeAttr(key)}">立即同步</button>
+             <button class="btn btn-sm btn-text danger-text" data-act="school-source-delete" data-key="${escapeAttr(key)}">删除</button>`;
+        }
+        return `<div class="school-source-row"><div class="school-source-head"><div><strong>${escapeHtml(row.name || key)}</strong><span class="school-source-key">${escapeHtml(key)}</span></div><div class="school-source-row-actions">${actions}</div></div>${note}</div>`;
+      }).join('');
+    }
+
+    async function loadSchoolSourcesUi() {
+      const box = document.getElementById('school-source-list');
+      if (!box) return;
+      schoolSourceStatus('正在读取配置…');
+      try {
+        const rows = await apiRequest('/api/v1/school-sync/sources');
+        schoolSourceState.rows = Array.isArray(rows) ? rows : [];
+        renderSchoolSourceList(schoolSourceState.rows);
+        const custom = schoolSourceState.rows.filter(row => !row.builtin).length;
+        schoolSourceStatus(`共 ${schoolSourceState.rows.length} 个数据源 · 自定义 ${custom} 个`);
+      } catch (error) {
+        box.innerHTML = `<div class="growth-inline-warn">读取数据源失败：${escapeHtml(error && error.message ? error.message : error)}</div>`;
+        schoolSourceStatus('读取失败', true);
+      }
+    }
+
+    function schoolSourceRow(sourceKey) {
+      return schoolSourceState.rows.find(row => String(row.source_key) === String(sourceKey)) || null;
+    }
+
+    function openSchoolSourceEditor(sourceKey) {
+      const editor = document.getElementById('school-source-editor');
+      if (!editor) return;
+      const row = sourceKey ? schoolSourceRow(sourceKey) : null;
+      const config = (row && row.config) || {};
+      const paths = config.paths || {};
+      const auth = config.auth || {};
+      const filter = config.subject_filter || {};
+      const term = config.term || {};
+      schoolSourceState.editing = row ? String(row.source_key) : null;
+
+      const title = document.getElementById('school-source-editor-title');
+      if (title) title.textContent = row ? `编辑「${row.name || row.source_key}」` : '新建数据源';
+      schoolSourceSetValue('school-source-key', row ? row.source_key : '');
+      const keyInput = document.getElementById('school-source-key');
+      if (keyInput) {
+        keyInput.readOnly = Boolean(row);
+        keyInput.classList.toggle('is-readonly', Boolean(row));
+      }
+      schoolSourceSetValue('school-source-name', row ? row.name : '');
+      schoolSourceSetValue('school-source-endpoint', config.endpoint || '');
+      schoolSourceSetValue('school-source-auth', auth.type || 'none');
+      schoolSourceSetValue('school-source-token', '');
+      schoolSourceSetValue('school-source-term-id', term.external_id || '');
+      schoolSourceSetValue('school-source-term-name', term.name || '');
+      schoolSourceSetValue('school-source-full-score', config.full_score === null || config.full_score === undefined ? '' : config.full_score);
+      schoolSourceSetValue('school-source-subject-field', filter.field || '');
+      schoolSourceSetValue('school-source-subject-values', Array.isArray(filter.any_of) ? filter.any_of.join(',') : '');
+      SCHOOL_SOURCE_PATH_FIELDS.forEach(name => schoolSourceSetValue(`school-source-path-${name}`, paths[name] || ''));
+      const map = document.getElementById('school-source-field-map');
+      if (map) {
+        const spec = config.field_map && Object.keys(config.field_map).length
+          ? config.field_map
+          : SCHOOL_SOURCE_FIELD_TEMPLATE;
+        map.value = JSON.stringify(spec, null, 2);
+      }
+      schoolSourceSetValue('school-source-alias-map', formatSchoolSourceAliasMap(config.value_aliases));
+      schoolSourceSetValue('school-source-tier-aliases', formatSchoolSourceTierAliases(config.tier_aliases));
+      const tokenState = document.getElementById('school-source-token-state');
+      if (tokenState) {
+        tokenState.textContent = row
+          ? (row.token_configured ? `令牌已保存${row.key_hint ? `（${row.key_hint}）` : ''}，留空表示不修改` : '尚未保存令牌')
+          : '尚未保存令牌';
+      }
+      schoolSourceEditorStatus('');
+      renderSchoolSourceAliasReference();
+      renderSchoolSourceMissing();
+      renderSchoolSourceAliasStatus();
+      editor.hidden = false;
+      if (typeof editor.scrollIntoView === 'function') editor.scrollIntoView({ block: 'nearest' });
+    }
+
+    function closeSchoolSourceEditor() {
+      const editor = document.getElementById('school-source-editor');
+      if (editor) editor.hidden = true;
+      schoolSourceState.editing = null;
+      schoolSourceEditorStatus('');
+    }
+
+    function collectSchoolSourceForm() {
+      const sourceKey = schoolSourceValue('school-source-key').toLowerCase();
+      const name = schoolSourceValue('school-source-name');
+      const endpoint = schoolSourceValue('school-source-endpoint');
+      if (!sourceKey) { schoolSourceEditorStatus('请填写数据源标识', true); return null; }
+      if (!name) { schoolSourceEditorStatus('请填写显示名称', true); return null; }
+      if (!endpoint) { schoolSourceEditorStatus('请填写 MCP 端点', true); return null; }
+
+      let fieldMap = null;
+      try {
+        fieldMap = JSON.parse(schoolSourceValue('school-source-field-map') || '{}');
+      } catch (error) {
+        schoolSourceEditorStatus(`字段映射不是合法 JSON：${error && error.message ? error.message : error}`, true);
+        return null;
+      }
+      if (!fieldMap || typeof fieldMap !== 'object' || Array.isArray(fieldMap)) {
+        schoolSourceEditorStatus('字段映射需要是一个 JSON 对象', true);
+        return null;
+      }
+
+      const paths = {};
+      SCHOOL_SOURCE_PATH_FIELDS.forEach(key => {
+        const value = schoolSourceValue(`school-source-path-${key}`);
+        if (value) paths[key] = value;
+      });
+      if (!paths.classes) { schoolSourceEditorStatus('至少要填写班级列表路径', true); return null; }
+      if (!paths.exams && !paths.roster) {
+        schoolSourceEditorStatus('考试列表与学生名册至少填写一个，否则没有可同步的内容', true);
+        return null;
+      }
+      const missing = schoolSourceRequiredMissing(fieldMap, Boolean(paths.exams));
+      if (missing.length) {
+        schoolSourceEditorStatus(`还缺关键字段映射：${missing.join('、')}`, true);
+        return null;
+      }
+
+      // 分类取值对照表：解析不了就整份配置不发出去，避免后端 422 后教师不知道改哪里。
+      const aliasResult = parseSchoolSourceAliasMap(schoolSourceValue('school-source-alias-map'));
+      const tierResult = parseSchoolSourceTierAliases(schoolSourceValue('school-source-tier-aliases'));
+      const aliasErrors = aliasResult.errors.concat(tierResult.errors);
+      if (aliasErrors.length) {
+        schoolSourceEditorStatus(`分类取值对照表有问题：${aliasErrors[0]}`, true);
+        renderSchoolSourceAliasStatus();
+        return null;
+      }
+      const unmapped = schoolSourceAliasFieldsNotMapped(aliasResult.value_aliases);
+      if (unmapped.length) {
+        schoolSourceEditorStatus(
+          `对照表里的 ${unmapped.join('、')} 还没有在字段映射里说明读哪一列，请先补上`, true);
+        renderSchoolSourceAliasStatus();
+        return null;
+      }
+
+      const authType = schoolSourceValue('school-source-auth') || 'none';
+      const config = {
+        transport: 'http',
+        endpoint,
+        headers: {},
+        auth: authType === 'bearer'
+          ? { type: 'bearer', token_profile: `school-${sourceKey}` }
+          : { type: 'none' },
+        paths,
+        field_map: fieldMap
+      };
+      const termId = schoolSourceValue('school-source-term-id');
+      if (termId) {
+        const termName = schoolSourceValue('school-source-term-name') || termId;
+        config.term = { external_id: termId, name: termName, code: termId };
+      }
+      const fullScore = schoolSourceValue('school-source-full-score');
+      if (fullScore) {
+        const parsedScore = Number(fullScore);
+        if (!Number.isFinite(parsedScore) || parsedScore <= 0 || parsedScore > 1000) {
+          schoolSourceEditorStatus('满分需要是 0 到 1000 之间的数字', true);
+          return null;
+        }
+        config.full_score = parsedScore;
+      }
+      const filterField = schoolSourceValue('school-source-subject-field');
+      const filterValues = schoolSourceValue('school-source-subject-values')
+        .split(',').map(item => item.trim()).filter(Boolean);
+      if (filterField && filterValues.length) {
+        config.subject_filter = { field: filterField, any_of: filterValues };
+      } else if (filterField || filterValues.length) {
+        schoolSourceEditorStatus(`科目过滤需要同时填写字段名与取值，否则无法安全判断哪一列是${subjectText('score_column')}`, true);
+        return null;
+      }
+      if (Object.keys(aliasResult.value_aliases).length) {
+        config.value_aliases = aliasResult.value_aliases;
+      }
+      if (Object.keys(tierResult.tier_aliases).length) {
+        config.tier_aliases = tierResult.tier_aliases;
+      }
+      return { source_key: sourceKey, name, config, bearer_token: schoolSourceValue('school-source-token') || null };
+    }
+
+    async function saveSchoolSourceUi() {
+      if (schoolSourceState.busy) return;
+      const form = collectSchoolSourceForm();
+      if (!form) return;
+      schoolSourceState.busy = true;
+      schoolSourceEditorStatus('正在保存…');
+      try {
+        if (schoolSourceState.editing) {
+          await apiRequest(`/api/v1/school-sync/sources/${encodeURIComponent(schoolSourceState.editing)}/config`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: form.name, config: form.config, bearer_token: form.bearer_token })
+          });
+        } else {
+          await apiRequest('/api/v1/school-sync/sources', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(form)
+          });
+        }
+        await loadSchoolSourcesUi();
+        openSchoolSourceEditor(form.source_key);
+        schoolSourceEditorStatus('已保存。可以点「测试连接」确认对方接口是否可达。');
+        showToast('学校数据源已保存', 'success');
+      } catch (error) {
+        schoolSourceEditorStatus(`保存失败：${error && error.message ? error.message : error}`, true);
+        showToast('学校数据源保存失败', 'error');
+      } finally {
+        schoolSourceState.busy = false;
+      }
+    }
+
+    async function testSchoolSourceUi(sourceKey) {
+      if (!sourceKey) return;
+      schoolSourceStatus(`正在测试「${sourceKey}」…`);
+      try {
+        const result = await apiRequest(`/api/v1/school-sync/sources/${encodeURIComponent(sourceKey)}/test`, { method: 'POST', timeoutMs: 30000 });
+        const ok = result.status === 'ok';
+        schoolSourceStatus(ok
+          ? `「${sourceKey}」连接正常 · ${Number(result.tool_count) || 0} 个工具`
+          : `「${sourceKey}」连接失败：${result.error || result.health || '未知错误'}`, !ok);
+        showToast(ok ? '连接测试成功' : '连接测试失败', ok ? 'success' : 'error');
+      } catch (error) {
+        schoolSourceStatus(`「${sourceKey}」测试失败：${error && error.message ? error.message : error}`, true);
+        showToast('连接测试失败', 'error');
+      }
+    }
+
+    async function syncSchoolSourceUi(sourceKey) {
+      if (!sourceKey) return;
+      schoolSourceStatus(`正在同步「${sourceKey}」，请稍候…`);
+      try {
+        const result = await apiRequest(`/api/v1/school-sync/sources/${encodeURIComponent(sourceKey)}/sync`, { method: 'POST', timeoutMs: 180000 });
+        const summary = result.summary || {};
+        const warnings = Array.isArray(summary.warnings) ? summary.warnings : [];
+        const warnNote = warnings.length ? ` · ${warnings.length} 条提示：${warnings[0]}` : '';
+        const students = Number(summary.roster_students ?? summary.students ?? 0);
+        const classes = Number(summary.classes || 0);
+        const exams = Number(summary.exams || 0);
+        const message = (students === 0 && exams === 0)
+          ? `同步完成，但没有取到可导入的数据${warnNote}`
+          : `同步完成 · 学生 ${students} 人 · 班级 ${classes} 个 · 考试 ${exams} 场${warnNote}`;
+        if (typeof loadData === 'function') await loadData();
+        // 不重新渲染设置页：状态栏就是这次同步的结果，重渲染会被列表刷新覆盖掉。
+        await loadSchoolSourcesUi();
+        schoolSourceStatus(message, students === 0 && exams === 0 ? true : warnings.length > 0);
+        showToast(students === 0 && exams === 0 ? '同步完成，但没有发现可导入数据' : '学校数据同步完成',
+          students === 0 && exams === 0 ? 'warning' : 'success');
+      } catch (error) {
+        schoolSourceStatus(`「${sourceKey}」同步失败：${error && error.message ? error.message : error}`, true);
+        showToast('学校数据同步失败', 'error');
+      }
+    }
+
+    function deleteSchoolSourceUi(sourceKey) {
+      if (!sourceKey) return;
+      openModal('删除数据源？', `<p>将删除「${escapeHtml(sourceKey)}」的配置、插件清单与本机保存的令牌。</p><p style="color:var(--md-text-secondary);">已导入的成绩与学生记录不会被删除，仍保留在数据中。</p>`, `<button class="btn btn-text" data-act="school-source-delete-cancel">取消</button><button class="btn btn-danger" data-act="school-source-delete-confirm" data-key="${escapeAttr(sourceKey)}">确认删除</button>`);
+    }
+
+    async function confirmDeleteSchoolSourceUi(sourceKey) {
+      closeModal();
+      if (!sourceKey) return;
+      try {
+        await apiRequest(`/api/v1/school-sync/sources/${encodeURIComponent(sourceKey)}`, { method: 'DELETE' });
+        if (schoolSourceState.editing === String(sourceKey)) closeSchoolSourceEditor();
+        await loadSchoolSourcesUi();
+        showToast('数据源已删除', 'success');
+      } catch (error) {
+        showToast(error && error.message ? error.message : '删除数据源失败', 'error');
+      }
+    }
+
+    window.loadSchoolSourcesUi = loadSchoolSourcesUi;
 
     async function saveSettings() {
       const teacherName = document.getElementById('sett-name').value.trim();
@@ -2654,7 +3965,7 @@
         const hasId = headers.some(h => ['学号', 'id', 'studentid', '学生编号'].includes(h));
         const hasName = headers.some(h => ['姓名', 'name', '学生姓名'].includes(h));
         const hasClass = headers.some(h => ['班级', 'class', '班级名称'].includes(h));
-        const hasScore = headers.some(h => ['英语总分', '英语成绩', '总分', '得分', '英语', '成绩', 'english', 'english_total'].includes(h));
+        const hasScore = headers.some(h => subjectScoreImportAliases().includes(h));
         return hasId && hasName && hasClass && !hasScore;
       });
     }
@@ -2712,7 +4023,8 @@
     }
 
     function findHeaderRow(rows) {
-      const wanted = ['学号', '姓名', '英语', '英语排名', '年级排名', '班级', '得分', '写作', '写作成绩', '写作分数', '作文'];
+      const writingHints = enabledModuleKeys().has('writing') ? ['写作', '写作成绩', '写作分数', '作文'] : [];
+      const wanted = ['学号', '姓名', subjectName(), subjectText('score_ranking'), '年级排名', '班级', '得分', ...writingHints];
       return rows.slice(0, 12).findIndex(row => {
         const headers = row.map(value => String(value ?? '').trim().toLowerCase());
         return headers.some(value => wanted.includes(value)) && headers.some(value => ['学号', 'id', 'studentid', '学生编号'].includes(value));
@@ -2846,14 +4158,14 @@
       workbooks.forEach(({ name: sourceName, workbook }) => workbook.SheetNames.forEach(sheetName => {
         const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' });
         const headerRow = findHeaderRow(rows);
-        if (headerRow < 0) { errors.push(`${sourceName}：找不到包含学号、姓名和英语列的表头`); return; }
+        if (headerRow < 0) { errors.push(`${sourceName}：找不到包含学号、姓名和${subjectName()}列的表头`); return; }
         const headers = rows[headerRow].map(value => String(value ?? '').trim().toLowerCase());
         const indexOf = names => names.map(name => headers.indexOf(name)).find(index => index >= 0);
         const idIdx = indexOf(['学号', 'id', 'studentid', '学生编号']);
         const nameIdx = indexOf(['姓名', 'name', '学生姓名']);
         const classIdx = indexOf(['班级', 'class', '班级名称']);
-        const scoreIdx = indexOf(['英语总分', '英语成绩', '英语', '总分', '得分', '成绩', 'english', 'english_total']);
-        const gradeRankIdx = indexOf(['英语排名', '年级排名', '年级名次', '年级排行', 'grade_rank', 'graderank']);
+        const scoreIdx = indexOf(subjectScoreImportAliases());
+        const gradeRankIdx = indexOf(subjectRankImportAliases());
         const absentIdx = indexOf(['缺考', '出勤状态', 'attendance_status', 'status']);
         const className = state.classes.find(c => String(sheetName).includes(c)) || findClassNameInText(sheetName) || '';
         for (let i = headerRow + 1; i < rows.length; i++) {
@@ -2904,7 +4216,7 @@
 
     async function exportStudents() {
       try { await ensureXlsx(); } catch (error) { showToast('本地 Excel 组件加载失败，请重试', 'error'); return; }
-      const ws = XLSX.utils.json_to_sheet(state.students.map(s=>({学号:s.id,姓名:s.name,班级:s.class,入学英语:s.english,家长电话:s.phone})));
+      const ws = XLSX.utils.json_to_sheet(state.students.map(s=>({学号:s.id,姓名:s.name,班级:s.class,[subjectText('entrance_score')]:s.english,家长电话:s.phone})));
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '学生名单');
       XLSX.writeFile(wb, `学生名单_${new Date().toISOString().slice(0,10)}.xlsx`);
       closeModal();
@@ -2916,7 +4228,7 @@
       if (!exam) return showToast('请先创建考试', 'error');
       const scored = getScoredStudents(exam, state.students);
       const classRanks = calculateClassRanks(exam, state.students);
-      const detail = state.students.map(s => ({ 学号:s.id, 姓名:s.name, 班级:formatClassLabel(s.class), 英语总分: getExamScore(exam, s) ?? '', 班级排名: classRanks[s.id] ?? '', 年级排名: getStudentGradeRank(exam, s) ?? '' }));
+      const detail = state.students.map(s => ({ 学号:s.id, 姓名:s.name, 班级:formatClassLabel(s.class), [subjectText('score_total')]: getExamScore(exam, s) ?? '', 班级排名: classRanks[s.id] ?? '', 年级排名: getStudentGradeRank(exam, s) ?? '' }));
       const ws1 = XLSX.utils.json_to_sheet(detail);
       const values = scored.map(item=>item.score);
       const ws2 = XLSX.utils.json_to_sheet([{指标:'考试名称',数值:exam.name},{指标:'平均分',数值:avg(values)},{指标:'最高分',数值:values.length ? Math.max(...values) : ''},{指标:'最低分',数值:values.length ? Math.min(...values) : ''},{指标:'实考人数',数值:values.length},{指标:'缺考人数',数值:state.students.length-values.length}]);
@@ -3317,11 +4629,12 @@
 
     // ================= 初始化 =================
     function scheduleMoniAutoRefresh() {
-      if (!DATABASE_MODE) return;
+      // 当前 MONI 适配器读取英语单科字段；切到其他学科时不把英语成绩混入当前工作台。
+      if (!DATABASE_MODE || subjectKey !== 'english') return;
       let attempts = 0;
       const refresh = async () => {
         attempts += 1;
-        if (attempts > 3 || pendingScoreEdits.size || databaseWriteBlocked) return;
+        if (attempts > 3 || subjectKey !== 'english' || pendingScoreEdits.size || databaseWriteBlocked) return;
         const beforeRevision = databaseRevision;
         try {
           await loadData();
@@ -3340,15 +4653,76 @@
       window.setTimeout(refresh, 5000);
     }
 
+    // ================= 学科选择 =================
+    // 首次进入时选一次（必须点确定才会落库），之后在设置页的「任教学科」下拉里改。
+    function openSubjectPicker() {
+      const choices = subjectCatalog.map(item => `
+        <label class="subject-choice">
+          <input type="radio" name="subject-choice" value="${escapeAttr(item.key)}" ${item.key === subjectKey ? 'checked' : ''}>
+          <span class="subject-choice-text"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.teacher_subject_default)}</small></span>
+        </label>`).join('');
+      openModal('选择任教学科', `
+        <div class="subject-picker">
+          <p class="subject-picker-intro">学科决定界面用语与功能模块：默写、背诵、写作只对语文与英语开放。录入考试、成绩或画像后，为保护已有数据，本工作区会固定学科；另一学科请使用独立工作区。</p>
+          <div class="subject-choice-grid" role="radiogroup" aria-label="任教学科">${choices}</div>
+        </div>
+      `, '<button class="btn btn-primary" data-act="subject-confirm">确定</button>');
+      setTimeout(() => document.querySelector('#modal input[name="subject-choice"]:checked')?.focus(), 0);
+    }
+
+    async function confirmSubjectChoice() {
+      const picked = document.querySelector('#modal input[name="subject-choice"]:checked');
+      if (!picked) return showToast('请选择任教学科', 'error');
+      const button = document.querySelector('#modal [data-act="subject-confirm"]');
+      if (button) button.disabled = true;
+      try {
+        // 即使选的还是默认学科也要落库，否则下次进入还会再弹一次。
+        await setSubjectKey(picked.value, { persist: true });
+      } catch (error) {
+        if (button) button.disabled = false;
+        showToast(error && error.message ? error.message : '学科保存失败', 'error');
+        return false;
+      }
+      renderNav();
+      render();
+      showToast(`已设为${subjectName()}老师`, 'success');
+      closeModal();
+      return true;
+    }
+
+    // 设置页的「任教学科」下拉：改完立即生效，不需要再点保存设置。
+    async function applySubjectFromSettings(nextKey) {
+      try {
+        await setSubjectKey(nextKey, { persist: true });
+      } catch (error) {
+        showToast(error && error.message ? error.message : '学科保存失败', 'error');
+        render();
+        return false;
+      }
+      renderNav();
+      showToast(`已切换到${subjectName()}`, 'success');
+      // 当前模块可能已被新学科裁掉，回到仪表盘而不是停在空页面。
+      if (!enabledModuleKeys().has(curModule)) {
+        curModule = 'dash';
+        renderNav();
+      }
+      render();
+      return true;
+    }
+
     async function init() {
       try {
         setActiveTab(activeTab);
         await loadData();
+        // 学科必须在首次渲染前取到：导航模块裁剪与界面用语都依赖它。
+        await loadSubjectCatalog();
         renderNav();
         initEvents();
         render();
         if (activeTab === 'teachmate') initTeachMate();
         scheduleMoniAutoRefresh();
+        // 老师还没选过学科时先选一次；选过就不再打扰。
+        if (!subjectChosen) openSubjectPicker();
       } catch (error) {
         console.error(error);
         state = createDefaultState();

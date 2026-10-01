@@ -12,47 +12,50 @@ import re
 from datetime import date
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 
 from ..config import Settings
-from ..models import AppSetting, Term
 from ..schemas.school_sync import SchoolSyncPayload, StudentRosterPayload
 from .plugin_manager import PluginManager
-from .school_sync import apply_payload, apply_student_roster, rebuild_compat_exam_snapshots
+from .school_sources import runner as school_runner
+from .school_sources.fields import as_str_list
+from .school_sources.mcp_text import mcp_rows, mcp_text
+from .school_sources.tiers import derive_tier_cutoffs as _derive_cutoffs
+from .school_sources.tiers import normalize_tier, snap_half
 
 log = logging.getLogger(__name__)
 
 
+def _require_english_workspace(settings: Settings) -> None:
+    """Guard every MONI entry, including Windows startup background sync."""
+    from sqlalchemy import inspect
+    from ..database import create_session_factory
+    from .subjects import get_selected_subject
+
+    factory = create_session_factory(settings.database_url)
+    try:
+        # Initial roster sync may run before the shared import runner has
+        # initialized a fresh database. No selection exists in that case.
+        if not inspect(factory.kw["bind"]).has_table("app_settings"):
+            return
+        with factory() as session:
+            subject = get_selected_subject(session)
+            if subject.key != "english":
+                raise RuntimeError(f"MONI 目前只支持英语；当前工作区为{subject.label}")
+    finally:
+        factory.kw["bind"].dispose()
+
+
 def _text(result: dict[str, Any]) -> str:
-    chunks = [item.get("text", "") for item in result.get("content", []) if isinstance(item, dict) and item.get("type") == "text"]
-    if not chunks:
+    """MONI 工具返回值里的文本；没有文本视为「没有返回数据」。"""
+    text = mcp_text(result)
+    if not text:
         raise RuntimeError("MONI 没有返回数据")
-    return "\n".join(chunks)
+    return text
 
 
 def _rows(text: str) -> list[dict[str, Any]]:
-    try:
-        value: Any = json.loads(text)
-    except json.JSONDecodeError:
-        value = []
-        for line in text.splitlines():
-            if not line.strip():
-                continue
-            try:
-                parsed = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(parsed, dict):
-                value.append(parsed)
-    if isinstance(value, dict):
-        for key in ("rows", "data", "items", "students", "results"):
-            if isinstance(value.get(key), list):
-                value = value[key]
-                break
-    if isinstance(value, dict):
-        return [value]
-    return [row for row in value if isinstance(row, dict)] if isinstance(value, list) else []
+    return mcp_rows(text)
 
 
 def _value(row: dict[str, Any], *keys: str, default: Any = None) -> Any:
@@ -159,21 +162,13 @@ def _student_id_value(row: dict[str, Any], preferred: str | None = None) -> str 
     return None
 
 
-_SUBJECT_TIER_ALIASES = {
-    "ELITE": "A", "A": "A", "优": "A", "优秀": "A",
-    "KEY": "B", "B": "B", "良": "B", "良好": "B",
-    "GOOD": "C", "C": "C", "中": "C", "合格": "C",
-    "REGULAR": "D", "D": "D", "普通": "D", "一般": "D",
-}
-
-
 def _tier_key(value: Any) -> str | None:
-    """将 MONI 的 subjectTier 统一为 A/B/C/D；不使用 totalTier。"""
-    text = _str(value)
-    if not text:
-        return None
-    normalized = text.upper().replace(" ", "").replace("层", "")
-    return _SUBJECT_TIER_ALIASES.get(normalized)
+    """将 MONI 的 subjectTier 统一为 A/B/C/D；不使用 totalTier。
+
+    别名表已提到 ``school_sources.tiers`` 共享，内置 MONI 与自定义 MCP 数据源
+    因此走同一套分层口径，A/B/C 线可比。
+    """
+    return normalize_tier(value)
 
 
 def _subject_tier_value(row: dict[str, Any], preferred: str | None = None) -> Any:
@@ -232,44 +227,29 @@ def _subject_class_rank_value(row: dict[str, Any]) -> int | None:
 
 def _snap_half(value: float) -> float:
     """按 0.5 分粒度四舍五入，避免 Python round 的银行家舍入。"""
-    return int(value * 2 + 0.5 + 1e-9) / 2
+    return snap_half(value)
 
 
 def _derive_tier_cutoffs(rows: list[dict[str, Any]], *, subject_id: str, subject_name: str, full_score: float) -> dict[str, float | None]:
     """从英语单科 subjectTier 计算 A/B/C 层最低分。
 
-    每条线取该层实际出现的最低英语单科成绩，并吸附到 0.5 分；缺失层
-    保持为空，避免用总分或其它科目推断。最后做单调约束，符合 WorkBench
-    的 A ≥ B ≥ C 线模型。
+    这里只负责「从 MONI 的行里认出分层与单科分数」，取最低分、吸附 0.5 分、
+    缺失层留空与 A ≥ B ≥ C 单调约束都交给 ``school_sources.tiers`` 共享实现，
+    保证与自定义 MCP 数据源口径一致。
     """
-    by_tier: dict[str, list[float]] = {key: [] for key in ("A", "B", "C", "D")}
-    for row in rows:
-        tier = _tier_key(_subject_tier_value(row))
-        score = _num(_subject_score(row, subject_id=subject_id, subject_name=subject_name))
-        if tier and score is not None:
-            by_tier[tier].append(score)
-    raw = {key: (_snap_half(min(by_tier[key])) if by_tier[key] else None) for key in ("A", "B", "C")}
-    # 仅对已知层做上限和单调约束；未知层仍为空。
-    for key in raw:
-        if raw[key] is not None:
-            raw[key] = min(max(raw[key], 0.0), full_score)
-    if raw["B"] is not None and raw["A"] is not None:
-        raw["A"] = max(raw["A"], raw["B"])
-    if raw["C"] is not None and raw["B"] is not None:
-        raw["B"] = max(raw["B"], raw["C"])
-    if raw["B"] is not None and raw["A"] is not None:
-        raw["A"] = max(raw["A"], raw["B"])
-    return {"tier_a_cutoff": raw["A"], "tier_b_cutoff": raw["B"], "tier_c_cutoff": raw["C"]}
+    pairs = [
+        (
+            _tier_key(_subject_tier_value(row)),
+            _num(_subject_score(row, subject_id=subject_id, subject_name=subject_name)),
+        )
+        for row in rows
+    ]
+    return _derive_cutoffs(pairs, full_score=full_score)
 
 
 def _list(value: Any) -> list[str]:
-    if value in (None, ""):
-        return []
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    if isinstance(value, dict):
-        return [str(item).strip() for item in value.values() if str(item).strip()]
-    return [item.strip() for item in str(value).replace("；", ",").split(",") if item.strip()]
+    """把标签类字段统一成字符串列表；实现与自定义数据源共用。"""
+    return as_str_list(value)
 
 
 def _date(value: Any) -> date | None:
@@ -683,22 +663,12 @@ def _make_roster(reader: MoniReader, term: dict[str, Any], classes: list[dict[st
 
 
 def _set_active_term(session: Session, term_id: int) -> None:
-    from .student_profiles import prepare_student_profile_inheritance
-    from .terms import current_term_id
-    try:
-        previous_term_id = current_term_id(session)
-    except Exception:
-        previous_term_id = None
-    if previous_term_id != term_id:
-        prepare_student_profile_inheritance(session, previous_term_id, term_id)
-    setting = session.get(AppSetting, "active_term_id")
-    if setting is None:
-        session.add(AppSetting(key="active_term_id", value_json=term_id))
-    else:
-        setting.value_json = term_id
+    """兼容旧调用点；入库尾部已统一到 ``school_sources.runner``。"""
+    school_runner.set_active_term(session, term_id)
 
 
 def sync_moni_roster(settings: Settings, *, dry_run: bool = False) -> dict[str, Any]:
+    _require_english_workspace(settings)
     manager = PluginManager(settings.data_dir)
     reader = MoniReader(manager)
     class_root = _discover_class_root(reader)
@@ -709,15 +679,8 @@ def sync_moni_roster(settings: Settings, *, dry_run: bool = False) -> dict[str, 
     summary = {"classes": len(payload.classes) if payload else 0, "students": len(payload.students) if payload else 0, "dry_run": dry_run}
     if dry_run or payload is None:
         return summary
-    from ..database import create_session_factory, run_migrations
-    run_migrations(settings.database_url)
-    factory = create_session_factory(settings.database_url)
-    with factory() as session:
-        summary.update(apply_student_roster(session, payload))
-        term_id = summary.get("term_id")
-        if term_id is not None:
-            _set_active_term(session, int(term_id))
-            session.commit()
+    # 与自定义 MCP 数据源共用同一段入库尾部，保证两个来源写出同一口径的数据。
+    summary.update(school_runner.apply_roster_payload(settings, payload))
     summary["completed"] = True
     return summary
 
@@ -769,6 +732,7 @@ def _derive_exam_grade_ranks(
 
 
 def sync_current_term(settings: Settings, *, dry_run: bool = False) -> dict[str, Any]:
+    _require_english_workspace(settings)
     roster_summary = sync_moni_roster(settings, dry_run=dry_run)
     manager = PluginManager(settings.data_dir)
     if manager.get_plugin("moni") is None:
@@ -874,25 +838,8 @@ def sync_current_term(settings: Settings, *, dry_run: bool = False) -> dict[str,
     )
     if dry_run or not payloads:
         return totals
-    from ..database import create_session_factory, run_migrations
-    run_migrations(settings.database_url)
-    factory: sessionmaker[Session] = create_session_factory(settings.database_url)
-    summaries = []
-    with factory() as session:
-        for payload in payloads:
-            _, summary = apply_payload(session, payload)
-            summaries.append(summary)
-        term_key = _str(_value(term, "termCode")) or term_id or "moni-current"
-        imported_term = session.scalar(select(Term).where(Term.code == term_key))
-        if imported_term is not None:
-            _set_active_term(session, imported_term.id)
-        # 两个班级的 payload 分别提交后，再统一回填一次旧前端快照，
-        # 确保成绩页同时覆盖 711 和 712，而不是只保留最后一批。
-        rebuild_compat_exam_snapshots(
-            session,
-            term_key,
-        )
-        session.commit()
+    term_key = _str(_value(term, "termCode")) or term_id or "moni-current"
+    summaries = school_runner.apply_payload_batch(settings, payloads, term_code=term_key)
     totals["runs"] = len(summaries)
     totals["completed"] = True
     return totals

@@ -682,6 +682,19 @@ th, .score-table th, .student-table th, .dash-lb-table th,
   color: var(--wp-ink) !important;
   border-bottom-color: var(--wp-hair) !important;
 }
+
+/* ---- 17b. 表头底色兜底：行组与行也铺同一层底 ----
+   个别引擎（WebKit/Safari）在 border-collapse: collapse 的表格里，最右一列
+   表头单元格的底色可能不绘制，导致表头色带在最后一列前断开（家长电话右侧
+   的缺口）。th 自身的底色不变；这里在 thead 与 thead tr 上再铺一层同色底，
+   使色带在任何情况下都连续到表格右边界。 */
+.student-table thead,
+.student-table thead tr,
+.score-table thead,
+.score-table thead tr {
+  background: #f3ede4 !important;
+}
+
 .dash-lb-table th {
   color: var(--wp-muted) !important;
   border-bottom-color: var(--wp-hair) !important;

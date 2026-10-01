@@ -85,6 +85,14 @@
         return request(`/sessions/${sessionId}/messages`);
       }
 
+      async function saveMaterialEdit(runId, sectionIndex, edit) {
+        return request(`/runs/${runId}/materials/${sectionIndex}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(edit),
+        });
+      }
+
       // --- 消息发送（异步运行） ---
 
       /**
@@ -95,9 +103,11 @@
        * @param {number[]} [attachmentIds]
        * @param {string} [modelId] - 本次运行绑定的模型档案 ID
        */
-      async function sendMessage(sessionId, content, quickTask, attachmentIds, modelId) {
+      async function sendMessage(sessionId, content, quickTask, attachmentIds, modelId, teachingArtifactId, pluginId) {
         const body = { content };
         if (quickTask) body.quick_task = quickTask;
+        if (pluginId) body.plugin_id = pluginId;
+        if (teachingArtifactId) body.teaching_artifact_id = teachingArtifactId;
         if (attachmentIds && attachmentIds.length) body.attachment_ids = attachmentIds;
         if (modelId) body.model_id = modelId;
         return request(`/sessions/${sessionId}/messages`, {
@@ -269,6 +279,22 @@
         var query = termId != null ? '?term_id=' + encodeURIComponent(termId) : '';
         return apiRequest('/api/v1/exams/' + encodeURIComponent(examId) + '/students/' + encodeURIComponent(studentId) + '/item-results/' + encodeURIComponent(questionId) + query, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}),
+        });
+      }
+      /**
+       * 按「题型 + 题号」批量上传逐题小分（PUT /api/v1/exams/{id}/item-scores）。
+       *
+       * 后端整批校验：任一行定位不到题目、超满分、学生不在名单或缺考时整批取消（422），
+       * 错误明细在 ``error.detail.problems`` 里逐行给出，不会写一半。
+       * @param {number} examId - 后端数字 exam_id
+       * @param {{rows:Array, note?:string, include_draft?:boolean, overwrite_teacher_override?:boolean}} payload
+       * @param {number} [termId]
+       */
+      async function putItemScores(examId, payload, termId) {
+        var query = termId != null ? '?term_id=' + encodeURIComponent(termId) : '';
+        return apiRequest('/api/v1/exams/' + encodeURIComponent(examId) + '/item-scores' + query, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload || {}), timeoutMs: 60000,
         });
       }
       async function enablePlugin(pluginId) {
@@ -782,6 +808,7 @@
         updateSession,
         deleteSession,
         listMessages,
+        saveMaterialEdit,
         sendMessage,
         getRun,
         getRunEvents,
@@ -812,6 +839,7 @@
         getStudentItemResults,
         getStudentScoreDetails,
         overrideStudentItemResult,
+        putItemScores,
         enablePlugin,
         disablePlugin,
         connectWorkBuddy,

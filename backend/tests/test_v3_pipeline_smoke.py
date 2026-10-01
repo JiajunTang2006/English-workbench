@@ -164,9 +164,9 @@ class TestExamAnalysisSmoke:
         assert "初始消息中的【分析包】" in system_prompt
         assert "get_exam_analysis_bundle" not in system_prompt.split("初始消息")[0] \
             or True  # 旧 bundle 文案不得出现在 packet 模式指令段
-        assert "不要调用 get_exam_analysis_bundle" in system_prompt
+        assert "选择当前开放的只读工具定向取证" in system_prompt
         # 默认不开放深查；教师明确需要教学依据时才按需开放。
-        assert tool_policy_for(capability, has_packet=True) == ["submit_report"]
+        assert tool_policy_for(capability, has_packet=True) == ["submit_report", *tool_policy_for("general_chat", has_packet=False)]
         policy = tool_policy_for(
             capability, has_packet=True,
             optional_tools=["get_teaching_guidance"],
@@ -242,8 +242,8 @@ class TestGeneralChatSmoke:
 
         policy = tool_policy_for(capability, has_packet=False)
         assert policy == [
-            "get_exam_overview", "get_score_distribution",
-            "get_question_list", "get_wrong_questions", "get_student_scores",
+            "get_practice_context", "get_student_learning_evidence", "get_original_question", "resolve_student", "get_exam_overview", "get_score_distribution",
+            "get_question_list", "get_wrong_questions", "get_student_scores", "get_student_trend",
         ]
         scope_path = _scope_of(smoke, smoke["chat_run"], policy)
         for tool, args in (("submit_report", {}),

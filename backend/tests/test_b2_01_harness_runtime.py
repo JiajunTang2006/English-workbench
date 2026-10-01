@@ -118,6 +118,28 @@ def _manager(fake: _FakeHarness | None = None) -> HarnessManager:
 # ---------------------------------------------------------------------------
 
 class TestProtocolSemantics:
+    def test_sdk_launch_uses_slot_scope_instead_of_stale_base_environment(self, monkeypatch):
+        import deepseek_harness.api as api
+        configs = []
+        fake = _FakeHarness()
+        monkeypatch.setattr(api, 'DeepSeekHarness', lambda config: configs.append(config) or fake)
+        manager = HarnessManager(_config(scope_root='/tmp/scopes-slot-2',
+            extra_env={'DSH_EDUCATION_SCOPE_ROOT':'/tmp/scopes-base'}))
+        manager._start_process()
+        assert configs[0].env['DSH_EDUCATION_SCOPE_ROOT'] == '/tmp/scopes-slot-2'
+
+    def test_sdk_turn_returns_usage_for_every_model_call(self):
+        fake = _FakeHarness()
+        result = _FakeRunResult()
+        result.events = [
+            {"type": "assistant/message", "data": {"usage": {"inputTokens": 100, "cacheReadTokens": 20, "outputTokens": 10}}},
+            {"type": "assistant/message", "data": {"usage": {"inputTokens": 150, "outputTokens": 40}}},
+        ]
+        fake.handlers["tm-test-usage"] = result
+        reply = _manager(fake)._run_turn("tm-test-usage", [{"type":"text","text":"test"}], timeout=1)
+        assert len(reply["usage_records"]) == 2
+        assert sum(r["input_tokens"] + r.get("cache_read_tokens", 0) + r["output_tokens"] for r in reply["usage_records"]) == 320
+
     def test_supported_methods_are_the_real_protocol(self):
         assert SUPPORTED_RPC_METHODS == {"initialize", "session/prompt", "shutdown"}
 

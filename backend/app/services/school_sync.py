@@ -12,7 +12,7 @@ from copy import deepcopy
 from datetime import date, datetime, timezone
 from typing import Any, Callable
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, or_
 from sqlalchemy.orm import Session
 
 from ..models import (
@@ -50,16 +50,20 @@ def _structure_hash(payload: SchoolSyncPayload) -> str:
 
 
 def ensure_source(session: Session, *, source_key: str, name: str, kind: str = "mock", config: dict | None = None) -> SchoolDataSource:
+    """登记导入来源，只补不覆盖。
+
+    ``kind`` 与 ``config_json`` 决定一个自定义 MCP 数据源之后还能不能被同步
+    （``school_sources.registry.resolve_source`` 按 kind 解析适配器），而导入路径
+    只关心「这条数据来自谁」。因此已存在的登记行只更新显示名，**不改类型、不清配置**；
+    否则第一次同步就会把教师填好的端点与字段映射冲掉。
+    """
     source = session.scalar(select(SchoolDataSource).where(SchoolDataSource.source_key == source_key))
     if source is None:
         source = SchoolDataSource(source_key=source_key, name=name, kind=kind, config_json=config or {})
         session.add(source)
         session.flush()
-    else:
-        source.name = name
-        source.kind = kind
-        if config is not None:
-            source.config_json = config
+        return source
+    source.name = name
     return source
 
 
@@ -378,6 +382,10 @@ def apply_payload(
     *,
     progress_callback: Callable[..., Any] | None = None,
 ) -> tuple[SchoolSyncRun, dict[str, Any]]:
+    if payload.source_key == "moni":
+        from .subjects import get_selected_subject
+        if get_selected_subject(session).key != "english":
+            raise ValueError("MONI 当前只支持英语工作区")
     preview = preview_payload(payload)
     if preview.errors:
         raise ValueError("同步数据未通过校验：" + "；".join(preview.errors))
@@ -493,7 +501,8 @@ def apply_payload(
         dimension_by_name: dict[str, ScoreDimension] = {}
         for name, max_score in _dimension_totals(payload).items():
             code = "sync_" + hashlib.sha1(name.encode()).hexdigest()[:12]
-            dimension = session.scalar(select(ScoreDimension).where(ScoreDimension.exam_id == exam.id, ScoreDimension.code == code))
+            dimension = session.scalar(select(ScoreDimension).where(ScoreDimension.exam_id == exam.id,
+                or_(ScoreDimension.code == code, ScoreDimension.name == name)))
             if dimension is None:
                 dimension = ScoreDimension(exam_id=exam.id, code=code, name=name, max_score=max_score, position=len(dimension_by_name))
                 session.add(dimension)
@@ -604,7 +613,8 @@ def apply_payload(
             for name, dimension in dimension_by_name.items():
                 if score.teacher_override:
                     continue
-                dim_score = sum((item_values[q.external_id].score or 0) for q in payload.questions if (q.section_name or q.question_type or "其他") == name and q.external_id in item_values)
+                from ..question_types import canonical_question_type
+                dim_score = sum((item_values[q.external_id].score or 0) for q in payload.questions if canonical_question_type(q.section_name or q.question_type or "其他") == name and q.external_id in item_values)
                 record = session.scalar(select(ExamDimensionScore).where(ExamDimensionScore.exam_score_id == score.id, ExamDimensionScore.dimension_id == dimension.id))
                 if record is None:
                     record = ExamDimensionScore(exam_score_id=score.id, dimension_id=dimension.id, score=dim_score)
@@ -665,15 +675,20 @@ def apply_payload(
 
 
 def _dimension_totals(payload: SchoolSyncPayload) -> dict[str, float]:
+    from ..question_types import canonical_question_type
     result: dict[str, float] = {}
     for question in payload.questions:
-        name = question.section_name or question.question_type or "其他"
+        name = canonical_question_type(question.section_name or question.question_type or "其他")
         result[name] = result.get(name, 0.0) + question.max_score
     return result
 
 
 def apply_student_roster(session: Session, payload: StudentRosterPayload) -> dict[str, Any]:
     """幂等写入外部学生名册；MONI 当前快照会归档已离开名单的记录。"""
+    if payload.source_key == "moni":
+        from .subjects import get_selected_subject
+        if get_selected_subject(session).key != "english":
+            raise ValueError("MONI 当前只支持英语工作区")
     source = ensure_source(
         session,
         source_key=payload.source_key,

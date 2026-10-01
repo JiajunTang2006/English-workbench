@@ -19,7 +19,7 @@ Agent Pydantic Schema
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -61,9 +61,11 @@ class AgentSessionRead(BaseModel):
     id: int
     title: str
     term_id: int
+    subject_key: str = "english"
     class_id: int | None = None
     exam_id: int | None = None
     student_id: int | None = None
+    teaching_task_id: int | None = None
     summary: str | None = None
     status: str
     created_at: datetime
@@ -83,6 +85,11 @@ class AgentMessageCreate(BaseModel):
     """发送消息到 Agent。"""
     content: str = Field(min_length=1, max_length=10000)
     attachment_ids: list[int] = Field(default_factory=list, max_length=20)
+    plugin_id: Literal["targeted_practice"] | None = None
+    teaching_artifact_id: int | None = Field(default=None, gt=0)
+    student_refs: list[str] = Field(default_factory=list, max_length=10)
+    student_aliases: dict[str, str] = Field(default_factory=dict, max_length=20)
+    identity_mode: Literal["teacher", "strict"] | None = None
     # 当前消息明确绑定的模型档案；为空时使用当前全局激活模型。
     model_id: str | None = Field(default=None, min_length=1, max_length=200)
     # 快捷任务路由
@@ -120,6 +127,7 @@ class AgentMessageRead(BaseModel):
     role: str
     content_text: str | None = None
     structured_answer: dict[str, Any] | None = None
+    material_edits: dict[str, Any] = Field(default_factory=dict)
     evidence_ids: list[str] = Field(default_factory=list)
     model_name: str | None = None
     provider_request_id: str | None = None
@@ -147,6 +155,7 @@ class AgentMessageRead(BaseModel):
                 # 映射 JSON 字段
                 sa = getattr(data, "structured_answer_json", None)
                 result["structured_answer"] = sa if sa else None
+                result["material_edits"] = getattr(data, "teacher_material_edits_json", None) or {}
                 ei = getattr(data, "evidence_ids_json", None)
                 result["evidence_ids"] = ei if ei else []
                 result["run_id"] = getattr(data, "analysis_run_id", None)
@@ -155,6 +164,8 @@ class AgentMessageRead(BaseModel):
             # 字典：如果已有 structured_answer_json 则映射
             if "structured_answer_json" in data and "structured_answer" not in data:
                 data["structured_answer"] = data.pop("structured_answer_json") or None
+            if "teacher_material_edits_json" in data and "material_edits" not in data:
+                data["material_edits"] = data.pop("teacher_material_edits_json") or {}
             if "evidence_ids_json" in data and "evidence_ids" not in data:
                 data["evidence_ids"] = data.pop("evidence_ids_json") or []
             if "analysis_run_id" in data and "run_id" not in data:
@@ -338,6 +349,7 @@ class AnalysisRunRead(BaseModel):
     """分析运行状态。"""
     id: int
     capability: str
+    subject_key: str = "english"
     status: str
     estimated_cost_yuan: float | None = None
     actual_cost_yuan: float | None = None
@@ -351,6 +363,9 @@ class AnalysisRunRead(BaseModel):
     runtime_version: str | None = None
     harness_session_id: str | None = None
     timings_ms: dict[str, int] | None = None
+    input_parts_estimate: dict[str, int] | None = None
+    query_stats: dict[str, int] | None = None
+    usage_known: bool | None = None
     report_freshness: Literal["current", "stale", "unknown"] = "unknown"
     # 与发送响应保持一致，刷新页面后仍能恢复轻量/完整进度视图。
     progress_mode: Literal["full", "light"] = "light"
@@ -373,6 +388,8 @@ class AnalysisRunRead(BaseModel):
                 summary = getattr(data, "input_summary_json", None) or {}
                 result["confirmed_budget_yuan"] = summary.get("confirmed_budget_yuan")
                 result["timings_ms"] = summary.get("timings_ms")
+                for key in ("input_parts_estimate", "query_stats", "usage_known"):
+                    result[key] = summary.get(key)
                 result["needs_confirmation"] = data.status == "waiting_confirmation"
                 result["progress_mode"] = (
                     "full" if getattr(data, "capability", "general_chat") != "general_chat"
@@ -380,6 +397,8 @@ class AnalysisRunRead(BaseModel):
                 )
                 return result
         elif isinstance(data, dict):
+            for key in ("input_parts_estimate", "query_stats", "usage_known"):
+                data.setdefault(key, (data.get("input_summary_json") or {}).get(key))
             if "confirmed_budget_yuan" not in data:
                 data["confirmed_budget_yuan"] = (data.get("input_summary_json") or {}).get("confirmed_budget_yuan")
             if "timings_ms" not in data:

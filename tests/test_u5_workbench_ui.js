@@ -205,7 +205,7 @@ test('U5-03: attachment upload is wired into the chat input', () => {
   assert.match(interactions, /readAsDataURL/);
   assert.match(interactions, /addPendingAttachment/);
   assert.match(interactions, /attachmentIds = teachMateState\.getPendingAttachments/);
-  assert.match(interactions, /sendMessage\(sessionId, text, quickTask, attachmentIds, modelId\)/);
+  assert.match(interactions, /sendMessage\(sessionId, text, quickTask, attachmentIds, modelId,\s*null, initialSnapshot\.selectedPluginId === 'targeted_practice' \? 'targeted_practice' : null\)/);
   assert.match(views, /tm-attach-chip/);
   assert.match(views, /data-act="tm-attach"/);
   assert.match(css, /\.tm-attach-chips/);

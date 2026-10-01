@@ -205,6 +205,149 @@
       attachmentBlobUrls.set(key, url);
       return url;
     }
+    // ================= 学科配置 =================
+    // 学科决定界面用语与导航模块：老师首次进入时选一次，之后可在设置页改。
+    // 数据层键名不随学科变化（scores.英语、entrance_english 列、exam_type=english_total
+    // 都保持原样），所以换学科只是换一套说法，不会动到任何历史数据。
+    const SUBJECT_FALLBACK = {
+      key: 'english',
+      label: '英语',
+      teacher_subject_default: '初中英语',
+      modules: ['dash', 'stu', 'growth', 'score', 'dictation', 'recite', 'writing', 'homework', 'errors', 'todo', 'settings'],
+      module_labels: {},
+      question_types: ['听力', '阅读理解', '完形填空', '选词填空', '单词拼写', '语法填空', '作文'],
+      labels: {
+        score_total: '英语总分',
+        entrance_score: '入学英语',
+        score_column: '英语成绩',
+        score_short: '英语分数',
+        score_single: '英语单科成绩',
+        score_trend: '英语分数趋势',
+        score_ranking: '英语排名',
+        exam_default: '英语考试',
+        ability_disclaimer: '不代表英语水平'
+      }
+    };
+    let subjectCatalog = [SUBJECT_FALLBACK];
+    let subjectKey = SUBJECT_FALLBACK.key;
+    // 老版本后端没有学科接口时按英语继续，并且不弹窗打断老师。
+    let subjectChosen = true;
+
+    function subjectConfig() {
+      return subjectCatalog.find(item => item.key === subjectKey) || subjectCatalog[0] || SUBJECT_FALLBACK;
+    }
+    function subjectText(labelKey) {
+      const value = subjectConfig().labels ? subjectConfig().labels[labelKey] : '';
+      return value || SUBJECT_FALLBACK.labels[labelKey] || '';
+    }
+    // 学科词表是受控配置，但仍统一转义，避免后端配置被改动后进入 HTML。
+    function subjectHtml(labelKey) {
+      return escapeHtml(subjectText(labelKey));
+    }
+    function subjectName() {
+      return subjectConfig().label || SUBJECT_FALLBACK.label;
+    }
+    function subjectBaseTitle() {
+      // 顶栏标题优先用老师自己写的学科名（例如「七年级语文」），没写才用学科默认名。
+      return String(state?.teacher?.subject || '').trim() || subjectConfig().teacher_subject_default || SUBJECT_FALLBACK.teacher_subject_default;
+    }
+    function enabledModuleKeys() {
+      const modules = subjectConfig().modules;
+      return new Set(Array.isArray(modules) && modules.length ? modules : SUBJECT_FALLBACK.modules);
+    }
+    function visibleModules() {
+      const enabled = enabledModuleKeys();
+      return MODULES.filter(module => enabled.has(module.key));
+    }
+    function moduleLabel(module) {
+      if (!module) return '';
+      return (subjectConfig().module_labels || {})[module.key] || module.label;
+    }
+    function subjectQuestionTypes() {
+      const types = subjectConfig().question_types;
+      return Array.isArray(types) && types.length ? types : SUBJECT_FALLBACK.question_types;
+    }
+    // 导入识别列名：先认当前学科的写法，再退回历史英语写法，保证老文件仍能导入。
+    function subjectColumnAliases(labelKey, legacy) {
+      const names = [subjectText(labelKey)].concat(legacy || []);
+      return [...new Set(names.map(name => String(name || '').trim()).filter(Boolean))];
+    }
+    function subjectScoreImportAliases() {
+      const genericAliases = ['总分', '得分', '成绩', 'total_score'];
+      const legacyEnglishAliases = subjectKey === 'english'
+        ? ['英语', 'english', 'english_total']
+        : [];
+      return subjectColumnAliases('score_total', [
+        subjectText('score_column'), subjectName(), ...genericAliases, ...legacyEnglishAliases
+      ]);
+    }
+    function subjectRankImportAliases() {
+      return subjectColumnAliases('score_ranking', ['年级排名', '年级名次', '年级排行', 'grade_rank', 'graderank']);
+    }
+
+    async function loadSubjectCatalog() {
+      if (!DATABASE_MODE) return false;
+      try {
+        const payload = await apiRequest('/api/v1/subjects');
+        const list = Array.isArray(payload && payload.subjects) ? payload.subjects.filter(item => item && item.key) : [];
+        if (list.length) subjectCatalog = list;
+        const current = subjectCatalog.find(item => item.key === payload?.current);
+        subjectKey = current ? current.key : subjectCatalog[0].key;
+        syncTeacherSubject('english');
+        document.title = `${subjectBaseTitle()} 教学工作台`;
+        subjectChosen = payload?.chosen !== false;
+        return true;
+      } catch (error) {
+        console.warn('学科配置加载失败，按英语工作台继续', error);
+        subjectChosen = true;
+        return false;
+      }
+    }
+
+    // 老师学科名只在「没写过」或「还等于旧学科默认名」时才跟随学科走，
+    // 否则会覆盖掉老师手写的「七年级语文」这类值。
+    function syncTeacherSubject(previousKey) {
+      if (!state) return;
+      const next = subjectCatalog.find(item => item.key === subjectKey);
+      if (!next) return;
+      const previousDefault = subjectCatalog.find(item => item.key === previousKey)?.teacher_subject_default || '';
+      const current = String(state.teacher?.subject || '').trim();
+      const previous = subjectCatalog.find(item => item.key === previousKey);
+      if (!current || current === previousDefault || current === previous?.label ||
+          (previousKey === 'english' && current === '英语')) {
+        state.teacher.subject = next.teacher_subject_default;
+      }
+    }
+
+    async function setSubjectKey(nextKey, options = {}) {
+      const target = subjectCatalog.find(item => item.key === nextKey);
+      if (!target) return false;
+      const previousKey = subjectKey;
+      if (options.persist && DATABASE_MODE) {
+        // Settings is the source of truth. A second workspace-state write here
+        // would make a successful switch look failed if that unrelated save fails.
+        await apiRequest('/api/v1/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subject_key: target.key })
+        });
+      }
+      subjectKey = target.key;
+      subjectChosen = true;
+      syncTeacherSubject(previousKey);
+      document.title = `${subjectBaseTitle()} 教学工作台`;
+      if (target.key !== previousKey) {
+        if (typeof window.growthInvalidate === 'function') window.growthInvalidate();
+        if (typeof teachMateState !== 'undefined') {
+          teachMateState.setCurrentSession(null);
+          teachMateState.setSessions([]);
+          if (typeof teachMateState.clearAnalysisGroup === 'function') teachMateState.clearAnalysisGroup();
+        }
+        if (activeTab === 'teachmate' && typeof initTeachMate === 'function') void initTeachMate();
+      }
+      return true;
+    }
+
     const MODULES = [
       { key: 'dash', label: '仪表盘', icon: 'side_navigation' },
       { key: 'stu', label: '学生管理', icon: 'groups' },
@@ -218,7 +361,7 @@
       { key: 'todo', label: '待办事项', icon: 'check_box' },
       { key: 'settings', label: '班级与设置', icon: 'settings' }
     ];
-    const QUESTION_TYPES = ['听力','阅读理解','任务型阅读','完形填空','选词填空','单词拼写','语法填空','作文'];
+    const QUESTION_TYPES = ['听力','阅读理解','完形填空','选词填空','单词拼写','语法填空','作文'];
 
     // ================= 数据层 =================
     let state = null;
@@ -597,7 +740,7 @@
           scores: item?.scores && typeof item.scores === 'object' ? item.scores : {}
         };
       }) : [];
-      data.errors = Array.isArray(data.errors) ? data.errors : [];
+      data.errors = Array.isArray(data.errors) ? data.errors.map(item => ({ ...item, type: String(item.type || '').replaceAll('任务型阅读', '阅读理解') })) : [];
       data.paperDocuments = Array.isArray(data.paperDocuments) ? data.paperDocuments.filter(item => item && item.id && item.name && (item.content || item.attachmentId)) : [];
       data.archivedDocuments = Array.isArray(data.archivedDocuments) ? data.archivedDocuments.filter(item => item && item.id && item.name) : [];
       data.critical = Array.isArray(data.critical) ? data.critical : [];

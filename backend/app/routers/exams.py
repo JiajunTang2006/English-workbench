@@ -14,12 +14,16 @@ from ..schemas import (
     ExamSummary,
     ExamWorkspaceMutation,
     ExamWorkspaceMutationRead,
+    ItemScoresUpsert,
+    ItemScoresWriteRead,
     StudentItemResultPatch,
     StudentItemResultRead,
 )
 from ..services import exams as service
 from ..services.growth.exam_events import sync_exam_growth_events
 from ..services.terms import current_term_id, require_term
+from ..schemas.exams import PaperDistributionWrite
+from ..services import paper_distribution
 
 
 router = APIRouter(prefix="/api/v1/exams", tags=["exams"], dependencies=[Depends(require_token)])
@@ -31,6 +35,38 @@ def get_session(request: Request):
 
 def selected_term_id(session, term_id: int | None) -> int:
     return term_id or current_term_id(session)
+
+
+@router.get("/paper-distribution/default")
+def read_default_distribution(request: Request):
+    with get_session(request) as session:
+        return paper_distribution.get_default(session)
+
+
+@router.put("/paper-distribution/default")
+def write_default_distribution(payload: PaperDistributionWrite, request: Request):
+    with get_session(request) as session:
+        result = paper_distribution.put_default(session, payload)
+        session.commit()
+        return result
+
+
+@router.get("/{exam_id}/paper-distribution")
+def read_exam_distribution(exam_id: int, request: Request, term_id: int | None = Query(default=None, gt=0)):
+    with get_session(request) as session:
+        exam = service.get_exam(session, exam_id, term_id=selected_term_id(session, term_id))
+        return paper_distribution.get_exam_distribution(session, exam)
+
+
+@router.put("/{exam_id}/paper-distribution")
+def write_exam_distribution(exam_id: int, payload: PaperDistributionWrite, request: Request, term_id: int | None = Query(default=None, gt=0)):
+    with get_session(request) as session:
+        term = selected_term_id(session, term_id)
+        require_term(session, term, active_only=True)
+        exam = service.get_exam(session, exam_id, term_id=term)
+        result = paper_distribution.put_exam_distribution(session, exam, payload)
+        session.commit()
+        return result
 
 
 @router.get("", response_model=list[ExamRead])
@@ -219,6 +255,22 @@ def patch_student_item_result(
         result = service.override_student_item_result(
             session, exam_id, student_id, question_id, payload, term_id=selected_id
         )
+        session.commit()
+        return result
+
+
+@router.put("/{exam_id}/item-scores", response_model=ItemScoresWriteRead)
+def put_item_scores(exam_id: int, payload: ItemScoresUpsert, request: Request, term_id: int | None = Query(default=None, gt=0)):
+    """按题型批量上传逐题小分。
+
+    每条小分用「题型 + 题号」定位到当前已确认试卷里的题目；题型名匹配
+    ``question_type`` 或 ``section_name`` 任一。任一行无法定位、超满分、学生不在
+    名单或缺考时整批取消（422），不会写一半。未出现在本次批次里的题目保留已有
+    小分，不写空、不补零。
+    """
+    with get_session(request) as session:
+        selected_id = selected_term_id(session, term_id)
+        result = service.bulk_upsert_item_scores(session, exam_id, payload, term_id=selected_id)
         session.commit()
         return result
 

@@ -358,8 +358,9 @@ class HarnessRunAdapter:
 
         return None
 
+    @staticmethod
     def _extract_usage_records(
-        self, events: list[RuntimeEvent]
+        events: list[RuntimeEvent]
     ) -> list[dict[str, Any]]:
         """从运行时事件中提取每个 Provider 请求的用量记录。
 
@@ -381,7 +382,7 @@ class HarnessRunAdapter:
         from ..event_types import USAGE_UPDATED
         records: list[dict[str, Any]] = []
         for ev in events:
-            if ev.event_type != USAGE_UPDATED:
+            if ev.event_type not in {USAGE_UPDATED, "usage_updated"}:
                 continue
             data = ev.data or {}
             input_tokens = int(data.get("input_tokens", 0))

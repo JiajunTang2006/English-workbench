@@ -20,7 +20,9 @@ const versionSource = fs.readFileSync(
   'utf8',
 );
 const schemaRevision = versionSource.match(/^SCHEMA_REVISION = "([^"]+)"/m)?.[1];
+const appVersion = versionSource.match(/^APP_VERSION = "([^"]+)"/m)?.[1];
 if (!schemaRevision) throw new Error('SCHEMA_REVISION is missing from backend/app/version.py');
+if (!appVersion) throw new Error('APP_VERSION is missing from backend/app/version.py');
 
 function bearer() {
   return { Authorization: `Bearer ${E2E_TOKEN}` };
@@ -43,7 +45,7 @@ test('S0-03: 有测试 Token 可以读取运行时信息', async ({ request }) =
   const res = await request.get('/api/v1/runtime', { headers: bearer() });
   expect(res.status()).toBe(200);
   const body = await res.json();
-  expect(body.version).toBe('0.9.0-beta.2');
+  expect(body.version).toBe(appVersion);
   expect(body.schema).toBe(schemaRevision);
 });
 

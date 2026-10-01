@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import pytest
+from types import SimpleNamespace
 from PIL import Image
 from sqlalchemy import select
 
 from backend.app.config import Settings
 from backend.app.factory import create_app
-from backend.app.models import ExamPaperVersion, ExamQuestion, Term
+from backend.app.models import Exam, ExamPaperVersion, ExamQuestion, Term
 from backend.app.services.exam_ingestion import ExamIngestionService
+from backend.app.services.subjects import get_subject
+from backend.app.services.growth.performance import classify_subject_dimension
 from backend.app.services.vision.provider import ProviderCapabilities, VisionResult
 
 
@@ -59,3 +62,38 @@ def test_image_ingestion_rejects_missing_file(app, tmp_path):
     service = ExamIngestionService(FakeVisionProvider(), app.state.session_factory(), tmp_path)
     result = service.ingest_from_images([tmp_path / "missing.png"], "考试")
     assert result == {"ok": False, "error": "image_file_not_found"}
+
+
+def test_question_type_exam_accepts_ingestion_and_persists_ability_nodes(app, tmp_path):
+    session = app.state.session_factory()
+    term = session.scalar(select(Term).where(Term.status == "active"))
+    exam = Exam(term_id=term.id, name="按题型录入", source_key="test:question-type",
+                full_score=5, exam_type="question_type")
+    session.add(exam)
+    session.flush()
+    service = ExamIngestionService(FakeVisionProvider(), session, tmp_path)
+    result = service._persist_draft(
+        "按题型录入", "英语", [{
+            "question_no": "1", "question_type": "填空题", "max_score": 5,
+            "ability_nodes": ["运算能力", "运算能力"],
+        }], term_id=term.id, exam_id=exam.id, source_attachment_ids=[],
+        provider="fake", model="fake-v1",
+    )
+    assert result["ok"] is True
+    question = session.scalar(select(ExamQuestion).where(ExamQuestion.paper_version_id == result["paper_version_id"]))
+    assert question.ability_nodes_json == ["运算能力"]
+    assert result["questions"][0]["ability_nodes"] == ["运算能力"]
+
+
+def test_math_ability_labels_use_registered_dimensions():
+    subject = get_subject("math")
+    schema = ExamIngestionService._schema("数学")
+    allowed = schema["properties"]["questions"]["items"]["properties"]["ability_nodes"]["items"]["enum"]
+    assert allowed == list(subject.analysis_dimensions)
+    paper = SimpleNamespace(id=1, questions=[])
+    ExamIngestionService._add_question(paper, {
+        "question_no": "1", "max_score": 5, "ability_nodes": ["数学运算"],
+    }, subject=subject)
+    assert paper.questions[0].ability_nodes_json == ["运算能力"]
+    specs = [(f"subject_{index}", label, None) for index, label in enumerate(subject.analysis_dimensions)]
+    assert classify_subject_dimension(["数学运算"], specs, subject) == "subject_1"

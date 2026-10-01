@@ -21,7 +21,7 @@ Agent 相关 SQLAlchemy 数据模型
 - 所有业务时间使用带时区 UTC
 - 不修改现有考试和总分事实表的职责
 - 学生评价保留 AI 草稿和教师确认文本，不得覆盖
-- 错因一级值固定为六类：审题/词汇/语法/定位/推断/表达
+- 错因候选值由当前学科配置提供
 - student_item_results 对考试、学生、题目唯一
 - 题目结构按版本保存，不原地覆盖已确认版本
 """
@@ -35,9 +35,10 @@ from sqlalchemy import (
     Boolean, DateTime, Float, ForeignKey, Integer, JSON,
     String, Text, UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from ..database import Base
+from ..question_types import canonical_question_type
 from .entities import utcnow
 
 
@@ -80,6 +81,10 @@ class ExamQuestion(Base):
     """试卷题目结构，按版本保存。"""
 
     __tablename__ = "exam_questions"
+
+    @validates("question_type", "section_name")
+    def normalize_reading_type(self, key, value):
+        return canonical_question_type(value)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     paper_version_id: Mapped[int] = mapped_column(
@@ -206,7 +211,7 @@ class StudentItemResult(Base):
 
 
 class ErrorCauseAssessment(Base):
-    """错因评估。一级类别固定六类：审题/词汇/语法/定位/推断/表达。
+    """错因评估。类别名称由当前学科的诊断配置提供。
 
     一道错题允许多个错因。教师确认后的版本用于后续纵向统计。
     """
@@ -219,7 +224,7 @@ class ErrorCauseAssessment(Base):
     question_id: Mapped[int] = mapped_column(ForeignKey("exam_questions.id", ondelete="CASCADE"), nullable=False, index=True)
     knowledge_point_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_points.id"))
     cause: Mapped[str] = mapped_column(String(20), nullable=False)
-    # 审题/词汇/语法/定位/推断/表达
+    # 当前学科的错因类别名称
     confidence: Mapped[float | None] = mapped_column(Float)
     source: Mapped[str] = mapped_column(String(20), default="ai", nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="candidate", nullable=False)
@@ -249,6 +254,7 @@ class ExamPaperMemory(Base):
         ForeignKey("exam_paper_versions.id", ondelete="SET NULL")
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False)
+    subject_key: Mapped[str] = mapped_column(String(40), default="english", nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     # draft / confirmed / superseded
     content_md: Mapped[str] = mapped_column(Text, nullable=False)
@@ -270,6 +276,7 @@ class AgentSession(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(200), default="新会话", nullable=False)
     term_id: Mapped[int] = mapped_column(ForeignKey("terms.id", ondelete="CASCADE"), nullable=False, index=True)
+    subject_key: Mapped[str] = mapped_column(String(40), default="english", nullable=False, index=True)
     class_id: Mapped[int | None] = mapped_column(ForeignKey("classes.id"))
     exam_id: Mapped[int | None] = mapped_column(ForeignKey("exams.id"))
     student_id: Mapped[int | None] = mapped_column(ForeignKey("students.id"))
@@ -281,6 +288,10 @@ class AgentSession(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    teaching_task_id: Mapped[int | None] = mapped_column(
+        ForeignKey("teaching_tasks.id", ondelete="SET NULL"), index=True
+    )
 
     messages: Mapped[list["AgentMessage"]] = relationship(
         back_populates="session", cascade="all, delete-orphan", order_by="AgentMessage.created_at"
@@ -301,6 +312,8 @@ class AgentMessage(Base):
     # user / assistant / system
     content_text: Mapped[str | None] = mapped_column(Text)
     structured_answer_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # Teacher edits stay separate from the immutable AI report for comparison.
+    teacher_material_edits_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     evidence_ids_json: Mapped[list[str]] = mapped_column(JSON, default=list)
     model_name: Mapped[str | None] = mapped_column(String(100))
     provider_request_id: Mapped[str | None] = mapped_column(String(200))
@@ -396,6 +409,7 @@ class AnalysisRun(Base):
     capability: Mapped[str] = mapped_column(String(50), nullable=False)
     # exam_analysis / student_diagnosis / review_plan / exam_ingestion
     term_id: Mapped[int] = mapped_column(ForeignKey("terms.id"), nullable=False, index=True)
+    subject_key: Mapped[str] = mapped_column(String(40), default="english", nullable=False, index=True)
     class_id: Mapped[int | None] = mapped_column(Integer)
     exam_id: Mapped[int | None] = mapped_column(Integer)
     student_id: Mapped[int | None] = mapped_column(Integer)

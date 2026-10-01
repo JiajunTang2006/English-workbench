@@ -1,7 +1,7 @@
 """错误分析相关只读工具
 
 查询错误原因评估数据、常见错误统计。
-错误原因固定六类：审题/词汇/语法/定位/推断/表达。
+错误原因候选按当前学科配置；历史记录中的实际错因仍以数据库为准。
 通过 ToolContext 获取数据库会话。
 """
 
@@ -15,7 +15,9 @@ from .tool_context import get_tool_context
 
 logger = logging.getLogger(__name__)
 
-ERROR_CAUSES = ["审题", "词汇", "语法", "定位", "推断", "表达"]
+def _subject_error_causes(session) -> list[str]:
+    from ...services.subjects import get_selected_subject
+    return list(get_selected_subject(session).error_causes)
 
 _ERROR_CAUSES_SCHEMA = {
     "type": "object",
@@ -27,7 +29,7 @@ _ERROR_CAUSES_SCHEMA = {
 _COMMON_MISTAKES_SCHEMA = {
     "type": "object",
     "properties": {
-        "cause": {"type": "string", "description": f"错误原因筛选，可选: {ERROR_CAUSES}"},
+        "cause": {"type": "string", "description": "错误原因筛选；填写已记录的错因名称。"},
     },
     "required": [],
 }
@@ -112,7 +114,7 @@ def _get_error_causes(question_no: int | None = None, **_: Any) -> dict[str, Any
     return {"data": {"exam_id": exam_id, "question_no": question_no,
         "cause_distribution": [{"cause": r[0], "count": r[1],
                                  "percentage": round(r[1] / total, 4)} for r in rows],
-        "possible_causes": ERROR_CAUSES}}
+        "possible_causes": _subject_error_causes(session)}}
 
 
 def _get_common_mistakes(cause: str | None = None, **_: Any) -> dict[str, Any]:
@@ -166,7 +168,7 @@ def register_error_tools(registry: ToolRegistry) -> None:
     """将错误分析相关工具注册到工具注册表。"""
     registry.register(ToolDefinition(
         name="get_error_causes",
-        description="获取考试的错误原因分布（审题/词汇/语法/定位/推断/表达）",
+        description="获取当前学科配置下已记录的错误原因分布",
         parameters_schema=_ERROR_CAUSES_SCHEMA,
         output_schema=_ERROR_CAUSES_OUTPUT,
         handler=_get_error_causes, category="error", requires_scope=["exam_id"]))

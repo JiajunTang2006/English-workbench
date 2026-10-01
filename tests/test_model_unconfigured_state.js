@@ -16,10 +16,13 @@ test('未配置模型时前端不回退到列表第一项', () => {
   assert.doesNotMatch(interactions, /find\([^\n]+\)\s*\|\|\s*savedModels\[0\]/);
 });
 
-test('未配置模型时快捷卡片提供正确的配置引导', () => {
+test('未配置模型时快捷卡保留编辑入口，设置由教师主动打开', () => {
   assert.match(views, /data-provider-unavailable/);
   assert.match(views, /设置 → 模型/);
-  assert.match(interactions, /providerUnavailable.*tmOpenAgentSettings\('models'\)/);
+  assert.doesNotMatch(interactions, /providerUnavailable.*tmOpenAgentSettings\('models'\)/);
+  assert.match(views, /var disabled = composerLocked/);
+  assert.match(views, /模型暂不可用，可以先编辑问题/);
+  assert.match(interactions, /if \(modelUnavailable\) \{ showToast\(modelUnavailable\); return; \}/);
 });
 
 test('TeachMate 文件夹创建使用应用内表单', () => {

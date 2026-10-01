@@ -54,20 +54,49 @@ test('U5-05: page boots without script errors and loads TeachMate modules', asyn
   expect(modules.api).toBe('object');
 });
 
-test('U5-05: 欢迎页展示简洁提问入口', async ({ page }) => {
+test('U5-05: 欢迎页展示简洁提问入口', async ({ page }, info) => {
   const errors = await gotoTeachMate(page);
   expect(errors).toEqual([]);
 
-  await expect(page.locator('.tm-quick-prompts-title')).toHaveText('你可以这样问我');
+  await expect(page.getByText('你可以这样问我', { exact: true })).toBeVisible();
   await expect(page.locator('.tm-suggestion-card')).toHaveCount(3);
-  await expect(page.locator('.tm-welcome-underline')).toHaveCount(1);
-  await expect(page.locator('.tm-welcome-books')).toHaveCount(1);
-  for (const selector of ['.tm-welcome-underline', '.tm-welcome-books']) {
-    await expect.poll(() => page.locator(selector).evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
-  }
+  await expect(page.getByRole('button', { name: '新建教学任务', exact: true })).toHaveCount(0);
+  await expect.poll(() => page.locator('.tm-brand-icon-welcome').evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+  // A long welcome list may extend below the scroll viewport; its clipped
+  // content must not overlap the composer. Measure the visible bounds.
+  await expect.poll(() => page.evaluate(() => {
+    const content = document.querySelector('.tm-suggestions')?.getBoundingClientRect();
+    const composer = document.querySelector('.tm-composer')?.getBoundingClientRect();
+    const viewportNode = document.querySelector('#tmMessages');
+    const viewport = viewportNode?.getBoundingClientRect();
+    const clips = viewportNode && ['auto', 'scroll', 'hidden'].includes(getComputedStyle(viewportNode).overflowY);
+    return Boolean(content && composer && viewport && clips
+      && Math.min(content.bottom, viewport.bottom) <= composer.top && viewport.bottom <= composer.top);
+  })).toBe(true);
+  await page.screenshot({ path: info.outputPath('home.png'), animations: 'disabled' });
   await expect(page.locator('[data-testid="setup-card"]')).toHaveCount(0);
   await expect(page.locator('[data-testid="readiness-ok"], [data-testid="readiness-issues"]')).toHaveCount(0);
   await expect(page.locator('[data-testid="exam-binding-choice"]')).toHaveCount(0);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  const compactComposer = await page.locator('.tm-composer').boundingBox();
+  expect(compactComposer.y + compactComposer.height).toBeLessThanOrEqual(768);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.locator('.tm-suggestion-card').last().scrollIntoViewIfNeeded();
+  await expect(page.locator('.tm-suggestion-card').last()).toBeInViewport();
+  await page.screenshot({ path: info.outputPath('home-1024.png'), animations: 'disabled' });
+});
+
+test('快速取消页面切换后保持当前页面和导航一致', async ({ page }) => {
+  await gotoTeachMate(page);
+  await page.evaluate(() => {
+    document.querySelector('[data-act="tab-switch"][data-tab="workbench"]').click();
+    document.querySelector('[data-act="tab-switch"][data-tab="teachmate"]').click();
+  });
+  // Wait beyond the transition deadline to catch a cancelled switch firing late.
+  await page.waitForTimeout(450);
+  await expect(page.locator('body')).toHaveClass(/tab-teachmate/);
+  await expect(page.locator('.tab-btn.active')).toHaveAttribute('data-tab', 'teachmate');
+  await expect(page.locator('#tmInput')).toBeVisible();
 });
 
 test('U5-05: 左栏会话导航、侧栏搜索与新建分析入口可用', async ({ page }) => {

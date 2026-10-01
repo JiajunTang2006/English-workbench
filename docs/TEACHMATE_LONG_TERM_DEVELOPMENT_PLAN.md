@@ -1,5 +1,7 @@
 # TeachMate 长期开发项目方案说明书
 
+> 2026-09-30 优先级更新：[后续开发任务总表](TEACHMATE_NEXT_DEVELOPMENT_TASKS.md)统一管理教师对话核心、个人专项/分层练习、教案、作答反馈、复测与学生互动的排期及验收。先修对话核心，再接通教学与学生使用链路；新任务尚未实现。[教师对话核心改造方案](TEACHMATE_CONVERSATION_CORE_PLAN.md)保留技术设计。下文保留既有长期建设背景，不代表最新完成状态；已交付范围见 [1.0 改造说明](TEACHMATE_1_0_UPGRADE.md)。
+
 > 项目主题：Codex 兼容插件、Multipart 附件链路、多模态教学分析、Word/PDF 文档产出
 >
 > 基线版本：`0.9.0-beta.2`

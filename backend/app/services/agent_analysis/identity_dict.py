@@ -27,6 +27,7 @@ class RuntimeIdentity:
     # 显式保留学生 ID 与姓名的绑定，避免依赖两个平行列表的索引关系。
     student_records: list[tuple[int, str]] = field(default_factory=list)
     student_nos: list[str] = field(default_factory=list)
+    student_number_records: list[tuple[int, str]] = field(default_factory=list)
     phones: list[str] = field(default_factory=list)
     school_names: list[str] = field(default_factory=list)
     protected_terms: list[str] = field(default_factory=list)
@@ -121,6 +122,7 @@ def build_run_identity_dictionary(
                     identity.student_records.append((sid, name))
             if student_no:
                 identity.student_nos.append(student_no)
+                identity.student_number_records.append((sid, student_no))
             if phone:
                 identity.phones.append(phone)
     except Exception:
@@ -163,6 +165,8 @@ def register_identity_into_mapper(mapper: Any, identity: RuntimeIdentity) -> Non
             mapper.register_name(name)
 
     mapper.register_school_names(identity.school_names)
+    for sid, number in identity.student_number_records:
+        mapper._student_number_refs[number] = mapper.to_anonymous(sid)
     # B3-04：电话与学号一并进入受保护文本（正则兜底 + 词典精确匹配双保险）
     mapper.register_protected_terms(
         identity.protected_terms + identity.student_nos + identity.phones

@@ -28,7 +28,7 @@ from backend.app.models.agent_entities import (
     AnalysisRun,
     Base,
 )
-from backend.app.models.entities import Term, Class, Exam, Student, Enrollment, Attachment
+from backend.app.models.entities import Term, Class, Exam, ExamScore, Student, Enrollment, Attachment
 from backend.app.agent.config import AgentConfig
 
 
@@ -277,6 +277,47 @@ class TestOptionalExamScope:
 
 
 class TestCapabilityScopeRequirements:
+    def test_named_review_plan_binds_verified_student_to_run(self, app_client_db):
+        client, Session, term_id, class_id, exam_id, student_id = app_client_db
+        with Session() as s:
+            s.add(ExamScore(exam_id=exam_id, student_id=student_id,
+                            total_score=91.0, attendance_status="present",
+                            class_id_at_exam=class_id))
+            agent_session = AgentSession(title="全班诊断", term_id=term_id,
+                                         exam_id=exam_id, status="active")
+            s.add(agent_session)
+            s.commit()
+            sid = agent_session.id
+        with patch("backend.app.routers.agent.get_agent_config", return_value=_enabled_config()):
+            with patch("backend.app.routers.agent.schedule_analysis_run", new_callable=AsyncMock):
+                response = client.post(
+                    f"/api/v1/agent/sessions/{sid}/messages",
+                    json={"content": "为张三制定复习计划", "quick_task": "review_plan"},
+                    headers=AUTH_HEADERS)
+        assert response.status_code == 202
+        with Session() as s:
+            run = s.get(AnalysisRun, response.json()["run_id"])
+            assert run.student_id == student_id
+            assert run.exam_id == exam_id
+
+    def test_named_review_plan_missing_score_does_not_create_run(self, app_client_db):
+        client, Session, term_id, _, exam_id, _ = app_client_db
+        with Session() as s:
+            agent_session = AgentSession(title="全班诊断", term_id=term_id,
+                                         exam_id=exam_id, status="active")
+            s.add(agent_session)
+            s.commit()
+            sid = agent_session.id
+        with patch("backend.app.routers.agent.get_agent_config", return_value=_enabled_config()):
+            response = client.post(
+                f"/api/v1/agent/sessions/{sid}/messages",
+                json={"content": "为张三制定复习计划", "quick_task": "review_plan"},
+                headers=AUTH_HEADERS)
+        assert response.status_code == 409
+        assert response.json()["detail"]["code"] == "STUDENT_EXAM_SCORE_MISSING"
+        with Session() as s:
+            assert s.query(AnalysisRun).filter_by(session_id=sid).count() == 0
+
     def test_student_diagnosis_without_exam_rejected(self, app_client_db):
         client, Session, term_id, class_id, _, student_id = app_client_db
         with Session() as s:

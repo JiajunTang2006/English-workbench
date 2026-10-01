@@ -1,13 +1,12 @@
 """试卷记忆服务（RAG v3 · 记忆板块）
 
-一场考试的 AI 理解摘要：按语篇研读 What/Why/How 框架，把"这份卷子考什么、
-考点与课标要求的对应、易错预设、复习钩子"写成 markdown 记忆，教师确认后
+一场考试的 AI 理解摘要：把卷面结构、知识点与课程要求、易错预设、复习钩子
+写成 markdown 记忆，教师确认后
 作为分析依据注入分析包（见 analysis_packet）。
 
 - 生成：读 confirmed 试卷结构 + 知识点标注 → LLM 生成草稿（draft）；
 - 确认：教师可直接确认或编辑后确认（confirmed），旧 confirmed 自动 superseded；
-- 分类白名单：知识点标注逐一对照知识库（考点 ID + 语法类目），未命中的记入
-  knowledge_gaps（提示教师补充分类表），不阻断录入。
+- 英语使用现有分类白名单；其它学科保留题面知识点为待归类内容，不借用英语分类表。
 """
 
 from __future__ import annotations
@@ -27,10 +26,10 @@ _MAX_QUESTIONS_IN_PROMPT = 40
 _MEMORY_CHAR_LIMIT = 1200
 _SNIPPET_LIMIT = 800
 
-_GENERATION_PROMPT = """你是初中英语教学的试卷分析助手。请依据以下试卷结构信息，\
-按语篇研读 What/Why/How 框架生成这份试卷的"试卷记忆"，供后续 AI 考试分析与\
-复习计划使用。
+_GENERATION_PROMPT = """你是{subject_label}教学的试卷分析助手。请依据以下试卷结构信息，\
+生成这份试卷的"试卷记忆"，供后续 AI 考试分析与复习计划使用。
 
+学科：{subject_label}
 试卷信息：{exam_line}
 试卷状态：{paper_status}
 题目结构：
@@ -39,7 +38,7 @@ _GENERATION_PROMPT = """你是初中英语教学的试卷分析助手。请依�
 输出要求：
 1. 只输出 Markdown 正文（≤600 字），依次包含四个小节：
    ## 卷面结构（题型与分值分布）
-   ## 考点与课标要求（知识点 → 义务教育英语课标三级要求的对应）
+   ## 考点与课程要求（知识点及其与课程要求的对应；仅在提供课程标准依据时引用）
    ## 易错预设（按考点与学生常见错误，预设本题卷最可能的失分点）
    ## 复习钩子（后续复习计划可直接引用的 1~3 条建议方向）
 2. 只使用上面给出的题目信息，不得编造未提供的题目、数据或地市规则；
@@ -94,6 +93,7 @@ def memory_payload(memory) -> dict[str, Any]:
         "id": memory.id, "exam_id": memory.exam_id,
         "paper_version_id": memory.paper_version_id,
         "version": memory.version, "status": memory.status,
+        "subject_key": memory.subject_key,
         "content_md": memory.content_md, "source": memory.source,
         "generation_model": memory.generation_model,
         "knowledge_gaps": memory.knowledge_gaps_json or [],
@@ -139,19 +139,25 @@ def generate_paper_memory(db, exam_id: int, *, term_id=None,
         for node in question.knowledge_nodes_json or []:
             if node and node not in node_names:
                 node_names.append(node)
-    gaps = classify_knowledge_points(node_names)["unknown"]
+    from .subjects import get_selected_subject
+    subject = get_selected_subject(db)
+    # 当前受控知识库是英语专用的。其它学科不拿英语知识库做误判，
+    # 未匹配项只作为待补充的知识点记录。
+    gaps = (classify_knowledge_points(node_names)["unknown"]
+            if subject.key == "english" else list(node_names))
 
     question_lines = "\n".join(
         f"- 第{q.question_no}题 {q.question_type or '未知题型'} "
         f"[{q.max_score:g}分] 知识点：{'、'.join(q.knowledge_nodes_json or []) or '未标注'}"
         + (f"｜内容摘录：{q.content_text[:60]}" if q.content_text else "")
         for q in questions)
-    gap_note = ("注意：以下知识点尚未入分类表，请在记忆中标注为「待归类」："
-                + "、".join(gaps)) if gaps else "所有知识点均已在分类表中。"
+    gap_note = (("以下知识点尚未进入英语教学知识库，请标注为「待归类」：" if subject.key == "english"
+                 else f"当前没有{subject.label}专用教学知识库；请仅依据试卷中可见内容描述知识点，不套用其他学科标准。待补充：")
+                + "、".join(gaps)) if gaps else "所有知识点均已在当前分类表中。"
     exam_line = (f"{exam.name}，满分 {exam.full_score:g}"
                  + (f"，考试日期 {exam.exam_date}" if exam.exam_date else ""))
     prompt = _GENERATION_PROMPT.format(
-        exam_line=exam_line, paper_status=paper_status,
+        subject_label=subject.label, exam_line=exam_line, paper_status=paper_status,
         question_lines=question_lines, gap_note=gap_note)
 
     model_name = None
@@ -167,6 +173,9 @@ def generate_paper_memory(db, exam_id: int, *, term_id=None,
         content = content.rsplit("```", 1)[0].strip()
     if not content:
         return {"ok": False, "error": "empty_memory"}
+    subject_marker = f"学科：{subject.label}"
+    if not content.lstrip().startswith(subject_marker):
+        content = f"{subject_marker}\n\n{content}"
 
     from ..models.agent_entities import ExamPaperMemory
     # 新草稿尚未获得教师确认，不能提前撤销当前已确认版本。这里只淘汰旧草稿；
@@ -181,7 +190,8 @@ def generate_paper_memory(db, exam_id: int, *, term_id=None,
         ExamPaperMemory.version.desc()).limit(1)) or 0) + 1
     memory = ExamPaperMemory(
         exam_id=exam_id, paper_version_id=paper.id, version=version,
-        status="draft", content_md=content[:_MEMORY_CHAR_LIMIT * 4],
+        status="draft", subject_key=subject.key,
+        content_md=content[:_MEMORY_CHAR_LIMIT * 4],
         source="ai", generation_model=model_name or getattr(
             provider, "_default_model", None),
         knowledge_gaps_json=gaps)
@@ -200,6 +210,9 @@ def confirm_paper_memory(db, exam_id: int, memory_id: int, *,
         return {"ok": False, "error": "memory_not_found"}
     if memory.status == "superseded":
         return {"ok": False, "error": "memory_superseded"}
+    from .subjects import get_selected_subject
+    if memory.subject_key != get_selected_subject(db).key:
+        return {"ok": False, "error": "memory_subject_mismatch"}
     if content is not None and content.strip():
         memory.content_md = content.strip()
         memory.source = "manual"
@@ -217,9 +230,9 @@ def confirm_paper_memory(db, exam_id: int, memory_id: int, *,
     return {"ok": True, **_memory_payload(memory)}
 
 
-def get_confirmed_content(db, exam_id: int) -> tuple[str, int] | None:
+def get_confirmed_content(db, exam_id: int, *, subject_key: str | None = None) -> tuple[str, int] | None:
     """返回 (已确认记忆内容, 版本)；无则 None。分析包注入用。"""
     memory = get_latest_memory(db, exam_id, status="confirmed")
-    if memory is None:
+    if memory is None or (subject_key is not None and memory.subject_key != subject_key):
         return None
     return memory.content_md, memory.version

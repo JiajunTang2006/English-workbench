@@ -17,6 +17,7 @@ from .entities import (
     SchoolDataSource,
     ExternalEntityMapping,
     SchoolSyncRun,
+    TeacherProfile,
     WorkspaceState,
 )
 from .agent_entities import (
@@ -55,6 +56,7 @@ __all__ = [
     "AppSetting", "Attachment", "BackupRecord", "ChangeLog", "Class", "Exam", "ExamClassMetric",
     "ExamDimensionScore", "ExamScore", "Enrollment", "ImportJob", "PendingFileOperation", "ScoreDimension",
     "Student", "Term", "WorkspaceState", "SchoolDataSource", "ExternalEntityMapping", "SchoolSyncRun",
+    "TeacherProfile",
     # Agent entities
     "AgentAnalysisSetting", "AnalysisGroup", "AnalysisGroupTask", "AgentMessage", "AgentMessageAttachment", "AgentSession",
     "AnalysisEvidence", "AnalysisRun", "AnalysisRunEvent", "BackgroundJob", "ErrorCauseAssessment",
@@ -63,3 +65,6 @@ __all__ = [
     # Growth tree entities
     "GrowthAward", "GrowthEvent", "GrowthRuleVersion", "GrowthTermRule", "StudentGrowthSnapshot",
 ]
+
+from .teaching_entities import TeachingTask, TeachingArtifact, TeachingArtifactRevision, TeachingFeedback
+from .teaching_entities import PracticeSet, PracticeQuestion, PracticeAttempt

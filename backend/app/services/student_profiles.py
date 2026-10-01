@@ -24,6 +24,7 @@ from ..models.entities import Enrollment, Student, Term
 PROFILE_LIST_FIELDS = ("strengths", "weaknesses", "habits", "interventions", "goals", "watch_items")
 PROFILE_DEFAULTS: dict[str, Any] = {
     "summary": "",
+    "subject_key": None,
     "strengths": [],
     "weaknesses": [],
     "habits": [],
@@ -86,6 +87,13 @@ def compact_profile(profile: dict[str, Any] | None) -> dict[str, Any]:
     return result
 
 
+def _profile_matches_subject(profile: dict[str, Any] | None, subject_key: str) -> bool:
+    """Profiles created before subject tagging belong to the original English workspace."""
+    if not isinstance(profile, dict):
+        return False
+    return (profile.get("subject_key") or "english") == subject_key
+
+
 def get_profile(session: Session, student_id: int, term_id: int) -> StudentProfile | None:
     return session.scalar(select(StudentProfile).where(
         StudentProfile.student_id == student_id,
@@ -94,18 +102,27 @@ def get_profile(session: Session, student_id: int, term_id: int) -> StudentProfi
 
 
 def _latest_prior_profile(session: Session, student_id: int, term_id: int) -> StudentProfile | None:
-    return session.scalar(
+    from .subjects import get_selected_subject
+    subject_key = get_selected_subject(session).key
+    for profile in session.scalars(
         select(StudentProfile)
         .join(Term, Term.id == StudentProfile.term_id)
         .where(StudentProfile.student_id == student_id, StudentProfile.term_id != term_id)
         .order_by(StudentProfile.updated_at.desc(), StudentProfile.id.desc())
-    )
+    ):
+        if _profile_matches_subject(profile.profile_json, subject_key):
+            return profile
+    return None
 
 
 def get_longitudinal_profile(session: Session, student_id: int) -> StudentLongitudinalProfile | None:
-    return session.scalar(select(StudentLongitudinalProfile).where(
+    profile = session.scalar(select(StudentLongitudinalProfile).where(
         StudentLongitudinalProfile.student_id == student_id,
     ))
+    from .subjects import get_selected_subject
+    return profile if profile and _profile_matches_subject(
+        profile.profile_json, get_selected_subject(session).key
+    ) else None
 
 
 def prepare_student_profile_inheritance(
@@ -121,6 +138,8 @@ def prepare_student_profile_inheritance(
     """
     if source_term_id is None or source_term_id == target_term_id:
         return 0
+    from .subjects import get_selected_subject
+    subject_key = get_selected_subject(session).key
     source_term = session.get(Term, source_term_id)
     target_term = session.get(Term, target_term_id)
     if source_term is None or target_term is None:
@@ -144,12 +163,14 @@ def prepare_student_profile_inheritance(
             StudentProfile.term_id == source_term_id,
             StudentProfile.student_id.in_(student_ids),
         ))
+        if _profile_matches_subject(item.profile_json, subject_key)
     }
     longitudinal = {
         item.student_id: item
         for item in session.scalars(select(StudentLongitudinalProfile).where(
             StudentLongitudinalProfile.student_id.in_(student_ids),
         ))
+        if _profile_matches_subject(item.profile_json, subject_key)
     }
     prepared = 0
     for student_id in student_ids:
@@ -178,6 +199,9 @@ def prepare_student_profile_inheritance(
 def _ensure_term_profile(session: Session, student_id: int, term_id: int) -> StudentProfile | None:
     profile = get_profile(session, student_id, term_id)
     if profile is not None:
+        from .subjects import get_selected_subject
+        if not _profile_matches_subject(profile.profile_json, get_selected_subject(session).key):
+            raise HTTPException(409, "该学期已有另一学科画像，请在原学科工作区查看")
         return profile
     longitudinal = get_longitudinal_profile(session, student_id)
     source_profile = _latest_prior_profile(session, student_id, term_id)
@@ -199,8 +223,12 @@ def _ensure_term_profile(session: Session, student_id: int, term_id: int) -> Stu
 
 
 def get_profile_payload(session: Session, student_id: int, term_id: int) -> dict[str, Any]:
+    from .subjects import get_selected_subject
+    subject_key = get_selected_subject(session).key
     profile = get_profile(session, student_id, term_id)
     longitudinal = get_longitudinal_profile(session, student_id)
+    if profile and not _profile_matches_subject(profile.profile_json, subject_key):
+        profile = None
     result = empty_profile()
     if profile and isinstance(profile.profile_json, dict):
         result.update(copy.deepcopy(profile.profile_json))
@@ -240,7 +268,7 @@ def normalize_patch(patch: dict[str, Any]) -> dict[str, Any]:
     """只允许画像字段和显式 add/remove 操作，防止模型写入任意 JSON。"""
     if not isinstance(patch, dict):
         raise ValueError("画像变更必须是对象")
-    allowed = {"summary"}
+    allowed = {"summary", "subject_key"}
     for field in PROFILE_LIST_FIELDS:
         allowed.update({field, f"{field}_add", f"{field}_remove"})
     unknown = set(patch) - allowed
@@ -252,6 +280,13 @@ def normalize_patch(patch: dict[str, Any]) -> dict[str, Any]:
         if len(summary) > 2000:
             raise ValueError("画像摘要不能超过 2000 字")
         normalized["summary"] = summary
+    if "subject_key" in patch:
+        subject_key = str(patch.get("subject_key") or "").strip().lower()
+        if subject_key:
+            from .subjects import is_valid_subject_key
+            if not is_valid_subject_key(subject_key):
+                raise ValueError("画像来源学科无效")
+            normalized["subject_key"] = subject_key
     for field in PROFILE_LIST_FIELDS:
         for key in (field, f"{field}_add", f"{field}_remove"):
             if key not in patch:
@@ -288,8 +323,13 @@ def apply_patch(current: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any
     result = empty_profile()
     result.update(copy.deepcopy(current or {}))
     patch = normalize_patch(patch)
+    if "subject_key" in patch and not _profile_matches_subject(result, patch["subject_key"]):
+        # A change of subject must never carry old summaries or list items forward.
+        result = empty_profile()
     if "summary" in patch:
         result["summary"] = patch["summary"]
+    if "subject_key" in patch:
+        result["subject_key"] = patch["subject_key"]
     for field in PROFILE_LIST_FIELDS:
         if field in patch:
             result[field] = copy.deepcopy(patch[field])
@@ -314,6 +354,11 @@ def create_profile_revision(
 ) -> StudentProfileRevision:
     _ensure_student_scope(session, student_id, term_id)
     normalized = normalize_patch(patch)
+    from .subjects import get_selected_subject
+    subject_key = get_selected_subject(session).key
+    if normalized.get("subject_key", subject_key) != subject_key:
+        raise HTTPException(409, "画像学科与当前工作区不一致")
+    normalized["subject_key"] = subject_key
     profile = _ensure_term_profile(session, student_id, term_id)
     base_version = profile.version if profile else 0
     revision = StudentProfileRevision(
@@ -344,6 +389,9 @@ def apply_profile_edit(
     """直接写入教师编辑的正式画像，并保留一条已确认的审计记录。"""
     _ensure_student_scope(session, student_id, term_id)
     profile = get_profile(session, student_id, term_id)
+    from .subjects import get_selected_subject
+    if profile and not _profile_matches_subject(profile.profile_json, get_selected_subject(session).key):
+        raise HTTPException(409, "画像学科与当前工作区不一致")
     current_version = profile.version if profile else 0
     if expected_version is not None and int(expected_version) != current_version:
         raise HTTPException(status_code=409, detail={
@@ -413,6 +461,9 @@ def confirm_revision(session: Session, revision_id: int, *, confirmed_by: str = 
         raise HTTPException(status_code=404, detail="画像变更不存在")
     if revision.status != "draft":
         raise HTTPException(status_code=409, detail="该画像变更已处理")
+    from .subjects import get_selected_subject
+    if (revision.proposed_patch_json or {}).get("subject_key", "english") != get_selected_subject(session).key:
+        raise HTTPException(status_code=409, detail="画像变更属于另一学科工作区")
     _ensure_student_scope(session, revision.student_id, revision.term_id)
     profile = get_profile(session, revision.student_id, revision.term_id)
     current_version = profile.version if profile else 0
@@ -527,7 +578,16 @@ def apply_analysis_report_to_profile(
         # 兼容旧版本模型：旧报告没有 profile_summary 时暂以报告摘要作为
         # 单段落过渡值；仅对没有新字段的历史报告保留旧列表迁移逻辑。
         summary = _clean_profile_summary(report.get("summary"))
-    patch: dict[str, Any] = {"summary": summary[:2000]} if summary else {}
+    packet_stats = ((getattr(run, "input_summary_json", None) or {}).get("packet_stats") or {})
+    # Prefer the immutable run subject; pre-migration runs without a marker
+    # belong to the original English workspace.
+    subject_key = getattr(run, "subject_key", None) or packet_stats.get("subject_key") or "english"
+    from .subjects import get_selected_subject
+    if subject_key != get_selected_subject(session).key:
+        return None
+    patch: dict[str, Any] = {"subject_key": subject_key}
+    if summary:
+        patch["summary"] = summary[:2000]
 
     if not explicit_profile_summary:
         # 历史报告兼容分支。新版本有 profile_summary 时绝不会执行这里，
@@ -559,7 +619,7 @@ def apply_analysis_report_to_profile(
                 interventions.append((f"{action}：{rationale}" if rationale else action)[:500])
         if interventions:
             patch["interventions_add"] = interventions[:30]
-    if not patch:
+    if len(patch) == 1:
         return None
 
     evidence_ids: list[str] = []

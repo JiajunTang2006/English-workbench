@@ -13,6 +13,7 @@ H0-3: 当 AGENT_RUNTIME=harness 时，使用 HarnessRunAdapter 替代 AgentOrche
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -27,6 +28,46 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
+
+
+def _finalize_harness_usage(db, run, result_data):
+    """Reconcile the SDK-owned turn with partial live usage projections once."""
+    from sqlalchemy import delete, select
+    from ..models.agent_entities import LlmUsageRecord
+    from .cost import CostEstimator
+    records = (result_data or {}).get("usage_records")
+    summary = run.input_summary_json or {}
+    model = str(summary.get("model_name") or "unknown")
+    provider = str(summary.get("provider") or "unknown")
+    estimator = CostEstimator()
+    if (result_data or {}).get("usage_complete") is False:
+        # A failed repair may have billed requests that never returned usage.
+        # Preserve partial audit rows without presenting them as the full bill.
+        run.actual_tokens = None
+        run.actual_cost_yuan = None
+        return {"usage_known": False, "usage_complete": False}
+    if isinstance(records, list) and records:
+        # SDK results contain every provider call in this run interval. Replacing
+        # partial projections also prevents double counting on finalization retry.
+        db.execute(delete(LlmUsageRecord).where(LlmUsageRecord.run_id == run.id))
+        for record in records:
+            input_tokens = int(record.get("input_tokens") or 0)
+            cached = int(record.get("cache_read_tokens") or 0)
+            output_tokens = int(record.get("output_tokens") or 0)
+            cost = estimator.safe_actual_cost(model, input_tokens + cached, output_tokens)
+            db.add(LlmUsageRecord(run_id=run.id, provider=provider, model_name=model,
+                stage="text_analysis", input_tokens=input_tokens, cache_read_tokens=cached,
+                output_tokens=output_tokens, reasoning_tokens=int(record.get("reasoning_tokens") or 0),
+                provider_prompt_tokens=int(record.get("provider_prompt_tokens") or input_tokens + cached),
+                cost_yuan=cost if cost is not None else 0.0,
+                provider_request_id=record.get("provider_request_id")))
+        db.flush()
+    rows = list(db.scalars(select(LlmUsageRecord).where(LlmUsageRecord.run_id == run.id)))
+    known = bool(rows)
+    run.actual_tokens = sum(r.input_tokens + r.cache_read_tokens + r.output_tokens for r in rows) if known else None
+    run.actual_cost_yuan = sum(r.cost_yuan for r in rows) if known and estimator.get_pricing(model) is not None else None
+    return {"usage_known": known, "usage_record_count": len(rows)}
+
 
 _HARNESS_TIMEOUT_CODE = "HARNESS_TIMEOUT"
 _HARNESS_RUNTIME_CODE = "HARNESS_RUNTIME_ERROR"
@@ -212,7 +253,9 @@ async def execute_run(
         return
 
     # H0-3: Harness 路径分发
-    if _is_harness_mode():
+    text_only = (orchestrator_request.capability_name == "general_chat"
+                 and not get_agent_config().text_supports_tool_calls)
+    if _is_harness_mode() and not text_only:
         await _execute_harness_run(run_id, session_id, orchestrator_request, db_session_factory)
         return
 
@@ -228,9 +271,21 @@ async def execute_run(
             logger.info("运行 %d 已终态，跳过", run_id)
             return
 
+        from ..services.subjects import get_selected_subject
+        if run.subject_key != get_selected_subject(session).key:
+            _set_run_status(run, "failed", error_message="学科已切换，请在当前学科新建对话后重试")
+            session.commit()
+            await registry.fail(run_id, "学科已切换，请在当前学科新建对话后重试")
+            return
+
         _set_run_status(run, "running")
         # P0-2: 绑定运行时的配置版本号，用于审计 provider 切换
         cfg = get_agent_config()
+        if text_only:
+            run.runtime_kind = "text_only"
+            summary = dict(run.input_summary_json or {})
+            summary["provider_mode"] = "plain_chat_with_local_facts"
+            run.input_summary_json = summary
         run.config_version = cfg.config_version
         run.rules_version = cfg.rules_version
         session.commit()
@@ -385,13 +440,9 @@ async def execute_run(
         )
         display_mapper = PrivacyMapper(allow_student_names=True)
         try:
-            display_identity = build_run_identity_dictionary(
-                session,
-                term_id=run.term_id,
-                class_id=run.class_id,
-                student_id=run.student_id,
-            )
-            register_identity_into_mapper(display_mapper, display_identity)
+            from ..services.agent_analysis.conversation import mapper_for_run
+            display_mapper = mapper_for_run(session, {"run_id": run.id, "term_id": run.term_id,
+                "class_id": run.class_id, "student_id": run.student_id})
         except Exception as exc:
             logger.warning("旧 Agent 路径恢复学生姓名失败: %s", exc)
 
@@ -655,6 +706,7 @@ async def _repair_turn(
         db_session=db_session, run_id=run_id,
     )
     setattr(validated, "repaired_answer", repaired_text if validated.valid else "")
+    setattr(validated, "usage_records", result_data.get("usage_records"))
     return validated
 
 
@@ -729,24 +781,35 @@ def _build_harness_system_prompt(
     exam_id: int | None,
     db_session=None,
     packet_mode: bool = False,
+    student_id: int | None = None,
 ) -> str:
     """构建 Harness 路径的教学与作用域约束。"""
     prompt = (
         "你是一个专业的教学分析助手。基于给定的正式资料、会话摘要"
         "与历史消息，回答教师的问题。回答要具体、可操作，不得编造"
-        "数据；不要提及任何学生真实姓名（只能使用匿名编号）。"
-        "回复必须有清晰层次：先给结论摘要，再按主要发现、证据、建议、局限组织内容。"
-        "自然语言回复必须使用 Markdown（##/### 标题、短段落、项目符号和必要表格），"
-        "每段只表达一个重点，禁止把全部数字和结论挤在一段中；若任务要求结构化 JSON，"
-        "严格只输出 JSON，但字段中的文字仍保持短句和分层。"
+        "数据。沿用输入和工具结果给出的学生称呼或引用，不猜测匿名编号的真实身份。"
+        "区分已核实事实、可能解释与教学建议；教师纠正优先影响后续解释。"
+        "根据问题选择回答的长度与形式，简短追问直接回应，不机械重复报告章节。"
+        "教师明确要求只查某题或只比较某项时，就在该范围回答；不附加未请求的总分、能力标签或继续提问。"
+        "仅在任务明确要求结构化成果时严格按对应契约输出。"
     )
+    if db_session is not None:
+        from ..services.subjects import get_selected_subject
+        subject = get_selected_subject(db_session)
+        prompt += (
+            f" 当前任教学科是「{subject.label}」（{subject.key}）。教学维度可参考："
+            f"{'、'.join(subject.analysis_dimensions)}。分析错因时可参考："
+            f"{'、'.join(subject.error_causes)}；必须结合本学科题目证据选择，"
+            "证据不足时不强行归因。除英语外，不要套用英语专用知识点、课程标准或题型路由。"
+        )
     if capability_name == "general_chat":
         prompt += (
-            " 普通对话默认不查库；如果教师询问当前班级/考试的分组、分层、复习或教学建议，"
-            "应先自主选择合适的安全只读工具获取真实统计，再结合结果回答。没有对应考试范围、"
-            "问题与教学数据无关或工具返回空数据时，直接说明数据不可用，不要猜测或反复调用失败的工具。"
+            " 你与教师自然讨论教学：可直接回答、查证、比较、追问或调整建议，自主判断下一步。"
+            "一般教学问题不需要数据库；涉及真实学生表现、分数或趋势时按需调用只读工具。"
+            "数据缺失仅限制相关事实判断，仍可给一般建议或回答有证据的部分。"
+            "只在身份、范围或关键条件确实影响判断时简短追问，不反复重试相同失败调用。"
             "只读结果仅用于本轮回答，禁止修改任何数据库事实；"
-            "工具返回的学生信息只能使用匿名编号。"
+            "可引用工具给出的学生称呼，不推测未提供的数据。"
         )
     if capability_name == "exam_analysis" and exam_id is None:
         prompt += (
@@ -768,21 +831,25 @@ def _build_harness_system_prompt(
         "exam_analysis", "student_diagnosis", "review_plan",
     }:
         prompt += (
-            " 初始消息中的【分析包】已提供服务端核算的核心事实、薄弱点诊断、"
-            "行动建议与 evidence ID：直接据此调用一次 submit_report 生成报告，"
-            "所有 finding 和 recommendation 引用包中的 evidence ID，"
-            "不要调用 get_exam_analysis_bundle 或任何单项统计工具。默认只提交报告；"
-            "只有教师明确要求课标、教学依据或原文出处，且该工具已在本回合开放时，"
-            "才调用 get_teaching_guidance（整个 run 最多两次）。"
-            "如果工具未开放，不要反复尝试，直接依据分析包已有证据完成报告；"
-            "并在报告 limitations 中保留分析包给出的局限。"
+            " 初始消息中的【分析包】提供已核算事实与 evidence ID。预设薄弱点和行动只是规则线索，"
+            "不是确定错因；结合教师纠正自主解释，可以提出多个待验证原因。"
+            "已有事实足够时直接提交一次 submit_report；需要具体学生、题目或趋势证据时，"
+            "选择当前开放的只读工具定向取证，不重复读取已有数据。"
+            "所有正式结论与建议引用真实 evidence ID，保留数据缺口与适用边界。"
         )
         if capability_name == "student_diagnosis":
             prompt += (
                 " 学生诊断还必须填写 profile_summary：读取分析包中的既有学生画像 JSON，"
-                "结合本次证据重写一段连贯的教师可读自然语言。不要输出 student01/student_01，"
-                "不要把 findings 或 recommendations 机械拼接，也不要在没有细粒度数据时提及"
-                "试卷小分缺失、数据未录入等技术局限；有数据才做具体题型或知识点分析。"
+                "结合本次证据重写一段连贯的教师可读自然语言；称呼沿用本轮隐私模式，"
+                "不要把 findings 或 recommendations 机械拼接；没有细粒度数据时如实说明不能判断具体薄弱点，"
+                "有数据才做具体题型或知识点分析。"
+            )
+        if capability_name == "review_plan" and student_id is not None:
+            prompt += (
+                " 本轮复习计划已由服务端核实并绑定具体学生，分析包包含该生在所选考试中的"
+                "成绩事实。未出现在班级风险名单不等于不在考试名单；不得据此声称找不到该生。"
+                "若没有个人逐题数据，只说明无法判断具体薄弱知识点，仍可依据已核实的总分"
+                "制定待验证的个体计划，并把班级共性明确标为待核验线索。"
             )
     from ..services.personalization import (
         build_personalization_prompt,
@@ -848,6 +915,13 @@ async def _execute_harness_run_managed(
             await registry.fail(run_id, "运行记录不存在")
             return
         if run.status in ("completed", "failed", "cancelled"):
+            return
+
+        from ..services.subjects import get_selected_subject
+        if run.subject_key != get_selected_subject(session).key:
+            _set_run_status(run, "failed", error_message="学科已切换，请在当前学科新建对话后重试")
+            session.commit()
+            await registry.fail(run_id, "学科已切换，请在当前学科新建对话后重试")
             return
 
         db_session = session.get(AgentSession, session_id)
@@ -966,17 +1040,11 @@ async def _execute_harness_run_managed(
         # 通知会通过事件投影实时进入教师端时间线。
 
         # --- 运行内身份词典 → PrivacyMapper（本地保留原文，外发匿名副本） ---
-        privacy_mapper = PrivacyMapper(allow_student_names=True)
-        try:
-            identity = build_run_identity_dictionary(
-                session,
-                term_id=db_session.term_id,
-                class_id=db_session.class_id,
-                student_id=db_session.student_id,
-            )
-            register_identity_into_mapper(privacy_mapper, identity)
-        except Exception as exc:
-            logger.warning("构建运行内身份词典失败: %s", exc)
+        from ..services.agent_analysis.conversation import mapper_for_run
+        run_scope = {"run_id": run_id, "term_id": run.term_id,
+                     "class_id": run.class_id, "exam_id": run.exam_id,
+                     "student_id": run.student_id}
+        privacy_mapper = mapper_for_run(session, run_scope)
 
         # --- 多轮上下文（滚动摘要 + 最近消息；正式资料按能力决定是否注入） ---
         from ..services.agent_analysis.sessions import SessionService
@@ -985,10 +1053,10 @@ async def _execute_harness_run_managed(
         # fail-closed；只有“未绑定数据库考试”的资料分析才允许 packet=None。
         run_scope = {
             "run_id": run_id,
-            "term_id": db_session.term_id,
-            "class_id": db_session.class_id,
-            "exam_id": db_session.exam_id,
-            "student_id": db_session.student_id,
+            "term_id": run.term_id,
+            "class_id": run.class_id,
+            "exam_id": run.exam_id,
+            "student_id": run.student_id,
         }
         analysis_packet = None
         tool_policy = None
@@ -1007,7 +1075,7 @@ async def _execute_harness_run_managed(
             user_text = str(orchestrator_request.user_message or "")
             if (
                 orchestrator_request.capability_name == "exam_analysis"
-                and db_session.exam_id is None
+                and run.exam_id is None
             ):
                 # 无数据库考试时，正式附件是资料分析的唯一补充来源。
                 optional_tools.append("get_formal_attachment")
@@ -1028,7 +1096,7 @@ async def _execute_harness_run_managed(
                 and analysis_packet is None
                 and not (
                     orchestrator_request.capability_name == "exam_analysis"
-                    and db_session.exam_id is None
+                    and run.exam_id is None
                 )
             ):
                 raise RuntimeError("分析范围内没有足够数据，无法生成分析包")
@@ -1046,6 +1114,7 @@ async def _execute_harness_run_managed(
                 summary_json = dict(run.input_summary_json or {})
                 summary_json["packet_stats"] = {
                     "capability": orchestrator_request.capability_name,
+                    "subject_key": (analysis_packet.get("subject") or {}).get("key"),
                     "diagnostics": len(
                         analysis_packet.get("diagnostics")
                         or analysis_packet.get("priorities") or []),
@@ -1058,9 +1127,10 @@ async def _execute_harness_run_managed(
                 logger.warning("packet_stats 记录失败: %s", exc)
         system_prompt = _build_harness_system_prompt(
             orchestrator_request.capability_name,
-            db_session.exam_id,
+            run.exam_id,
             db_session=session,
             packet_mode=analysis_packet is not None,
+            student_id=run.student_id,
         )
         try:
             messages = SessionService(session).build_multi_turn_messages(
@@ -1087,6 +1157,11 @@ async def _execute_harness_run_managed(
             ]
 
         # 拼装单文本 prompt（SDK content 块），并保留一份匿名副本供审计用
+        conversation_context = (run.input_summary_json or {}).get("conversation_context")
+        if conversation_context:
+            messages.insert(1, {"role": "system", "content": "【当前讨论对象与教师纠正】\n" +
+                privacy_mapper.sanitize_text(json.dumps(conversation_context, ensure_ascii=False))})
+
         prompt_text = _render_turn_prompt(messages)
         if packet_text:
             # v3：分析包放回合末尾（消息流而非 system prompt，保持 system
@@ -1094,6 +1169,16 @@ async def _execute_harness_run_managed(
             # 与消息内容共用同一 PrivacyMapper。
             packet_text = privacy_mapper.sanitize_text(packet_text)
             prompt_text = prompt_text + "\n\n" + packet_text
+        from .token_budget import estimate_text_tokens
+        parts = {
+            "system": estimate_text_tokens(system_prompt),
+            "conversation_state": estimate_text_tokens(json.dumps(conversation_context or {}, ensure_ascii=False)),
+            "analysis_packet": estimate_text_tokens(packet_text or ""),
+            "messages_and_task": sum(estimate_text_tokens(str(m.get("content") or "")) for m in messages if m.get("content") != system_prompt),
+            "total_prompt": estimate_text_tokens(prompt_text),
+        }
+        run.input_summary_json = {**(run.input_summary_json or {}), "input_parts_estimate": parts}
+        session.commit()
         content_blocks = [{"type": "text", "text": prompt_text}]
 
         # --- B3-03/P1-2：Education Bridge 回合整段串行化 ---
@@ -1131,10 +1216,10 @@ async def _execute_harness_run_managed(
                         scope_root,
                         harness_session_id,
                         run_id=run_id,
-                        term_id=db_session.term_id,
-                        class_id=db_session.class_id,
-                        exam_id=db_session.exam_id,
-                        student_id=db_session.student_id,
+                        term_id=run.term_id,
+                        class_id=run.class_id,
+                        exam_id=run.exam_id,
+                        student_id=run.student_id,
                         capability=orchestrator_request.capability_name,
                         tool_policy=tool_policy,
                     )
@@ -1350,6 +1435,11 @@ async def _execute_harness_run_managed(
             )
             phase_ms["report_repair"] = int((time.perf_counter() - repair_started) * 1000)
             retried = True
+            repair_usage = getattr(validation, "usage_records", None)
+            if repair_usage and result_data.get("usage_records"):
+                result_data["usage_records"].extend(repair_usage)
+            else:
+                result_data["usage_complete"] = False
             if validation.valid:
                 repaired = _try_parse_json(validation.repaired_answer or "")
                 if isinstance(repaired, dict) and (
@@ -1379,13 +1469,14 @@ async def _execute_harness_run_managed(
         # --- 输出验证通过（或降级）：隐私兜底自检（observable） ---
         # --- 用例可审计的最终答案与用量字段（仅写匿名副本） ---
         _set_run_status(run, "degraded" if degraded else "completed")
-        run.actual_tokens = int((result_data or {}).get("tokens_used") or 0)
+        usage_summary = _finalize_harness_usage(session, run, result_data)
         run.completed_at = datetime.now(timezone.utc)
         # bridge（独立进程）可能已把 submit_report 的结构化报告写入
         # run.input_summary_json；本 session 的 ORM 缓存看不到跨进程写入，
         # 刷新后读取，避免 structured_answer 被旧值覆盖。
         session.expire(run, ["input_summary_json"])
         summary_dict = dict(run.input_summary_json or {})
+        summary_dict.update(usage_summary)
         summary_dict["runtime_kind"] = "harness"
         summary_dict["runtime_version"] = "managed-jsonrpc"
         summary_dict["harness_session_id"] = harness_session_id
@@ -1558,13 +1649,8 @@ async def _execute_harness_run_http(
         display_answer = result.answer
         display_structured_answer = result.structured_answer or {}
         try:
-            from ..services.agent_analysis.identity_dict import build_display_mapper
-            display_mapper = build_display_mapper(
-                session,
-                term_id=run.term_id,
-                class_id=run.class_id,
-                student_id=run.student_id,
-            )
+            from ..services.agent_analysis.conversation import mapper_for_run
+            display_mapper = mapper_for_run(session, {"run_id": run.id, "term_id": run.term_id, "class_id": run.class_id, "student_id": run.student_id})
             display_answer = display_mapper.restore_text_for_display(result.answer or "")
             display_structured_answer = display_mapper.restore_for_display(
                 display_structured_answer

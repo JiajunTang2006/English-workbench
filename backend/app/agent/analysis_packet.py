@@ -74,6 +74,10 @@ def tool_policy_for(
     for tool in optional_tools or []:
         if tool in allowed and tool not in policy:
             policy.append(tool)
+    if has_packet:
+        for tool in GENERAL_CHAT_MANAGED_READ_TOOLS:
+            if tool not in policy:
+                policy.append(tool)
     return policy
 
 
@@ -159,6 +163,7 @@ def _exam_metrics_text(stats: dict[str, Any]) -> str:
 
 
 def _build_exam_packet(db, scope, index) -> dict[str, Any] | None:
+    subject = _subject_for(db)
     core = _build_exam_core(db, scope)
     stats = core["stats"]
     if not stats or not stats.get("exam_id"):
@@ -187,28 +192,32 @@ def _build_exam_packet(db, scope, index) -> dict[str, Any] | None:
             "不套用具体地市题型或评分规则")
 
     # 试卷记忆：教师确认的"这份卷子考什么"理解摘要（记忆板块）
-    from ..services.paper_memory import get_confirmed_content
-    memory = get_confirmed_content(db, stats.get("exam_id"))
+    from ..services.paper_memory import get_confirmed_content, get_latest_memory
+    memory = get_confirmed_content(db, stats.get("exam_id"), subject_key=subject.key)
     paper_memory = None
     if memory is not None:
         content, memory_version = memory
         evidence_id = _register_evidence(
-            db, scope.get("run_id"), evidence_type="paper_memory",
-            facts=[{"type": "试卷记忆",
-                    "text": f"v{memory_version}：{content[:200]}"}],
-            source=f"exam:{stats.get('exam_id')}:memory:v{memory_version}",
-            display_summary=f"试卷记忆 v{memory_version}")
+                db, scope.get("run_id"), evidence_type="paper_memory",
+                facts=[{"type": "试卷记忆",
+                        "text": f"v{memory_version}：{content[:200]}"}],
+                source=f"exam:{stats.get('exam_id')}:memory:v{memory_version}",
+                display_summary=f"试卷记忆 v{memory_version}")
         paper_memory = {"content": content[:_SNIPPET_LIMIT],
                         "version": memory_version,
                         "evidence_id": evidence_id}
     else:
-        limitations.append("尚未建立试卷记忆（可在试卷录入后生成并确认），"
-                           "分析仅基于题目结构与逐题数据")
+        previous = get_latest_memory(db, stats.get("exam_id"), status="confirmed")
+        if previous and previous.subject_key != subject.key:
+            limitations.append("已有试卷记忆属于另一学科，本次未引用；请按当前学科重新生成并确认")
+        else:
+            limitations.append("尚未建立试卷记忆（可在试卷录入后生成并确认），"
+                               "分析仅基于题目结构与逐题数据")
 
     # 诊断 1：薄弱知识点（分值加权得分率）
     for point in _weak_points(coverage):
-        actions = _entry_actions(index_dc, [point["name"]])
-        grounding = index_dc.lookup(point["name"])
+        actions = _entry_actions(index_dc, [point["name"]]) if index_dc else []
+        grounding = index_dc.lookup(point["name"]) if index_dc else None
         evidence_ids = []
         if metrics_evidence:
             evidence_ids.append(metrics_evidence)
@@ -230,14 +239,14 @@ def _build_exam_packet(db, scope, index) -> dict[str, Any] | None:
         })
 
     # 诊断 2：薄弱题目（逐题得分率 + 题型路由）
-    routing = index_dc.routing
+    routing = index_dc.routing if index_dc else {}
     for question in _weak_questions(core["questions"]):
         q_type = question.get("question_type") or ""
         route = routing.get(q_type) or {}
         cause_candidates = route.get("error_causes", [])
-        actions = _entry_actions(index_dc, list(question.get("knowledge_nodes") or []))
+        actions = _entry_actions(index_dc, list(question.get("knowledge_nodes") or [])) if index_dc else []
         if not actions and q_type:
-            actions = _entry_actions(index_dc, [q_type])
+            actions = _entry_actions(index_dc, [q_type]) if index_dc else []
         evidence_ids = [metrics_evidence] if metrics_evidence else []
         route_entry = index_dc.lookup(route.get("entry_id", "")) if route else None
         if route_entry is not None:
@@ -268,6 +277,7 @@ def _build_exam_packet(db, scope, index) -> dict[str, Any] | None:
 
     return {
         "capability": "exam_analysis",
+        "subject": {"key": subject.key, "label": subject.label},
         "scope": {k: scope.get(k) for k in ("exam_id", "class_id", "term_id")},
         "metrics": {
             "exam_name": stats.get("exam_name"),
@@ -296,21 +306,43 @@ def _build_student_packet(db, scope, index) -> dict[str, Any] | None:
     diagnostics: list[dict[str, Any]] = []
     limitations: list[str] = []
 
-    # 趋势（近 3 次有成绩考试）
-    rows = db.execute(
-        select(ExamScore.total_score, ExamScore.class_rank, Exam.name, Exam.exam_date)
-        .join(Exam, Exam.id == ExamScore.exam_id)
-        .where(ExamScore.student_id == student_id,
-               ExamScore.total_score.is_not(None))
-        .order_by(Exam.exam_date.desc(), Exam.id.desc()).limit(3)).all()
-    trend = [{"exam": r.name, "total": r.total_score, "rank": r.class_rank}
-             for r in reversed(rows)]
+    # Only compare attended exams of the same kind in this term. Percentages
+    # keep 100-point and 150-point papers on one scale; raw scores do not.
+    current_exam = db.get(Exam, scope.get("exam_id")) if scope.get("exam_id") else None
+    trend = []
+    if scope.get("term_id") is not None:
+        stmt = (
+            select(ExamScore.total_score, Exam.name, Exam.full_score)
+            .join(Exam, Exam.id == ExamScore.exam_id)
+            .where(
+                ExamScore.student_id == student_id,
+                Exam.term_id == scope["term_id"],
+                Exam.status == "active",
+                ExamScore.attendance_status == "present",
+                ExamScore.total_score.is_not(None),
+                ExamScore.total_score >= 0,
+                ExamScore.total_score <= Exam.full_score,
+                Exam.full_score > 0,
+            )
+        )
+        if current_exam is not None:
+            stmt = stmt.where(
+                Exam.exam_kind == current_exam.exam_kind,
+                Exam.exam_type == current_exam.exam_type,
+            )
+            if current_exam.exam_date is not None:
+                stmt = stmt.where(Exam.exam_date.is_not(None), Exam.exam_date <= current_exam.exam_date)
+            else:
+                stmt = stmt.where(Exam.id <= current_exam.id)
+        rows = db.execute(stmt.order_by(Exam.exam_date.desc(), Exam.id.desc()).limit(3)).all()
+        trend = [
+            {"exam": row.name, "rate": round(float(row.total_score) / float(row.full_score) * 100, 1)}
+            for row in reversed(rows)
+        ]
     trend_evidence = _register_evidence(
         db, scope.get("run_id"), evidence_type="computed_metric",
         facts=[{"type": "历史趋势",
-                "text": "；".join(f"{t['exam']}：{t['total']}分"
-                                  + (f"/班级第{t['rank']}" if t["rank"] else "")
-                                  for t in trend)}],
+                "text": "；".join(f"{t['exam']}：得分率 {t['rate']}%" for t in trend)}],
         source=f"student:{student_id}",
         display_summary="学生历次成绩趋势") if len(trend) >= 2 else None
 
@@ -342,11 +374,12 @@ def _build_student_packet(db, scope, index) -> dict[str, Any] | None:
         })
     if trend_evidence:
         first, last = trend[0], trend[-1]
-        direction = "下降" if last["total"] < first["total"] else "上升"
+        direction = "下降" if last["rate"] < first["rate"] else (
+            "上升" if last["rate"] > first["rate"] else "持平")
         diagnostics.insert(0, {
             "kind": "trend", "target": "历次成绩",
-            "signal": (f"近 {len(trend)} 次成绩{direction}："
-                       + "；".join(f"{t['exam']} {t['total']}分" for t in trend)),
+            "signal": (f"本学期近 {len(trend)} 次同类考试得分率{direction}："
+                       + "；".join(f"{t['exam']} {t['rate']}%" for t in trend)),
             "confidence": "low", "actions": [],
             "evidence_ids": [trend_evidence],
         })
@@ -364,12 +397,24 @@ def _build_student_packet(db, scope, index) -> dict[str, Any] | None:
         # 画像作为独立 JSON 档案注入分析包。模型读取它，但只需返回
         # profile_summary 这一段自然语言；原始字段仍在数据库中留档。
         from ..services.student_profiles import get_profile_payload
+        subject = _subject_for(db)
         payload = get_profile_payload(db, int(student_id), term_id)
-        prior_profile = {
-            "version": payload.get("version", 0),
-            "profile": payload.get("profile") or {},
-            "longitudinal_profile": payload.get("longitudinal_profile") or {},
-        }
+        profile_data = payload.get("profile") or {}
+        profile_subject = profile_data.get("subject_key")
+        longitudinal_data = payload.get("longitudinal_profile") or {}
+        longitudinal_subject = longitudinal_data.get("subject_key")
+        if profile_subject == subject.key or (profile_subject is None and subject.key == "english"):
+            prior_profile = {
+                "version": payload.get("version", 0),
+                "profile": profile_data,
+                "longitudinal_profile": longitudinal_data if (
+                    longitudinal_subject == subject.key or
+                    (longitudinal_subject is None and subject.key == "english")
+                ) else {},
+            }
+        elif payload.get("profile_id") is not None or payload.get("inherited"):
+            limitations.append(
+                "既有学生画像未记录为当前学科，本次不将其作为历史依据")
         # 成长事实由后端确定性输出，模型只能引用、不能改写（方案 §6.1/§6.2）。
         # 组装分析包时同时冻结事实指纹，供报告落库后判断画像是否过期。
         from ..services.growth import summary as growth_summary_service
@@ -395,6 +440,7 @@ def _build_student_packet(db, scope, index) -> dict[str, Any] | None:
 
     return {
         "capability": "student_diagnosis",
+        "subject": {"key": _subject_for(db).key, "label": _subject_for(db).label},
         "scope": {k: scope.get(k) for k in ("exam_id", "class_id",
                                             "student_id", "term_id")},
         "metrics": {
@@ -416,6 +462,95 @@ def _build_review_packet(db, scope, index) -> dict[str, Any] | None:
     packet = _build_exam_packet(db, scope, index)
     if packet is None:
         return None
+    student_id = scope.get("student_id")
+    if student_id is not None:
+        from ..models.entities import Exam
+        from .tools.student_tools import _get_student_scores
+
+        result = _call_tool(db, scope, _get_student_scores)
+        student = result.get("data") or {}
+        if not student or student.get("error"):
+            return None
+        exam = db.get(Exam, scope.get("exam_id"))
+        name = student.get("student_name") or "该生"
+        total = student.get("total_score")
+        full_score = exam.full_score if exam is not None else None
+        score_text = (
+            f"{name}已在本次考试成绩表中；到考状态 {student.get('attendance') or '未知'}；"
+            f"总分 {total:g}/{full_score:g} 分"
+            if total is not None and full_score is not None
+            else f"{name}已在本次考试成绩表中；本次没有可用总分"
+        )
+        if student.get("class_rank") is not None:
+            score_text += f"；班级第 {student['class_rank']} 名"
+        score_evidence = _register_evidence(
+            db, scope.get("run_id"), evidence_type="db_metric",
+            facts=[{"type": "个体考试成绩", "text": score_text}],
+            source=f"exam:{scope.get('exam_id')}:student:{student_id}:score",
+            display_summary=f"{name}本次考试成绩")
+        priorities = [{
+            "target": name,
+            "signal": score_text + "；该生是否属于班级风险名单不影响其在考试成绩表中的身份",
+            "actions": ["先依据已确认的个人成绩设定可检验目标"],
+            "evidence_ids": [score_evidence] if score_evidence else [],
+        }]
+        scored_items = [item for item in student.get("item_scores") or []
+                        if item.get("score") is not None and item.get("max_score")]
+        review_sections = sorted(
+            (part for part in student.get("section_scores") or []
+             if part.get("max_score") and part.get("score") is not None
+             and part.get("full_score_known", True)
+             and part.get("expected_items") == part.get("scored_items")
+             and part["score"] / part["max_score"] < 0.85),
+            key=lambda part: part["score"] / part["max_score"])[:2]
+        if review_sections:
+            section_text = "；".join(
+                f"{part['section_name']} {part['score']:g}/{part['max_score']:g} 分"
+                for part in review_sections)
+            section_evidence = _register_evidence(
+                db, scope.get("run_id"), evidence_type="db_metric",
+                facts=[{"type": "个体题型成绩", "text": section_text}],
+                source=f"exam:{scope.get('exam_id')}:student:{student_id}:sections",
+                display_summary=f"{name}题型成绩")
+            priorities.append({
+                "target": "个人相对低分板块",
+                "signal": section_text,
+                "actions": ["针对这些板块安排小剂量练习并在复测中核验"],
+                "evidence_ids": [section_evidence] if section_evidence else [],
+            })
+        limitations = list(packet["limitations"])
+        if not scored_items:
+            limitations.append(
+                f"{name}有本次考试总分，但没有个人逐题作答成绩；"
+                "不能据班级风险名单或班级薄弱点推断该生的具体弱项")
+        # 班级共性仅供教师挑选待验证练习，不作为该生个人失分的证据。
+        for diagnostic in packet.get("diagnostics", [])[:2]:
+            priorities.append({
+                "target": "班级共性·" + diagnostic["target"],
+                "signal": diagnostic["signal"] + "（班级数据，尚非该生个人弱项）",
+                "actions": diagnostic.get("actions", []),
+                "evidence_ids": diagnostic.get("evidence_ids", []),
+            })
+        priorities.append({
+            "target": "计划骨架",
+            "signal": "只为已核实的目标学生制定计划；每周聚焦 2~3 个目标并安排复测",
+            "actions": [], "evidence_ids": [],
+        })
+        return {
+            "capability": "review_plan",
+            "subject": packet.get("subject"),
+            "scope": {**packet["scope"], "student_id": student_id},
+            "metrics": {
+                "exam_name": packet["metrics"].get("exam_name"),
+                "student_name": name,
+                "student_total_score": total,
+                "exam_full_score": full_score,
+                "class_rank": student.get("class_rank"),
+                "scored_item_count": student.get("scored_items"),
+            },
+            "priorities": priorities,
+            "limitations": limitations,
+        }
     priorities = []
     for diagnostic in packet.get("diagnostics", []):
         priorities.append({
@@ -439,6 +574,7 @@ def _build_review_packet(db, scope, index) -> dict[str, Any] | None:
     })
     return {
         "capability": "review_plan",
+        "subject": packet.get("subject"),
         "scope": packet["scope"],
         "metrics": packet["metrics"],
         "paper_memory": packet.get("paper_memory"),
@@ -455,7 +591,10 @@ def build_packet(db, capability: str, scope: dict[str, Any]) -> dict[str, Any] |
     """
     if capability not in ANALYSIS_CAPABILITIES:
         return None  # general_chat 等一律不组装（5.4 生效边界）
-    index = load_index()
+    subject = _subject_for(db)
+    # 当前知识库包含英语专用题型路由和课程材料。其他学科继续使用数据驱动
+    # 的通用诊断，避免把英语考点或课标误当成跨学科依据。
+    index = load_index() if subject.key == "english" else None
     if capability == "exam_analysis":
         return _build_exam_packet(db, scope, index)
     if capability == "student_diagnosis":
@@ -463,6 +602,11 @@ def build_packet(db, capability: str, scope: dict[str, Any]) -> dict[str, Any] |
     if capability == "review_plan":
         return _build_review_packet(db, scope, index)
     return None
+
+
+def _subject_for(db):
+    from ..services.subjects import get_selected_subject
+    return get_selected_subject(db)
 
 
 def teaching_reference_usage(db, run_id: int | None) -> dict[str, int]:

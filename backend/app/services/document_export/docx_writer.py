@@ -154,6 +154,13 @@ def build_docx_bytes(
             body_parts.append(_heading(st or "分节", level=2))
             if sb:
                 body_parts.append(_paragraph(sb))
+            for item in s.get("items") or []:
+                body_parts.append(_bullet_item(str(item)))
+
+    timeline = answer.get("timeline")
+    if timeline:
+        body_parts.append(_heading("复习时间表", level=2))
+        body_parts.append(_paragraph(str(timeline)))
 
     limits = answer.get("limitations") or []
     if limits:

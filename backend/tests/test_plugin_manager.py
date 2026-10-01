@@ -43,7 +43,7 @@ def _zip_plugin(tmp_path: Path) -> Path:
 def test_bundled_manifests_are_discovered(tmp_path):
     manager = PluginManager(tmp_path, Path(__file__).parents[2] / "plugins" / "bundled")
     plugins = manager.list_plugins()
-    assert {item["id"] for item in plugins} >= {"exam_analysis", "student_diagnosis", "review_plan"}
+    assert {item["id"] for item in plugins} >= {"exam_analysis", "student_diagnosis", "review_plan", "targeted_practice"}
     assert all(item["source"] == "bundled" for item in plugins)
 
 
@@ -205,7 +205,7 @@ def test_plugin_manager_api_exposes_bundled_plugins(tmp_path, monkeypatch):
         body = response.json()
         assert body["api_version"] == "teachmate-plugin/v1"
         # MONI 是后台只读数据源，不作为前端可管理插件返回；宿主仍保留其发现与调用能力。
-        assert {item["id"] for item in body["plugins"]} == {"exam_analysis", "student_diagnosis", "review_plan"}
+        assert {item["id"] for item in body["plugins"]} == {"exam_analysis", "student_diagnosis", "review_plan", "targeted_practice"}
         assert app.state.plugin_manager.get_plugin("moni") is not None
         disabled = client.post("/api/v1/plugins/exam_analysis/disable", headers={"Authorization": f"Bearer {TOKEN}"})
         assert disabled.status_code == 200

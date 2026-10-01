@@ -15,7 +15,7 @@
 3. 按能力分层：把错题标记为理解、应用或迁移问题；
 4. 限时整卷训练：按当地考试组成训练听力/人机对话与笔试的节奏、取舍和整体规划；
 5. 针对性复盘：记录错误原因，而不只是抄写正确答案；
-6. 强化输出：定期完成任务型阅读和书面表达，形成自己的表达素材库。
+6. 强化输出：定期完成阅读理解中的任务题和书面表达，形成自己的表达素材库。
 
 ## [RV-任务A] 阅读证据链训练
 - 领域: 备考
@@ -94,7 +94,7 @@ listening.inference；有复听证据时再标 listening.phonological_cues。
 第3天 推断与结构：推断题、主旨题、段落结构题（reading.inference、reading.structure）；
 第4天 词汇与完形：搭配、词性和上下文逻辑复盘（vocab.collocation、vocab.part_of_speech）；
 第5天 语法：语法填空逐空写句法依据（grammar.tense、grammar.voice、grammar.nonfinite）；
-第6天 输出：一篇任务型阅读和一篇书面表达（writing.task_completion、writing.organization）；
+第6天 输出：一篇阅读理解中的任务题和一篇书面表达（writing.task_completion、writing.organization）；
 第7天 整卷与复盘：限时训练，按六类错因归档（审题/词汇/语法/定位/推断/表达）。
 听力安排：根据当地考试形式，将任务E作为每日 10~15 分钟微任务，或替换一天的
 书面专项；不得用省级笔试结构推定当地听力/人机对话题型。

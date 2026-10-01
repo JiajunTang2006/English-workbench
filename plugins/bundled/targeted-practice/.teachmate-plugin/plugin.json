@@ -1,0 +1,26 @@
+{
+  "id": "targeted_practice",
+  "display_name": "专项推题",
+  "description": "在聊天中查学生近期小分、画像和原错题，按教师要求选题或生成专项练习，附来源及答案讲解。",
+  "version": "1.0.0",
+  "api_version": "teachmate-plugin/v1",
+  "runtime": {
+    "transport": "internal",
+    "capability": "general_chat"
+  },
+  "permissions": [
+    "teaching.read",
+    "documents.read"
+  ],
+  "capabilities": [
+    {
+      "id": "targeted_practice",
+      "name": "专项推题"
+    }
+  ],
+  "skills": [
+    "skills/generate-targeted-practice/SKILL.md"
+  ],
+  "removable": false,
+  "enabled_by_default": true
+}

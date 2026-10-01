@@ -417,6 +417,8 @@ class HarnessManager:
         cfg = self._config
         cwd = os.getcwd()
         env = dict(cfg.extra_env)
+        if cfg.scope_root:
+            env["DSH_EDUCATION_SCOPE_ROOT"] = cfg.scope_root
 
         sdk_config = DeepSeekHarnessConfig(
             provider="deepseek-official",
@@ -458,6 +460,8 @@ class HarnessManager:
         env["DSH_SESSION_ROOT"] = cfg.session_root
         env["DSH_MODEL"] = cfg.model
         env.update(cfg.extra_env)
+        if cfg.scope_root:
+            env["DSH_EDUCATION_SCOPE_ROOT"] = cfg.scope_root
         return env
 
     def _stop_process(self) -> None:
@@ -686,12 +690,26 @@ class HarnessManager:
         final_text = getattr(run_result, "final_response", "") or ""
         finish_reason = getattr(run_result, "finish_reason", None)
 
-        return {
+        result = {
             "sessionId": session_id,
             "finalResponse": final_text,
             "finishReason": finish_reason,
             "cancelled": False,
         }
+        # The SDK owns the complete turn interval, including the final model call.
+        # Do not depend on asynchronous live projections having finished yet.
+        from .harness_event_projector import HarnessEventProjector
+        from .harness_adapter import HarnessRunAdapter
+        usage_events = []
+        projector = HarnessEventProjector()
+        projector.on_event(lambda event: usage_events.append(event)
+                           if event.event_type == "usage_updated" else None)
+        for event in getattr(run_result, "events", None) or []:
+            projector.project("session.event", {"sessionId": session_id, "event": event})
+        records = HarnessRunAdapter._extract_usage_records(usage_events)
+        if records:
+            result["usage_records"] = records
+        return result
 
     def _resolve_future(
         self,

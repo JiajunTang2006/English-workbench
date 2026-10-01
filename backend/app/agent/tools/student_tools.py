@@ -21,7 +21,8 @@ _STUDENT_LIST_SCHEMA = {
 }
 _STUDENT_SCORES_SCHEMA = {
     "type": "object",
-    "properties": {},
+    "properties": {"student_ref": {"type": "string", "maxLength": 60},
+                   "question_no": {"type": "string", "maxLength": 20}},
     "required": [],
 }
 _CLASS_RANKING_SCHEMA = {
@@ -143,22 +144,31 @@ def _get_student_list(**_: Any) -> dict[str, Any]:
         "students": [{"student_id": r[0], "score": r[1], "name": r[2]} for r in rows]}}
 
 
-def _get_student_scores(**_: Any) -> dict[str, Any]:
+def _get_student_scores(student_ref=None, question_no=None, **_: Any) -> dict[str, Any]:
     """获取指定学生在某场考试中的详细成绩。"""
     ctx = get_tool_context()
     if ctx is None or ctx.db_session is None:
         return {"error": "数据库会话未初始化"}
     exam_id = ctx.exam_id
     student_id = ctx.student_id
+    if student_ref:
+        from ...services.agent_analysis.conversation import mapper_for_run, roster
+        mapper = mapper_for_run(ctx.db_session, ctx.scope)
+        student_id = mapper.to_real(student_ref)
+        if student_id not in {r["id"] for r in roster(ctx.db_session, ctx.scope)}:
+            return {"error": "学生引用不存在或不属于当前范围"}
     if exam_id is None or student_id is None:
         return {"error": "作用域缺少 exam_id 或 student_id"}
     from ...services.student_score_details import get_student_score_details
     ctx.check_cancelled()
     try:
-        return {"data": get_student_score_details(
+        details = get_student_score_details(
             ctx.db_session, exam_id=exam_id, student_id=student_id,
             class_id=ctx.class_id,
-        )}
+        )
+        if question_no is not None:
+            details["item_scores"] = [r for r in details["item_scores"] if str(r["question_no"]) == str(question_no)]
+        return {"data": details}
     except LookupError as exc:
         return {"error": str(exc)}
 

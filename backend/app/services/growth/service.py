@@ -14,7 +14,7 @@ from sqlalchemy import select
 from ...models import Class, Enrollment, GrowthEvent, Student, StudentGrowthSnapshot, Term
 from ...models.entities import utcnow
 from . import events as growth_events
-from . import performance, rules, snapshots
+from . import performance, rules, snapshots, teachers
 
 
 class GrowthScopeError(ValueError):
@@ -91,12 +91,19 @@ def forest_rows(session, *, term_id: int, class_id: int | None = None) -> dict[s
         })
 
     total = sum(item["term_points"] for item in students)
+    # 补录预设按「当前教师」返回，前端据此渲染快捷按钮，不再自带第二份分值表。
+    # 这里是只读接口：没有教师档案时退回出厂默认值，不在此创建记录。
+    active_teacher = teachers.get_active_teacher(session)
     return {
         "term_id": term_id,
         "class_id": class_id,
         "rule_version": rule.code,
         "manual_entry_policy": "teacher_confirmed_v1",
         "stages": [dict(item) for item in (rule.stage_thresholds_json or rules.DEFAULT_STAGES)],
+        "active_teacher": teachers.teacher_payload(session, active_teacher),
+        "manual_presets": teachers.resolve_presets(
+            session, teacher=active_teacher, term_id=term_id),
+        "standard_conflict": teachers.presets_conflict(session, term_id=term_id),
         "summary": {
             "student_count": len(students),
             "total_points": total,
@@ -190,10 +197,13 @@ def student_detail(session, *, term_id: int, student_id: int,
 
 
 def record_batch(session, *, term_id: int, items: list[dict[str, Any]],
-                 actor: str = "teacher", request_id: str | None = None) -> dict[str, Any]:
+                 actor: str = "teacher", actor_id: int | None = None,
+                 request_id: str | None = None) -> dict[str, Any]:
     """批量补录学习事件（含加分与撤销外的更正）。
 
     每条事件的幂等键绑定 ``request_id`` + 序号：重试同一请求不会重复计分。
+    ``actor`` / ``actor_id`` 来自当前教师档案，写入事件账本供事后追溯
+    「这条分是谁按哪套标准加的」。
     """
     request_id = request_id or uuid.uuid4().hex
     created: list[dict[str, Any]] = []
@@ -240,6 +250,12 @@ def record_batch(session, *, term_id: int, items: list[dict[str, Any]],
                             "event_id": existing.id, "student_id": student_id})
             continue
 
+        event_payload: dict[str, Any] = {
+            "note": note, "request_id": request_id,
+            "scoring_mode": "teacher_confirmed_v1",
+        }
+        if actor_id is not None:
+            event_payload["teacher_id"] = actor_id
         event = growth_events.record_event(
             session,
             student_id=student_id,
@@ -251,8 +267,7 @@ def record_batch(session, *, term_id: int, items: list[dict[str, Any]],
             source_id=request_id,
             # Version the per-event policy so historical capped entries retain
             # their original meaning when the ledger is replayed.
-            payload={"note": note, "request_id": request_id,
-                     "scoring_mode": "teacher_confirmed_v1"},
+            payload=event_payload,
             actor=actor,
             proposed_points=proposed,
             idempotency_key=idempotency_key,

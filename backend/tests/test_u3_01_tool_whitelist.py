@@ -74,7 +74,7 @@ class TestToolRegistration:
 
     def test_total_tool_count(self, registry):
         """17 个工具应全部注册。"""
-        assert len(registry.list_all()) == 17
+        assert len(registry.list_all()) == 24
 
     def test_submit_teaching_report_requires_run_id(self, registry):
         tool = registry.get("submit_teaching_report")

@@ -42,12 +42,19 @@ class ExamIngestionService:
         self,
         image_paths: list[str | Path],
         exam_title: str,
-        subject: str = "英语",
+        subject: str | None = None,
         term_id: int | None = None,
         exam_id: int | None = None,
         source_attachment_ids: list[int] | None = None,
     ) -> dict[str, Any]:
         """识别图片并创建可审核的试卷草稿。"""
+        from .subjects import get_selected_subject
+        selected = get_selected_subject(self._db)
+        if subject is not None and subject.strip() not in {
+            selected.key, selected.label, selected.teacher_subject_default,
+        }:
+            return {"ok": False, "error": "subject_mismatch"}
+        subject = selected.label
         paths = [Path(path) for path in image_paths]
         if not paths or any(not path.is_file() for path in paths):
             return {"ok": False, "error": "image_file_not_found"}
@@ -57,12 +64,13 @@ class ExamIngestionService:
             if hasattr(self._vision_provider, "analyze"):
                 result = self._run(self._vision_provider.analyze(
                     images=[ImageInput(path=str(path), page_no=index + 1) for index, path in enumerate(paths)],
-                    task="exam_understanding", response_schema=self._schema(),
+                    task="exam_understanding", response_schema=self._schema(subject),
                 ))
             elif hasattr(self._vision_provider, "analyze_images"):
                 legacy = self._run(self._vision_provider.analyze_images(
                     [str(path) for path in paths],
-                    "请识别试卷题目，只输出 JSON：{\"questions\":[{\"question_no\":\"1\",\"content_text\":\"\",\"max_score\":1}]}。",
+                    f"这是一份{subject}试卷。只按卷面识别题目，不套用英语题型；只输出 JSON："
+                    '{"questions":[{"question_no":"1","content_text":"","max_score":1}]}。',
                     max_tokens=4096,
                 ))
                 result = self._legacy_result(legacy)
@@ -84,7 +92,7 @@ class ExamIngestionService:
         self,
         pdf_path: str | Path,
         exam_title: str,
-        subject: str = "英语",
+        subject: str | None = None,
         term_id: int | None = None,
         exam_id: int | None = None,
         source_attachment_ids: list[int] | None = None,
@@ -127,8 +135,10 @@ class ExamIngestionService:
             for question in list(paper.questions):
                 self._db.delete(question)
             self._db.flush()
+            from .subjects import get_selected_subject
+            subject = get_selected_subject(self._db)
             for item in incoming:
-                self._add_question(paper, item)
+                self._add_question(paper, item, subject=subject)
         paper.status = "confirmed"
         paper.confirmed_at = _now()
         for older in self._db.scalars(select(ExamPaperVersion).where(ExamPaperVersion.exam_id == exam_id, ExamPaperVersion.id != paper.id, ExamPaperVersion.status == "confirmed")):
@@ -137,7 +147,9 @@ class ExamIngestionService:
         return self._paper_payload(paper)
 
     @staticmethod
-    def _schema() -> dict[str, Any]:
+    def _schema(subject: str = "英语") -> dict[str, Any]:
+        from .subjects import get_subject
+        selected = get_subject(subject)
         question_schema = {
             "type": "object",
             "required": ["question_no", "max_score"],
@@ -147,7 +159,9 @@ class ExamIngestionService:
                 "section_name": {"type": "string"},
                 "question_type": {
                     "type": "string",
-                    "description": "choice/fill_blank/short_answer/essay/reading",
+                    "description": ("当前学科的具体题型名称，优先按试卷原文填写；"
+                                    "可为选择题、计算题、材料分析题、实验探究题等，"
+                                    "不要只返回 choice/fill_blank 等通用代码"),
                 },
                 "content_text": {"type": "string"},
                 "options": {"type": "object"},
@@ -158,11 +172,19 @@ class ExamIngestionService:
                     "items": {"type": "string"},
                     "description": "按题目内容标注的知识点名称，一道题可多个",
                 },
+                "ability_nodes": {
+                    "type": "array",
+                    "items": ({"type": "string", "enum": list(selected.analysis_dimensions)}
+                              if selected.key != "english" else {"type": "string"}),
+                    "description": (f"仅在题目明确支持时从以下能力选取：{'、'.join(selected.analysis_dimensions)}；"
+                                    "无法判断时留空，不要根据选择题、填空题等题型猜测能力"),
+                },
                 "confidence": {"type": "number"},
                 "page_no": {"type": "integer"},
             },
         }
-        return {"type": "object", "required": ["questions"],
+        return {"type": "object", "description": f"只识别{subject}试卷中可见的题目与知识点；不要套用其他学科题型。",
+                "required": ["questions"],
                 "properties": {"questions": {"type": "array", "items": question_schema}}}
 
     @staticmethod
@@ -195,23 +217,35 @@ class ExamIngestionService:
     def _persist_draft(self, title, subject, questions, *, term_id, exam_id, source_attachment_ids, provider, model):
         if self._db is None:
             return {"ok": False, "error": "database_not_configured"}
+        from .subjects import get_selected_subject
+        subject_key = get_selected_subject(self._db).key
+        exam_type = f"{subject_key}_total"
+        # The main workbench still stores total-score exams under its legacy
+        # english_total code even in a non-English single-subject workspace.
+        # ``question_type`` is a score-layout choice, not a subject marker.
+        # A question-type exam can therefore be ingested for the selected
+        # subject just like a total-score exam.
+        compatible_types = {exam_type, "english_total", "question_type"}
+        term = (self._db.get(Term, term_id) if term_id is not None else
+                self._db.scalar(select(Term).where(Term.status == "active").order_by(Term.id.desc()).limit(1)))
+        if term is None:
+            return {"ok": False, "error": "term_not_found"}
         if exam_id is not None:
             exam = self._db.get(Exam, exam_id)
-            if exam is not None and term_id is not None and exam.term_id != term_id:
+            if exam is None:
+                return {"ok": False, "error": "exam_not_found"}
+            if exam.term_id != term.id:
                 return {"ok": False, "error": "exam_term_mismatch"}
+            if exam is not None and exam.exam_type not in compatible_types:
+                return {"ok": False, "error": "exam_subject_mismatch"}
         else:
-            statement = select(Exam).where(Exam.name == title)
-            if term_id is not None:
-                statement = statement.where(Exam.term_id == term_id)
+            statement = select(Exam).where(Exam.name == title, Exam.exam_type.in_(compatible_types), Exam.term_id == term.id)
             exam = self._db.scalar(statement.order_by(Exam.id.desc()).limit(1))
         if exam is None:
-            if term_id is None:
-                term = self._db.scalar(select(Term).where(Term.status == "active").order_by(Term.id.desc()).limit(1))
-            else:
-                term = self._db.get(Term, term_id)
-            if term is None:
-                return {"ok": False, "error": "term_not_found"}
-            exam = Exam(term_id=term.id, name=title, source_key=f"ingest:{hashlib.sha1(title.encode()).hexdigest()[:12]}", full_score=sum(float(q.get("max_score", 1)) for q in questions), exam_type="english_total")
+            exam = Exam(term_id=term.id, name=title,
+                        source_key=f"ingest:{subject_key}:{hashlib.sha1(title.encode()).hexdigest()[:12]}",
+                        full_score=sum(float(q.get("max_score", 1)) for q in questions),
+                        exam_type=exam_type)
             self._db.add(exam)
             self._db.flush()
         max_version = self._db.scalar(select(func.max(ExamPaperVersion.version)).where(ExamPaperVersion.exam_id == exam.id)) or 0
@@ -219,12 +253,12 @@ class ExamIngestionService:
         self._db.add(paper)
         self._db.flush()
         for item in questions:
-            self._add_question(paper, item)
+            self._add_question(paper, item, subject=get_selected_subject(self._db))
         self._db.commit()
         return self._paper_payload(paper)
 
     @staticmethod
-    def _add_question(paper, item: dict[str, Any]):
+    def _add_question(paper, item: dict[str, Any], *, subject=None):
         number = str(item.get("question_no") or item.get("number") or "").strip()
         if not number:
             raise ValueError("question_no_required")
@@ -236,17 +270,25 @@ class ExamIngestionService:
             text = str(node).strip()
             if text and text not in knowledge_nodes:
                 knowledge_nodes.append(text[:100])
+        ability_nodes = []
+        if subject is not None:
+            from .subjects import canonical_ability_label
+        for node in (item.get("ability_nodes") or item.get("ability_points") or []):
+            text = canonical_ability_label(subject, node) if subject is not None else str(node).strip()
+            if text and text not in ability_nodes:
+                ability_nodes.append(text[:100])
         paper.questions.append(ExamQuestion(
             question_no=number, sub_question_no=str(item.get("sub_question_no")) if item.get("sub_question_no") is not None else None,
             external_id=item.get("external_id") or f"ingest:{paper.id}:{number}", section_name=item.get("section_name"), question_type=item.get("question_type"),
             content_text=item.get("content_text") or item.get("text"), options_json=item.get("options") or {}, max_score=max_score,
             correct_answer_json={"value": item["correct_answer"]} if item.get("correct_answer") is not None else {}, extraction_confidence=item.get("confidence"), source_page=item.get("page_no"),
             knowledge_nodes_json=knowledge_nodes,
+            ability_nodes_json=ability_nodes,
         ))
 
     @staticmethod
     def _paper_payload(paper):
-        return {"ok": True, "exam_id": paper.exam_id, "paper_version_id": paper.id, "version": paper.version, "status": paper.status, "questions": [{"id": q.id, "question_no": q.question_no, "sub_question_no": q.sub_question_no, "section_name": q.section_name, "question_type": q.question_type, "content_text": q.content_text, "options": q.options_json or {}, "max_score": q.max_score, "knowledge_points": q.knowledge_nodes_json or [], "source_page": q.source_page, "confidence": q.extraction_confidence} for q in paper.questions]}
+        return {"ok": True, "exam_id": paper.exam_id, "paper_version_id": paper.id, "version": paper.version, "status": paper.status, "questions": [{"id": q.id, "question_no": q.question_no, "sub_question_no": q.sub_question_no, "section_name": q.section_name, "question_type": q.question_type, "content_text": q.content_text, "options": q.options_json or {}, "max_score": q.max_score, "knowledge_points": q.knowledge_nodes_json or [], "ability_nodes": q.ability_nodes_json or [], "source_page": q.source_page, "confidence": q.extraction_confidence} for q in paper.questions]}
 
 
 def _now():

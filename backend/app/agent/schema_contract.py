@@ -191,8 +191,28 @@ REVIEW_PLAN_OUTPUT_SCHEMA = make_structured_output_schema(
             "type": "string",
             "description": "复习时间安排",
         },
+        "sections": {
+            "type": "array",
+            "description": "可直接审核和导出的教学材料分节",
+            "minItems": 0,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": ["lesson_flow", "student_handout", "teacher_key", "followup_assessment"],
+                    },
+                    "title": {"type": "string", "minLength": 1},
+                    "body": {"type": "string"},
+                    "items": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["kind", "title", "body", "items"],
+                "additionalProperties": False,
+            },
+        },
     },
 )
+REVIEW_PLAN_OUTPUT_SCHEMA["required"].extend(["timeline", "sections"])
 
 EXAM_INGESTION_OUTPUT_SCHEMA = make_structured_output_schema(
     "exam_ingestion",

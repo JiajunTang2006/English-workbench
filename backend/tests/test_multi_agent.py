@@ -107,6 +107,7 @@ def test_harness_pool_caps_size_and_isolates_scope_roots(tmp_path):
         scope_root=str(tmp_path / "scope"),
         runtime_bin="runtime.js",
         api_key="secret",
+        extra_env={"DSH_EDUCATION_SCOPE_ROOT": str(tmp_path / "scope")},
     )
     pool = HarnessPool(config, size=2)
     assert pool.pool_size == 2
@@ -114,6 +115,8 @@ def test_harness_pool_caps_size_and_isolates_scope_roots(tmp_path):
     sessions = [manager._config.session_root for manager in pool.managers]
     assert scopes[0] != scopes[1]
     assert sessions[0] != sessions[1]
+    for manager in pool.managers:
+        assert manager._build_env()["DSH_EDUCATION_SCOPE_ROOT"] == manager._config.scope_root
 
 
 def test_batch_group_route_creates_independent_runs(tmp_path):

@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -41,6 +41,16 @@ class Recommendation(BaseModel):
         return v
 
 
+class StructuredSection(BaseModel):
+    """报告中的可交付内容分节，例如课堂流程、学生练习和教师答案。"""
+    kind: Literal["lesson_flow", "student_handout", "teacher_key", "followup_assessment"] = Field(
+        ..., description="材料用途，用于安全区分学生版与教师版内容"
+    )
+    title: str = Field(..., min_length=1, description="分节标题")
+    body: str = Field("", description="分节说明")
+    items: list[str] = Field(default_factory=list, description="分节条目")
+
+
 class StructuredAnswer(BaseModel):
     """Agent 最终输出的强制结构。
 
@@ -56,6 +66,8 @@ class StructuredAnswer(BaseModel):
         default=None,
         description="学生画像摘要：结合既有画像和本次证据重写的教师可读自然语言段落",
     )
+    timeline: str | None = Field(default=None, description="分阶段复习安排")
+    sections: list[StructuredSection] = Field(default_factory=list, description="可复用的教学材料分节")
     limitations: list[str] = Field(default_factory=list, description="分析局限性")
     scope_snapshot: dict[str, Any] = Field(
         default_factory=dict,

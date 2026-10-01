@@ -58,7 +58,7 @@ from ..models.agent_entities import (
     EvaluationAuditLog,
     AgentAnalysisSetting,
 )
-from ..models.entities import Term, Class, Exam, Student, Enrollment
+from ..models.entities import Term, Class, Exam, Student, Enrollment, ChangeLog
 from ..schemas.agent import (
     AgentSessionCreate,
     AgentSessionRead,
@@ -183,7 +183,11 @@ def list_sessions(
 ):
     """列出 Agent 会话（不含已软删除），支持搜索。"""
     from sqlalchemy import select, or_
-    stmt = select(AgentSession).where(AgentSession.deleted_at.is_(None))
+    from ..services.subjects import get_selected_subject
+    stmt = select(AgentSession).where(
+        AgentSession.deleted_at.is_(None),
+        AgentSession.subject_key == get_selected_subject(session).key,
+    )
     if term_id is not None:
         stmt = stmt.where(AgentSession.term_id == term_id)
     if not include_archived:
@@ -205,7 +209,11 @@ def get_session_preferences(term_id: int, session=Depends(get_session)):
     """读取当前学期的置顶会话与文件夹偏好。"""
     if session.get(Term, term_id) is None:
         raise HTTPException(status_code=404, detail={"code": "TERM_NOT_FOUND", "message": "学期不存在"})
-    row = session.get(AgentAnalysisSetting, f"teachmate_session_preferences:{term_id}")
+    from ..services.subjects import get_selected_subject
+    subject_key = get_selected_subject(session).key
+    row = session.get(AgentAnalysisSetting, f"teachmate_session_preferences:{term_id}:{subject_key}")
+    if row is None and subject_key == "english":
+        row = session.get(AgentAnalysisSetting, f"teachmate_session_preferences:{term_id}")
     value = row.value_json if row and isinstance(row.value_json, dict) else {}
     return SessionPreferences(term_id=term_id, pinned_session_ids=value.get("pinned_session_ids", []), folders=value.get("folders", []))
 
@@ -215,7 +223,13 @@ def put_session_preferences(body: SessionPreferences, session=Depends(get_sessio
     """保存当前学期的导航偏好，不接受跨学期会话 ID。"""
     if session.get(Term, body.term_id) is None:
         raise HTTPException(status_code=404, detail={"code": "TERM_NOT_FOUND", "message": "学期不存在"})
-    valid_ids = set(session.scalars(select(AgentSession.id).where(AgentSession.term_id == body.term_id, AgentSession.deleted_at.is_(None))))
+    from ..services.subjects import get_selected_subject
+    subject_key = get_selected_subject(session).key
+    valid_ids = set(session.scalars(select(AgentSession.id).where(
+        AgentSession.term_id == body.term_id,
+        AgentSession.subject_key == subject_key,
+        AgentSession.deleted_at.is_(None),
+    )))
     pinned = [sid for sid in dict.fromkeys(body.pinned_session_ids) if sid in valid_ids]
     folders = []
     for raw in body.folders:
@@ -227,7 +241,7 @@ def put_session_preferences(body: SessionPreferences, session=Depends(get_sessio
             continue
         ids = [int(sid) for sid in raw.get("sessionIds", []) if str(sid).isdigit() and int(sid) in valid_ids]
         folders.append({"id": folder_id, "name": name, "sessionIds": list(dict.fromkeys(ids)), "collapsed": bool(raw.get("collapsed", False)), "createdAt": raw.get("createdAt")})
-    key = f"teachmate_session_preferences:{body.term_id}"
+    key = f"teachmate_session_preferences:{body.term_id}:{subject_key}"
     row = session.get(AgentAnalysisSetting, key)
     value = {"pinned_session_ids": pinned, "folders": folders}
     if row is None:
@@ -277,8 +291,10 @@ def create_session(body: AgentSessionCreate, session=Depends(get_session)):
                 detail={"code": "STUDENT_SCOPE_MISMATCH", "message": "学生不属于当前学期或所选班级"},
             )
 
+    from ..services.subjects import get_selected_subject
     agent_session = AgentSession(
         title=body.title, term_id=body.term_id,
+        subject_key=get_selected_subject(session).key,
         class_id=body.class_id, exam_id=body.exam_id,
         student_id=body.student_id, status="active",
     )
@@ -292,9 +308,11 @@ def create_session(body: AgentSessionCreate, session=Depends(get_session)):
 def update_session(session_id: int, body: AgentSessionUpdate, session=Depends(get_session)):
     """更新会话（仅允许标题和归档状态）。"""
     from sqlalchemy import select
+    from ..services.subjects import get_selected_subject
     agent_session = session.scalar(
         select(AgentSession).where(
             AgentSession.id == session_id,
+            AgentSession.subject_key == get_selected_subject(session).key,
             AgentSession.deleted_at.is_(None),
         )
     )
@@ -313,9 +331,11 @@ def update_session(session_id: int, body: AgentSessionUpdate, session=Depends(ge
 def delete_session(session_id: int, session=Depends(get_session)):
     """软删除会话（进入回收站）。"""
     from sqlalchemy import select
+    from ..services.subjects import get_selected_subject
     agent_session = session.scalar(
         select(AgentSession).where(
             AgentSession.id == session_id,
+            AgentSession.subject_key == get_selected_subject(session).key,
             AgentSession.deleted_at.is_(None),
         )
     )
@@ -332,9 +352,11 @@ def delete_session(session_id: int, session=Depends(get_session)):
 def restore_session(session_id: int, session=Depends(get_session)):
     """从回收站恢复会话。"""
     from sqlalchemy import select
+    from ..services.subjects import get_selected_subject
     agent_session = session.scalar(
         select(AgentSession).where(
             AgentSession.id == session_id,
+            AgentSession.subject_key == get_selected_subject(session).key,
         )
     )
     if agent_session is None:
@@ -352,7 +374,11 @@ def restore_session(session_id: int, session=Depends(get_session)):
 def list_trash_sessions(session=Depends(get_session)):
     """列出回收站会话。"""
     from sqlalchemy import select
-    stmt = select(AgentSession).where(AgentSession.deleted_at.is_not(None))
+    from ..services.subjects import get_selected_subject
+    stmt = select(AgentSession).where(
+        AgentSession.deleted_at.is_not(None),
+        AgentSession.subject_key == get_selected_subject(session).key,
+    )
     stmt = stmt.order_by(AgentSession.updated_at.desc())
     return list(session.scalars(stmt))
 
@@ -361,9 +387,11 @@ def list_trash_sessions(session=Depends(get_session)):
 def get_session_detail(session_id: int, session=Depends(get_session)):
     """获取会话详情。"""
     from sqlalchemy import select
+    from ..services.subjects import get_selected_subject
     agent_session = session.scalar(
         select(AgentSession).where(
             AgentSession.id == session_id,
+            AgentSession.subject_key == get_selected_subject(session).key,
             AgentSession.deleted_at.is_(None),
         )
     )
@@ -376,6 +404,10 @@ def get_session_detail(session_id: int, session=Depends(get_session)):
 def list_messages(session_id: int, session=Depends(get_session)):
     """获取会话消息列表（附带每条消息关联的附件元数据）。"""
     from sqlalchemy import select
+    from ..services.subjects import get_selected_subject
+    parent = session.get(AgentSession, session_id)
+    if parent is None or parent.deleted_at is not None or parent.subject_key != get_selected_subject(session).key:
+        raise HTTPException(status_code=404, detail="会话不存在")
     messages = list(session.scalars(
         select(AgentMessage).where(AgentMessage.session_id == session_id)
         .order_by(AgentMessage.created_at)
@@ -432,17 +464,13 @@ def list_messages(session_id: int, session=Depends(get_session)):
         if run is not None:
             item = item.model_copy(update={"capability": run.capability})
         if run is not None and m.role == "assistant":
-            scope = (run.term_id, run.class_id, run.student_id)
+            scope = (run.id, run.term_id, run.class_id, run.student_id)
             mapper = display_mappers.get(scope)
             if mapper is None:
                 try:
-                    from ..services.agent_analysis.identity_dict import build_display_mapper
-                    mapper = build_display_mapper(
-                        session,
-                        term_id=run.term_id,
-                        class_id=run.class_id,
-                        student_id=run.student_id,
-                    )
+                    from ..services.agent_analysis.conversation import mapper_for_run
+                    mapper = mapper_for_run(session, {"run_id": run.id, "term_id": run.term_id,
+                        "class_id": run.class_id, "student_id": run.student_id})
                     display_mappers[scope] = mapper
                 except Exception as exc:
                     logger.warning("读取历史消息恢复学生姓名失败: %s", exc)
@@ -456,6 +484,53 @@ def list_messages(session_id: int, session=Depends(get_session)):
             item = item.model_copy(update={"attachments": attachments_by_message[m.id]})
         result.append(item)
     return result
+
+
+class MaterialEditRequest(BaseModel):
+    body: str = Field(default="", max_length=12000)
+    items: list[str] = Field(default_factory=list, max_length=100)
+
+
+@router.put("/runs/{run_id}/materials/{section_index}")
+def save_material_edit(run_id: int, section_index: int, body: MaterialEditRequest,
+                       session=Depends(get_session)):
+    """Persist a teacher's material edit while preserving the original AI draft."""
+    from ..services.subjects import get_selected_subject
+
+    run = session.get(AnalysisRun, run_id)
+    if (run is None or run.capability != "review_plan" or
+            run.subject_key != get_selected_subject(session).key or
+            run.status not in {"completed", "degraded"}):
+        raise HTTPException(404, "教学报告不存在")
+    if section_index < 0 or section_index >= 20:
+        raise HTTPException(422, "材料分节编号无效")
+    message = session.scalar(select(AgentMessage).where(
+        AgentMessage.analysis_run_id == run_id,
+        AgentMessage.session_id == run.session_id,
+        AgentMessage.role == "assistant",
+    ).order_by(AgentMessage.id.desc()).limit(1))
+    answer = message.structured_answer_json if message is not None else None
+    sections = answer.get("sections") if isinstance(answer, dict) else None
+    if not isinstance(sections, list) or section_index >= len(sections):
+        raise HTTPException(404, "教学材料不存在")
+    section = sections[section_index]
+    if not isinstance(section, dict) or section.get("kind") not in {
+        "lesson_flow", "student_handout", "teacher_key", "followup_assessment"
+    }:
+        raise HTTPException(422, "教学材料类型无效")
+    items = [item.strip() for item in body.items]
+    if any(len(item) > 1500 for item in items):
+        raise HTTPException(422, "单条材料不能超过 1500 字")
+    edit = {"body": body.body.strip(), "items": [item for item in items if item]}
+    edits = dict(message.teacher_material_edits_json or {})
+    edits[str(section_index)] = edit
+    message.teacher_material_edits_json = edits
+    session.add(ChangeLog(entity="agent_material", entity_id=str(message.id),
+                          action="teacher_edit", detail_json={
+                              "run_id": run_id, "section_index": section_index,
+                          }))
+    session.commit()
+    return {"run_id": run_id, "section_index": section_index, **edit}
 
 
 def _scope_for_message(session, agent_session: AgentSession, session_id: int, capability_name: str) -> dict:
@@ -472,7 +547,7 @@ def _scope_for_message(session, agent_session: AgentSession, session_id: int, ca
         if value is not None:
             scope[key] = value
 
-    if capability_name == "general_chat" and "exam_id" not in scope:
+    if capability_name in {"general_chat", "student_diagnosis", "review_plan"}:
         prior_scoped_run = session.scalar(
             select(AnalysisRun)
             .where(
@@ -482,12 +557,54 @@ def _scope_for_message(session, agent_session: AgentSession, session_id: int, ca
             .order_by(AnalysisRun.created_at.desc(), AnalysisRun.id.desc())
         )
         if prior_scoped_run is not None:
-            scope["exam_id"] = prior_scoped_run.exam_id
+            scope.setdefault("exam_id", prior_scoped_run.exam_id)
             if "class_id" not in scope and prior_scoped_run.class_id is not None:
                 scope["class_id"] = prior_scoped_run.class_id
             if "student_id" not in scope and prior_scoped_run.student_id is not None:
                 scope["student_id"] = prior_scoped_run.student_id
     return scope
+
+
+def _resolve_review_plan_student(session, scope: dict, content: str) -> int | None:
+    """Bind a single named student in a review-plan request to verified term data.
+
+    A class risk list is only a filtered subset.  It must never be used to
+    decide whether a named student exists in the current exam roster.
+    """
+    from ..models.entities import ExamScore
+
+    term_id = scope.get("term_id")
+    exam_id = scope.get("exam_id")
+    if term_id is None or exam_id is None:
+        return None
+    roster = session.execute(
+        select(Student.id, Student.name)
+        .join(Enrollment, Enrollment.student_id == Student.id)
+        .where(Enrollment.term_id == term_id, Enrollment.status == "active")
+        .distinct()
+    ).all()
+    mentioned = [(student_id, name) for student_id, name in roster
+                 if name and name in content]
+    # A full name may contain another student's shorter name. Prefer the
+    # longest explicit match; duplicate names still require clarification.
+    mentioned = [(student_id, name) for student_id, name in mentioned
+                 if not any(name != other_name and name in other_name
+                            for _, other_name in mentioned)]
+    if len(mentioned) != 1:
+        return None
+    student_id, name = mentioned[0]
+    score_stmt = select(ExamScore.id).where(
+        ExamScore.exam_id == exam_id, ExamScore.student_id == student_id,
+    )
+    if scope.get("class_id") is not None:
+        score_stmt = score_stmt.where(
+            ExamScore.class_id_at_exam == scope["class_id"])
+    if session.scalar(score_stmt) is None:
+        raise HTTPException(status_code=409, detail={
+            "code": "STUDENT_EXAM_SCORE_MISSING",
+            "message": f"当前学期名单中有{name}，但所选考试范围内没有该生成绩；请检查考试或班级。",
+        })
+    return student_id
 
 
 @router.post("/sessions/{session_id}/messages", response_model=SendMessageResponse, status_code=202)
@@ -510,6 +627,20 @@ async def send_message(
     )
     if agent_session is None:
         raise HTTPException(status_code=404, detail="会话不存在")
+    from ..services.subjects import get_selected_subject
+    if agent_session.subject_key != get_selected_subject(session).key:
+        raise HTTPException(status_code=409, detail={
+            "code": "SESSION_SUBJECT_MISMATCH",
+            "message": "该对话属于另一学科，请在当前学科新建对话。",
+        })
+
+    teaching_context = None
+    if agent_session.teaching_task_id:
+        from ..services.teaching import require_task, build_task_context
+        require_task(session, agent_session.teaching_task_id, writable=True)
+        teaching_context = build_task_context(session, agent_session.teaching_task_id, body.teaching_artifact_id)
+    elif body.teaching_artifact_id is not None:
+        raise HTTPException(400, "请在教学任务对话中修改材料")
 
     # 附件门禁必须先于消息/运行落库：只接受当前会话学期内、已解析且待教师确认的资料。
     # 追问消息不应要求用户重复上传文件：当本轮没有 attachment_ids 时，继承
@@ -597,6 +728,17 @@ async def send_message(
     # 没有快捷任务就按普通对话处理。即使当前会话上一轮是分析，教师也需要
     # 明确选择分析插件，才重新进入工具调用和证据校验流程。
     capability_name = body.quick_task or "general_chat"
+    plugin_skill = None
+    if body.plugin_id:
+        from .plugins import _manager
+        plugin = _manager(request).get_plugin(body.plugin_id)
+        if not plugin or not plugin.get("enabled"):
+            raise HTTPException(409, detail={"code": "PLUGIN_DISABLED", "message": "专项推题插件已停用，请先启用或取消选择。"})
+        if capability_name != "general_chat":
+            raise HTTPException(400, detail="专项推题请在普通聊天中使用")
+        from ..services.practice import practice_skill
+        plugin_skill = practice_skill()
+
 
     # 消息级模型绑定：只允许使用已保存且已配置 Key 的档案，避免客户端伪造任意模型。
     selected_profile = None
@@ -617,6 +759,20 @@ async def send_message(
             config = get_agent_config()
 
     scope = _scope_for_message(session, agent_session, session_id, capability_name)
+    from ..services.agent_analysis.conversation import prepare_turn
+    conversation_state, identity_snapshot, conversation_context, focus_ids = prepare_turn(
+        session, session_id, scope, body.content, body.student_refs, body.student_aliases, body.identity_mode)
+    if capability_name in {"general_chat", "student_diagnosis", "review_plan"}:
+        if len(focus_ids) == 1:
+            scope["student_id"] = focus_ids[0]
+        elif focus_ids or conversation_state["resolution_status"] in {"ambiguous", "not_found"} or any(
+            term in body.content for term in ("全班", "所有学生", "全体学生")):
+            scope.pop("student_id", None)
+    if capability_name == "review_plan":
+        named_student_id = _resolve_review_plan_student(
+            session, scope, body.content)
+        if named_student_id is not None:
+            scope["student_id"] = named_student_id
 
     # P1-11: 创建运行前进行成本预估
     cap_registry = create_default_capability_registry()
@@ -626,6 +782,9 @@ async def send_message(
             status_code=400,
             detail=f"未知能力: {capability_name}",
         )
+    if capability.requires_evidence and not config.text_supports_tool_calls:
+        raise HTTPException(400, detail={"code": "MODEL_TOOLS_UNSUPPORTED",
+            "message": "该模型可用于普通对话；正式分析需要支持工具调用的模型。"})
 
     required_flag = (
         "exam_ingestion_enabled"
@@ -676,7 +835,8 @@ async def send_message(
     )
     est_input = min(
         token_budget.prompt_limit,
-        2000 + len(capability.required_tools) * 300 + attachment_tokens,
+        2000 + len(capability.required_tools) * 300 + attachment_tokens
+        + estimate_text_tokens(teaching_context) + estimate_text_tokens(plugin_skill or ""),
     )
     est_output = token_budget.output_limit
     try:
@@ -703,6 +863,7 @@ async def send_message(
         session_id=session_id,
         capability=capability_name,
         term_id=agent_session.term_id,
+        subject_key=agent_session.subject_key,
         class_id=scope.get("class_id"),
         exam_id=scope.get("exam_id"),
         student_id=scope.get("student_id"),
@@ -710,6 +871,13 @@ async def send_message(
         estimated_cost_yuan=estimate.estimated_cost_yuan,
         estimated_tokens=est_input + est_output,
         input_summary_json={
+            "selected_plugin_id": body.plugin_id,
+            "plugin_skill": plugin_skill,
+            "identity_snapshot": identity_snapshot,
+            "conversation_state": conversation_state,
+            "conversation_context": conversation_context,
+            "teaching_task_id": agent_session.teaching_task_id,
+            "teaching_context": teaching_context,
             "user_message": body.content,
             "attachment_ids": [attachment.id for attachment in selected_attachments],
             "model_id": config.text_model_profile_id or body.model_id or "",
@@ -864,6 +1032,9 @@ async def create_analysis_group(
     agent_session = session.get(AgentSession, body.session_id)
     if agent_session is None or agent_session.deleted_at is not None:
         raise HTTPException(status_code=404, detail="会话不存在")
+    from ..services.subjects import get_selected_subject
+    if agent_session.subject_key != get_selected_subject(session).key:
+        raise HTTPException(status_code=409, detail="该对话属于另一学科，请新建对话")
     if agent_session.term_id != body.term_id:
         raise HTTPException(status_code=409, detail={"code": "TERM_SCOPE_MISMATCH", "message": "会话与任务学期不一致。"})
     if agent_session.class_id is not None and body.class_id != agent_session.class_id:
@@ -1464,6 +1635,7 @@ async def retry_run(
         session_id=original_run.session_id,
         capability=original_run.capability,
         term_id=original_run.term_id,
+        subject_key=original_run.subject_key,
         class_id=original_run.class_id,
         exam_id=original_run.exam_id,
         student_id=original_run.student_id,
@@ -1566,7 +1738,7 @@ class ExamIngestRequest(BaseModel):
     exam_title: str = Field(min_length=1, max_length=150)
     image_paths: list[str] = Field(default_factory=list, max_length=20)
     pdf_path: str | None = None
-    subject: str = Field(default="英语", max_length=50)
+    subject: str | None = Field(default=None, max_length=50)
     term_id: int | None = Field(default=None, gt=0)
     exam_id: int | None = Field(default=None, gt=0)
     source_attachment_ids: list[int] = Field(default_factory=list, max_length=20)
@@ -1590,7 +1762,9 @@ def ingest_exam(body: ExamIngestRequest, request: Request, session=Depends(get_s
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail={"code": "invalid_path", "message": "输入文件必须位于本地附件目录"})
     service = ExamIngestionService(db_session=session, data_dir=request.app.state.settings.data_dir)
-    result = service.ingest_from_pdf(pdf, body.exam_title, body.subject, term_id=body.term_id, exam_id=body.exam_id, source_attachment_ids=body.source_attachment_ids) if pdf else service.ingest_from_images(paths, body.exam_title, body.subject, term_id=body.term_id, exam_id=body.exam_id, source_attachment_ids=body.source_attachment_ids)
+    from ..services.subjects import get_selected_subject
+    subject = body.subject or get_selected_subject(session).label
+    result = service.ingest_from_pdf(pdf, body.exam_title, subject, term_id=body.term_id, exam_id=body.exam_id, source_attachment_ids=body.source_attachment_ids) if pdf else service.ingest_from_images(paths, body.exam_title, subject, term_id=body.term_id, exam_id=body.exam_id, source_attachment_ids=body.source_attachment_ids)
     if not result.get("ok"):
         status = 404 if result.get("error") in {"term_not_found", "image_file_not_found", "pdf_file_not_found_or_invalid"} else 422
         raise HTTPException(status_code=status, detail=result)

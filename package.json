@@ -1,7 +1,7 @@
 {
   "name": "english-workbench",
   "private": true,
-  "version": "0.9.0-beta.2",
+  "version": "1.0.0",
   "description": "Offline English teaching workbench",
   "scripts": {
     "test": "node --test tests/*.js",

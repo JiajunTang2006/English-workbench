@@ -709,7 +709,7 @@
       "reading.multimodal",
       "多模态",
       "图文题",
-      "任务型阅读",
+      "阅读理解中的任务题",
       "图表"
     ],
     "title": "多模态信息整合"
@@ -1360,20 +1360,6 @@
       "题型"
     ],
     "title": "书面表达"
-  },
-  "QT-任务型阅读": {
-    "credibility": "C",
-    "domain": "题型",
-    "file": "exam-zhejiang-2025/question-types.md",
-    "level": "三级",
-    "source": "TeachMate 题型诊断映射（课标与公开评析整理）",
-    "tags": [
-      "任务型阅读",
-      "信息整合",
-      "开放任务",
-      "题型"
-    ],
-    "title": "任务型阅读"
   },
   "QT-听力理解": {
     "credibility": "C",

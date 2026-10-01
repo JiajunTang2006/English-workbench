@@ -16,6 +16,13 @@ const { test: base, expect } = require('@playwright/test');
 
 const E2E_TOKEN = 'workbench-e2e-test-token-18323';
 
+async function dismissFirstUseModal(page) {
+  // First-use settings may appear after asynchronous startup has finished.
+  await page.addLocatorHandler(page.locator('#modal.show').filter({
+    has: page.getByRole('heading', { name: '选择任教学科' })
+  }), async () => { await page.locator('#modalClose').click(); });
+}
+
 const test = base.extend({
   page: async ({ page }, use) => {
     await page.addInitScript((token) => {
@@ -30,4 +37,4 @@ const test = base.extend({
   },
 });
 
-module.exports = { test, expect, E2E_TOKEN };
+module.exports = { test, expect, E2E_TOKEN, dismissFirstUseModal };

@@ -9,7 +9,18 @@ from sqlalchemy.orm import Session
 
 from ..auth import require_token
 from ..models import AppSetting, ChangeLog, Class, Enrollment, Student, WorkspaceState
-from ..schemas import ClassCreate, ClassPatch, ClassRead, SettingsPatch, SettingsRead, StudentCreate, StudentPatch, StudentRead
+from ..schemas import (
+    ClassCreate,
+    ClassPatch,
+    ClassRead,
+    SettingsPatch,
+    SettingsRead,
+    StudentCreate,
+    StudentPatch,
+    StudentRead,
+    SubjectsRead,
+)
+from ..services.subjects import DEFAULT_SUBJECT_KEY, get_subject, list_subjects, normalize_subject_key, subject_switch_blocker
 from ..services.terms import current_term_id, require_term
 from ..version import SCHEMA_REVISION
 
@@ -300,24 +311,61 @@ def purge_student(student_id: int, request: Request, term_id: int | None = Query
 DEFAULT_SETTINGS = SettingsRead().model_dump()
 
 
+def _stored_settings(session: Session) -> dict:
+    """安装级设置的「默认值 + 库中已存值」，并对学科 key 做读路径容错归一。"""
+    values = DEFAULT_SETTINGS.copy()
+    for item in session.scalars(select(AppSetting)):
+        if item.key in values:
+            values[item.key] = item.value_json
+    values["subject_key"] = normalize_subject_key(values.get("subject_key"))
+    return values
+
+
+@router.get("/subjects", response_model=SubjectsRead)
+def read_subjects(request: Request):
+    """学科清单 + 当前学科 + 老师是否已显式选过学科。
+
+    首次进入时前端据此弹出「选择学科」；已选过则直接按当前学科渲染界面。
+    学科是安装级设置，换学期不需要重选，要换在设置页改。
+    """
+    with get_session(request) as session:
+        stored = session.get(AppSetting, "subject_key")
+        raw = stored.value_json if stored is not None else None
+        # chosen 的语义是「老师显式选过」：只要库里写过 subject_key 就算选过，
+        # 即便写的是空串（前端会把它归一为默认学科）也不再弹窗打扰。
+        chosen = stored is not None
+        current = normalize_subject_key(raw)
+    return {
+        "subjects": list_subjects(),
+        "current": current,
+        "chosen": chosen,
+        "default": DEFAULT_SUBJECT_KEY,
+    }
+
+
 @router.get("/settings", response_model=SettingsRead)
 def read_settings(request: Request):
     with get_session(request) as session:
-        values = DEFAULT_SETTINGS.copy()
-        for item in session.scalars(select(AppSetting)):
-            if item.key in values:
-                values[item.key] = item.value_json
-        return values
+        return _stored_settings(session)
 
 
 @router.patch("/settings", response_model=SettingsRead)
 def update_settings(payload: SettingsPatch, request: Request):
     with get_session(request) as session:
-        current = DEFAULT_SETTINGS.copy()
-        for item in session.scalars(select(AppSetting)):
-            if item.key in current:
-                current[item.key] = item.value_json
+        current = _stored_settings(session)
         values = payload.model_dump(exclude_unset=True)
+        if "subject_key" in values and values["subject_key"] != current["subject_key"]:
+            blocker = subject_switch_blocker(session)
+            if blocker:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"{blocker}，当前数据属于{get_subject(current['subject_key']).label}。请先在独立工作区使用另一学科，避免原数据被误读。",
+                )
+            previous = get_subject(current["subject_key"])
+            if "subject" not in values and current.get("subject") in {
+                "英语", previous.label, previous.teacher_subject_default,
+            }:
+                values["subject"] = get_subject(values["subject_key"]).teacher_subject_default
         try:
             SettingsRead(**{**current, **values})
         except ValidationError as error:

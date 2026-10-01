@@ -61,6 +61,8 @@ class PrivacyMapper:
     _name_to_anonymous: dict[str, str] = field(default_factory=dict)
     # 匿名编号 -> 真实姓名（仅用于本地教师界面恢复）
     _anonymous_to_name: dict[str, str] = field(default_factory=dict)
+    _ambiguous_names: set[str] = field(default_factory=set)
+    _student_number_refs: dict[str, str] = field(default_factory=dict)
     # 学校/组织名称集合（统一替换为标记）
     _school_names: set[str] = field(default_factory=set)
     # 其他受保护文本（如教师姓名）
@@ -103,18 +105,46 @@ class PrivacyMapper:
         name = (name or "").strip()
         if len(name) < 2:
             return None
-        anonymous = self.to_anonymous(student_id) if student_id is not None else None
+        anonymous = self.register_student(student_id) if student_id is not None else None
         if anonymous is None:
             anon = self._name_to_anonymous.get(name)
             if anon is not None:
                 return anon
             self._counter += 1
             anonymous = f"student_{self._counter:02d}"
-        self._name_to_anonymous[name] = anonymous
+        previous = self._name_to_anonymous.get(name)
+        if previous is not None and previous != anonymous:
+            self._ambiguous_names.add(name)
+        self._name_to_anonymous[name] = (
+            "[同名学生待确认]" if name in self._ambiguous_names else anonymous
+        )
         # 只在本地保存反向映射。若同名学生共享一个匿名编号，保留首次
         # 注册的姓名，避免后续运行中的文本恢复发生漂移。
-        self._anonymous_to_name.setdefault(anonymous, name)
+        self._anonymous_to_name[anonymous] = name
         return anonymous
+
+    def snapshot(self) -> dict[str, Any]:
+        """Local-only immutable identity snapshot; never include in a prompt."""
+        return {"students": {str(sid): {"ref": ref, "name": self._anonymous_to_name.get(ref, "")}
+                             for sid, ref in self._to_anonymous.items()},
+                "allow_student_names": self.allow_student_names}
+
+    @classmethod
+    def from_snapshot(cls, snapshot: dict | None, *, allow_student_names: bool = True):
+        mapper = cls(allow_student_names=allow_student_names)
+        for raw_id, row in ((snapshot or {}).get("students") or {}).items():
+            try:
+                sid = int(raw_id)
+                ref = str(row["ref"])
+                if sid <= 0 or not re.fullmatch(r"student_\d+", ref) or ref in mapper._to_real:
+                    continue
+                mapper._to_anonymous[sid] = ref
+                mapper._to_real[ref] = sid
+                mapper._counter = max(mapper._counter, int(ref.split("_")[1]))
+                mapper.register_name(str(row.get("name") or ""), student_id=sid)
+            except (ValueError, TypeError, KeyError):
+                continue
+        return mapper
 
     def register_names(self, names: list[str]) -> int:
         """批量注册姓名，返回新增数量。"""
@@ -322,6 +352,8 @@ class PrivacyMapper:
             return content
 
         replacements: list[tuple[str, str]] = []
+        for number, ref in sorted(self._student_number_refs.items(), key=lambda item: len(item[0]), reverse=True):
+            text = re.sub(r"(?<![A-Za-z0-9])" + re.escape(number) + r"(?![A-Za-z0-9])", ref, text)
         if not self.allow_student_names:
             for name in sorted(self._name_to_anonymous, key=len, reverse=True):
                 replacements.append((name, self._name_to_anonymous[name]))

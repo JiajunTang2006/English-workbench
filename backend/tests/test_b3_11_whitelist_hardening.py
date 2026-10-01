@@ -19,6 +19,10 @@ BACKEND = Path(__file__).resolve().parents[1]
 
 # Education Bridge 提供的白名单教育工具
 ALLOWED_BRIDGE_TOOLS = {
+    "get_practice_context",
+    "get_student_learning_evidence",
+    "get_original_question",
+    "resolve_student",
     "get_exam_analysis_bundle",
     "get_exam_overview",
     "get_score_distribution",

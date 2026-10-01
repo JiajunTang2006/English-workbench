@@ -16,6 +16,15 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
 export const TOOL_DEFS = [
+  { name: 'get_student_learning_evidence', title: '近期小分与画像', description: '查询指定已确认学生最近考试小分、真实失分题引用和教师已确认画像。不需要选择考试或创建教学任务。', parameters: { type: 'object', properties: { student_ref: { type: 'string' }, horizon: { type: 'integer', minimum: 1, maximum: 6 } }, required: [], additionalProperties: false } },
+  { name: 'get_original_question', title: '原错题与来源', description: '按学习证据中的 question_ref 读取该学生的已确认原错题、答案和附近已提取来源页。来源页不保证完整阅读语篇，不能补写缺页。', parameters: { type: 'object', properties: { question_ref: { type: 'string', pattern: '^question_[0-9]+$' }, student_ref: { type: 'string' } }, required: ['question_ref'], additionalProperties: false } },
+  {name: 'get_practice_context', title: '练习与复测', description: '读取当前教学任务真实逐题作答的目标表现，可按已确认学生引用定向查询。无任务时说明缺口。', parameters: {type: 'object', properties: {student_ref: {type: 'string'}}, required: [], additionalProperties: false}},
+  {
+    name: 'resolve_student',
+    title: '确认学生',
+    description: '在当前授权学期/班级中按称呼或引用确认学生，返回 matched/ambiguous/not_found 与少量候选。候选不能直接视为本人；返回的 student_ref 可供成绩查询。',
+    parameters: { type: 'object', properties: { query: { type: 'string', maxLength: 100 } }, required: ['query'], additionalProperties: false },
+  },
   {
     name: 'get_exam_analysis_bundle',
     title: '成绩分析数据包',
@@ -86,11 +95,11 @@ export const TOOL_DEFS = [
     name: 'get_student_scores',
     title: '学生逐题成绩',
     description:
-      '查询服务器当前会话已选学生在已选考试中的逐题成绩、题型小计和数据完整度。' +
-      '可指定 question_no；没有选定学生时会明确报错，不能用参数指定其他学生。',
+      '查询当前讨论学生在已选考试中的逐题成绩、题型小计和完整度。' +
+      '可用已核实的 student_ref 查询授权范围内另一人，并可指定 question_no；不能提交真实 ID。',
     parameters: {
       type: 'object',
-      properties: { question_no: { type: 'string', description: '题号，可选' } },
+      properties: { question_no: { type: 'string', description: '题号，可选' }, student_ref: { type: 'string', description: '已核实的学生引用，可选' } },
       required: [],
     },
   },
@@ -124,7 +133,7 @@ export const TOOL_DEFS = [
       properties: {
         query: {
           type: 'string',
-          description: '考点 ID、条目 ID 或标签，如 reading.inference / 宾语从句',
+          description: '考点 ID、条目 ID 或标签；具体可用范围由当前学科知识库决定',
         },
       },
       required: ['query'],
@@ -143,6 +152,23 @@ export const TOOL_DEFS = [
           type: 'string',
           description: '学生画像摘要：结合既有画像和本次证据重写的自然语言段落（仅学生诊断使用）',
         },
+        timeline: { type: 'string', description: '复习计划的阶段安排（复习计划能力使用）' },
+        sections: {
+          type: 'array',
+          description: '教学材料分节，例如讲评流程、学生练习、教师答案和复测草稿',
+          items: {
+            type: 'object',
+            properties: {
+              kind: { type: 'string', enum: ['lesson_flow', 'student_handout', 'teacher_key', 'followup_assessment'] },
+              title: { type: 'string' },
+              body: { type: 'string' },
+              items: { type: 'array', items: { type: 'string' } },
+            },
+            required: ['kind', 'title', 'body', 'items'],
+            additionalProperties: false,
+          },
+        },
+        limitations: { type: 'array', items: { type: 'string' }, description: '数据和结论的适用边界' },
         findings: {
           type: 'array',
           items: {

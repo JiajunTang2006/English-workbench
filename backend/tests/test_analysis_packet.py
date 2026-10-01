@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from backend.app.agent.analysis_packet import (
     build_packet, packet_to_text, tool_policy_for,
 )
+from backend.app.routers.agent import _resolve_review_plan_student
 from backend.app.agent.privacy import PrivacyMapper
 from backend.app.agent.tools.tool_context import ToolContext, set_tool_context
 from backend.app.database import Base
@@ -122,14 +126,62 @@ def test_exam_packet_diagnostics_and_evidence(db, seed):
 
 def test_general_chat_never_builds_packet(db, seed):
     assert build_packet(db, "general_chat", _scope(seed)) is None
-    assert tool_policy_for("general_chat", has_packet=False) == [
-        "get_exam_overview", "get_score_distribution",
-        "get_question_list", "get_wrong_questions", "get_student_scores",
-    ]
-    assert tool_policy_for("general_chat", has_packet=True) == [
-        "get_exam_overview", "get_score_distribution",
-        "get_question_list", "get_wrong_questions", "get_student_scores",
-    ]
+    expected = ["get_practice_context", "get_student_learning_evidence", "get_original_question", "resolve_student", "get_exam_overview", "get_score_distribution",
+                "get_question_list", "get_wrong_questions", "get_student_scores", "get_student_trend"]
+    assert tool_policy_for("general_chat", has_packet=False) == expected
+    assert tool_policy_for("general_chat", has_packet=True) == expected
+    assert not any("submit" in name or "update" in name for name in expected)
+
+
+def test_named_review_plan_uses_verified_individual_score(db, seed):
+    student = seed["students"][1]
+    scope = _scope(seed, student_id=None)
+    assert _resolve_review_plan_student(
+        db, scope, "为李四制定复习计划") == student.id
+    scope["student_id"] = student.id
+
+    packet = build_packet(db, "review_plan", scope)
+    assert packet is not None
+    assert packet["scope"]["student_id"] == student.id
+    assert packet["metrics"]["student_name"] == "李四"
+    assert packet["metrics"]["student_total_score"] == 58.0
+    assert any("李四已在本次考试成绩表中" in item["signal"]
+               for item in packet["priorities"])
+    assert any(item["target"] == "个人相对低分板块"
+               and "语法填空" in item["signal"]
+               for item in packet["priorities"])
+    text = packet_to_text(packet)
+    assert "李四" in text
+    assert "58" in text
+    assert any(item["target"].startswith("班级共性·")
+               for item in packet["priorities"])
+    assert _resolve_review_plan_student(
+        db, _scope(seed), "为张三和李四制定复习计划") is None
+
+
+def test_named_review_plan_keeps_total_score_when_item_scores_are_missing(db, seed):
+    student = seed["students"][1]
+    db.query(StudentItemResult).filter(
+        StudentItemResult.student_id == student.id).delete()
+    packet = build_packet(db, "review_plan", _scope(seed, student_id=student.id))
+    text = packet_to_text(packet)
+    assert "李四已在本次考试成绩表中" in text
+    assert "58" in text
+    assert "没有个人逐题作答成绩" in text
+    assert "不能据班级风险名单" in text
+
+
+def test_named_student_without_exam_score_gets_precise_error(db, seed):
+    student = Student(student_no="S3", name="韩同学", class_id=seed["cls"].id)
+    db.add(student)
+    db.flush()
+    db.add(Enrollment(term_id=seed["term"].id, class_id=seed["cls"].id,
+                      student_id=student.id, status="active"))
+    db.flush()
+    with pytest.raises(HTTPException) as error:
+        _resolve_review_plan_student(db, _scope(seed), "为韩同学制定复习计划")
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "STUDENT_EXAM_SCORE_MISSING"
 
 
 def test_student_score_details_prefer_confirmed_version(db, seed):
@@ -228,19 +280,28 @@ def test_review_packet_priorities(db, seed):
 
 def test_student_packet_with_trend(db, seed):
     s1 = seed["students"][0]
-    exam2 = Exam(term_id=seed["term"].id, name="第一次月考", full_score=100,
+    seed["exam"].exam_date = date(2026, 5, 1)
+    exam2 = Exam(term_id=seed["term"].id, name="第一次月考", exam_date=date(2026, 4, 1), full_score=150,
                  source_key="t:m1")
     db.add(exam2)
     db.flush()
-    db.add(ExamScore(exam_id=exam2.id, student_id=s1.id, total_score=90.0,
+    db.add(ExamScore(exam_id=exam2.id, student_id=s1.id, total_score=135.0,
                      class_id_at_exam=seed["cls"].id,
                      attendance_status="present"))
+    future = Exam(term_id=seed["term"].id, name="期末考试", exam_date=date(2026, 6, 1),
+                  full_score=100, source_key="t:final")
+    db.add(future)
+    db.flush()
+    db.add(ExamScore(exam_id=future.id, student_id=s1.id, total_score=100.0,
+                     class_id_at_exam=seed["cls"].id, attendance_status="present"))
     db.commit()
     packet = build_packet(db, "student_diagnosis",
                           _scope(seed, student_id=s1.id))
     assert packet is not None
     trend = next(d for d in packet["diagnostics"] if d["kind"] == "trend")
     assert "期中考试" in trend["signal"]
+    assert "第一次月考 90.0%" in trend["signal"]
+    assert "期末考试" not in trend["signal"]
     assert any(d["kind"] == "question" for d in packet["diagnostics"])
     assert any("低置信度" in text for text in packet["limitations"])
 
@@ -277,16 +338,11 @@ def test_teacher_score_override_recomputes_derived_fields(db, seed):
 
 
 def test_tool_policies():
-    # 分析包默认只开放最终报告提交；可选工具必须由服务端按需加入。
-    assert tool_policy_for("exam_analysis", has_packet=True) == ["submit_report"]
-    assert tool_policy_for(
-        "exam_analysis", has_packet=True,
-        optional_tools=["get_teaching_guidance"],
-    ) == ["submit_report", "get_teaching_guidance"]
-    # 未绑定数据库考试的资料模式只开放正式附件读取和报告提交，
-    # 不得回退到旧版全量数据工具。
-    assert tool_policy_for("exam_analysis", has_packet=False) == [
-        "submit_report", "get_formal_attachment"]
+    reads = tool_policy_for("general_chat", has_packet=False)
+    assert tool_policy_for("exam_analysis", has_packet=True) == ["submit_report", *reads]
+    assert tool_policy_for("exam_analysis", has_packet=True,
+                           optional_tools=["get_teaching_guidance"]) == ["submit_report", "get_teaching_guidance", *reads]
+    assert tool_policy_for("exam_analysis", has_packet=False) == ["submit_report", "get_formal_attachment"]
 
 
 def test_packet_text_includes_evidence_ids(db, seed):

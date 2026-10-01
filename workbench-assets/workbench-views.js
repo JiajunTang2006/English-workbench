@@ -1,16 +1,16 @@
     // ================= 渲染层 =================
     function getCurrentPageName() {
       if (curModule === 'risk') return '重点关注学生';
-      return MODULES.find(module => module.key === curModule)?.label || '仪表盘';
+      const module = MODULES.find(item => item.key === curModule);
+      return module ? moduleLabel(module) : '仪表盘';
     }
 
     function renderHeaderContext() {
       const teacherName = String(state.teacher?.name || '').trim();
-      const subject = String(state.teacher?.subject || '').trim();
       const pageName = activeTab === 'teachmate' ? '教师助手' : getCurrentPageName();
       // 顶部品牌统一结构：WorkBench 显示「xxx工作台」，TeachMate 显示「xxx教师助手」。
-      // 学科名未填写时保留通用标题，避免出现多余的分隔点或"undefined"。
-      const subjectBase = subject || '英语教学';
+      // 学科名未填写时用当前学科的默认名兜底，避免出现多余的分隔点或"undefined"。
+      const subjectBase = subjectBaseTitle();
       const platformTitle = subjectBase.endsWith('工作台') ? subjectBase : `${subjectBase}工作台`;
       const assistantTitle = `${subjectBase}教师助手`;
       const workspaceTitle = teacherName ? `${teacherName} · ${platformTitle}` : platformTitle;
@@ -54,11 +54,11 @@
       if (activeTab === 'teachmate') {
         nav.innerHTML = renderTeachMateNav();
       } else {
-        nav.innerHTML = MODULES.map(m => `
+        nav.innerHTML = visibleModules().map(m => `
           <button type="button" class="nav-item ${m.parent ? 'nav-item-child' : ''} ${m.key===curModule?'active':''}" data-act="nav" data-key="${m.key}" ${m.key===curModule?'aria-current="page"':''}>
             ${m.key === 'dash'
               ? '<svg class="nav-icon nav-dashboard-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"></rect><path d="M7.5 8h9"></path><path d="M7.5 12h3v5h-3z" fill="currentColor" stroke="none"></path><path d="M12.5 12h3v5h-3z" fill="currentColor" stroke="none"></path></svg>'
-              : `<span class="nav-icon material-symbols-rounded" aria-hidden="true">${m.icon}</span>`}<span>${m.label}</span>
+              : `<span class="nav-icon material-symbols-rounded" aria-hidden="true">${m.icon}</span>`}<span>${escapeHtml(moduleLabel(m))}</span>
           </button>
         `).join('');
       }
@@ -88,11 +88,17 @@
     }
 
     function render() {
+      if (typeof teachMateTasks !== 'undefined') teachMateTasks.captureCanvas();
       disposeScoreCharts();
       renderHeaderContext();
       if (activeTab === 'teachmate') {
         const previousMessages = document.getElementById('tmMessages');
         const previousInput = document.getElementById('tmInput');
+        const previousTaskOperations = document.getElementById('tmTaskOperations');
+        const taskOperationsKey = previousTaskOperations && previousTaskOperations.dataset.menuKey;
+        const taskOperationsOpen = previousTaskOperations && previousTaskOperations.open;
+        const previousCanvas = typeof teachMateTasks !== 'undefined' ? teachMateTasks.preservedCanvas() : null;
+        const canvasFocus = previousCanvas && previousCanvas.contains(document.activeElement) ? document.activeElement : null;
         // 过程消息行带有持续扫光动画；保留同一 run 的过程块节点，避免
         // 每个 SSE/轮询事件都通过 innerHTML 重建，导致动画和折叠状态重置。
         const previousProcess = document.getElementById('tmProcessBlock');
@@ -112,6 +118,17 @@
         const inputSelectionEnd = previousInput ? previousInput.selectionEnd : null;
         const workarea = document.getElementById('workarea');
         workarea.innerHTML = renderTeachMate();
+        const nextTaskOperations = document.getElementById('tmTaskOperations');
+        if (nextTaskOperations && nextTaskOperations.dataset.menuKey === taskOperationsKey) {
+          nextTaskOperations.open = !!taskOperationsOpen;
+        }
+        const nextCanvas = document.getElementById('tmTaskCanvas');
+        // Keep long editors intact across background refreshes, including file selections.
+        if (previousCanvas && nextCanvas && previousCanvas.dataset.canvasKey === nextCanvas.dataset.canvasKey) {
+          previousCanvas.querySelector('.tm-canvas-heading').replaceWith(nextCanvas.querySelector('.tm-canvas-heading'));
+          nextCanvas.replaceWith(previousCanvas);
+          if (canvasFocus) canvasFocus.focus({ preventScroll: true });
+        }
         const nextProcess = document.getElementById('tmProcessBlock');
         if (previousProcess && nextProcess &&
             previousProcess.getAttribute('data-run-id') === nextProcess.getAttribute('data-run-id')) {
@@ -171,7 +188,10 @@
         // B3-10：进入设置页时刷新 AI 模型运行状态与已配置信息
         loadProviderStatusUi();
         if (typeof loadMoniConfigUi === 'function') loadMoniConfigUi();
+        if (typeof loadGrowthStandardsUi === 'function') loadGrowthStandardsUi();
+        if (typeof loadSchoolSourcesUi === 'function') loadSchoolSourcesUi();
       }
+      if (curModule === 'settings' && typeof loadPaperDistributionDefaultsUi === 'function') loadPaperDistributionDefaultsUi();
       if (curModule === 'risk') {
         const resetRiskDetailScroll = () => {
           const main = document.querySelector('main');
@@ -332,7 +352,7 @@
           </div>
           <div class="dash-kpi dash-kpi-blue">
             <div class="dash-kpi-icon"><span class="material-symbols-rounded">school</span></div>
-            <div class="dash-kpi-body"><div class="dash-kpi-value">${avgEntrance}</div><div class="dash-kpi-label">入学英语均分</div><div class="dash-kpi-sub">${entranceScores.length ? `已录入 ${entranceScores.length} 人` : '暂无入学成绩'}</div></div>
+            <div class="dash-kpi-body"><div class="dash-kpi-value">${avgEntrance}</div><div class="dash-kpi-label">${subjectHtml('entrance_score')}均分</div><div class="dash-kpi-sub">${entranceScores.length ? `已录入 ${entranceScores.length} 人` : '暂无入学成绩'}</div></div>
           </div>
           <div class="dash-kpi dash-kpi-teal">
             <div class="dash-kpi-icon"><span class="material-symbols-rounded">check_circle</span></div>
@@ -665,14 +685,14 @@
         </div>
         ${batchTools}
         <div class="card student-table-card"><div class="card-body" style="padding:0;overflow:auto;">
-          ${list.length ? `<table class="student-table"><thead><tr>${batchMode ? `<th class="student-select-col"><input type="checkbox" data-act="stu-select-all" ${allSelected?'checked':''} ${selectedVisible.length && !allSelected?'data-indeterminate="true"':''} aria-label="选择本页学生"></th>` : ''}<th>学号</th><th class="student-name-col">姓名</th><th>班级</th><th class="text-right">入学英语</th><th>家长电话</th><th class="student-actions-col"><span class="sr-only">操作</span></th></tr></thead><tbody>
+          ${list.length ? `<table class="student-table"><thead><tr>${batchMode ? `<th class="student-select-col"><input type="checkbox" data-act="stu-select-all" ${allSelected?'checked':''} ${selectedVisible.length && !allSelected?'data-indeterminate="true"':''} aria-label="选择本页学生"></th>` : ''}<th>学号</th><th class="student-name-col">姓名</th><th>班级</th><th class="text-right">${subjectHtml('entrance_score')}</th><th>家长电话</th><th class="student-actions-col"><span class="sr-only">操作</span></th></tr></thead><tbody>
             ${list.map(s=>{
                 const rawPhone = s.phone || '';
                 const phoneIsVisible = visiblePhoneStudentIds.has(String(s.id));
                 const displayPhone = rawPhone ? (phoneIsVisible ? escapeHtml(rawPhone) : '••••••••') : '—';
                 return `<tr data-act="stu-detail" data-id="${escapeAttr(s.id)}" tabindex="0" aria-label="打开${escapeAttr(s.name)}的学生档案" class="student-row ${selectedStudentIds.has(s.id)?'selected-row':''}">${batchMode ? `<td class="student-select-col"><input type="checkbox" data-act="stu-select" data-id="${escapeAttr(s.id)}" ${selectedStudentIds.has(s.id)?'checked':''} aria-label="选择${escapeAttr(s.name)}"></td>` : ''}
                 <td class="numeric">${escapeHtml(s.id)}</td><td class="student-name-col"><strong>${escapeHtml(s.name)}</strong></td><td>${escapeHtml(formatClassLabel(s.class))}</td>
-                <td class="text-right numeric">${s.english || '—'}</td><td class="phone-cell"><span class="phone-content"><span class="phone-value ${phoneIsVisible ? 'revealed' : 'masked'}">${displayPhone}</span>${rawPhone ? `<button class="phone-toggle-btn icon-btn" data-act="stu-toggle-phone" data-id="${escapeAttr(s.id)}" title="${phoneIsVisible ? '隐藏' : '显示'}家长电话" aria-label="${phoneIsVisible ? '隐藏' : '显示'}${escapeAttr(s.name)}的家长电话" aria-pressed="${phoneIsVisible}"><span class="material-symbols-rounded">${phoneIsVisible ? 'visibility_off' : 'visibility'}</span></button>` : ''}</span></td>
+                <td class="text-right numeric">${s.english ?? '—'}</td><td class="phone-cell"><span class="phone-content"><span class="phone-value ${phoneIsVisible ? 'revealed' : 'masked'}">${displayPhone}</span>${rawPhone ? `<button class="phone-toggle-btn icon-btn" data-act="stu-toggle-phone" data-id="${escapeAttr(s.id)}" title="${phoneIsVisible ? '隐藏' : '显示'}家长电话" aria-label="${phoneIsVisible ? '隐藏' : '显示'}${escapeAttr(s.name)}的家长电话" aria-pressed="${phoneIsVisible}"><span class="material-symbols-rounded">${phoneIsVisible ? 'visibility_off' : 'visibility'}</span></button>` : ''}</span></td>
                 <td class="student-actions-col"><details class="row-actions"><summary data-act="row-menu-toggle" aria-label="打开${escapeAttr(s.name)}的更多操作">⋯</summary><div class="row-actions-menu"><button type="button" data-act="stu-edit" data-id="${escapeAttr(s.id)}">编辑</button><button type="button" data-act="stu-transfer" data-id="${escapeAttr(s.id)}">转班</button><button type="button" data-act="stu-archive" data-id="${escapeAttr(s.id)}">归档</button></div></details></td>
               </tr>`;
               }).join('')}
@@ -690,7 +710,7 @@
           ${subtabs.map(s => `<div class="subtab ${scoreClass===s.v?'active':''}" data-act="score-class" data-cls="${s.v}">${s.label}</div>`).join('')}
         </div>
         <div class="toolbar" style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;">
-          <span style="font-weight:600;">${clsLabel} 英语成绩：</span>
+          <span style="font-weight:600;">${clsLabel} ${subjectHtml('score_column')}：</span>
           <button class="btn btn-sm ${scoreSort==='id'?'btn-secondary':''}" data-act="score-sort" data-sort="id">按学号</button>
           <button class="btn btn-sm ${scoreSort==='scoreDesc'?'btn-secondary':''}" data-act="score-sort" data-sort="scoreDesc">成绩高→低</button>
           <button class="btn btn-sm ${scoreSort==='scoreAsc'?'btn-secondary':''}" data-act="score-sort" data-sort="scoreAsc">成绩低→高</button>
@@ -714,7 +734,7 @@
         const isMoniExam = String(exam?.id || '').startsWith('moni:');
         const hasRecordedScores = exam ? getScoredStudents(exam, state.students).length > 0 : false;
         const sourceWarning = isMoniExam && !hasRecordedScores
-          ? `<div class="score-source-warning" role="status"><span class="material-symbols-rounded" aria-hidden="true">info</span><div><strong>名单和考试已同步，英语单科成绩尚未提供</strong><span>MONI 当前返回的英语分数与排名为空；WorkBench 已保留“—”，没有用四科总分替代。</span></div></div>`
+          ? `<div class="score-source-warning" role="status"><span class="material-symbols-rounded" aria-hidden="true">info</span><div><strong>名单和考试已同步，${subjectHtml('score_single')}尚未提供</strong><span>MONI 当前返回的${subjectHtml('score_short')}与排名为空；WorkBench 已保留“—”，没有用四科总分替代。</span></div></div>`
           : '';
         if (scoreSort === 'id') {
           list.sort((a,b) => String(a.id).localeCompare(String(b.id)));
@@ -730,20 +750,22 @@
             <label style="display:inline-flex;align-items:center;gap:6px;">当前考试：<select id="score-exam-select" data-act="score-exam" class="jump-select" style="min-width:220px;">${state.exams.map(item => `<option value="${escapeAttr(item.id)}" ${item.id===currentExamId?'selected':''}>${escapeHtml(item.name)}${item.date?'（'+escapeHtml(item.date)+'）':''}</option>`).join('')}</select></label>
             <span>满分：${exam?.fullScore||100}</span>
             <button class="btn btn-secondary" data-act="score-batch-paste" ${exam ? '' : 'disabled'}>批量粘贴</button>
+            <button class="btn btn-secondary" data-act="score-item-upload" ${exam ? '' : 'disabled'}>上传小分</button>
+            ${DATABASE_MODE ? `<button class="btn btn-secondary" data-act="score-paper-settings" ${exam ? '' : 'disabled'}>考试设置</button>` : ''}
             <button class="btn ${pendingCount ? 'btn-primary' : 'btn-secondary'}" data-act="score-save-pending" ${pendingCount ? '' : 'disabled'}>保存成绩更改${pendingCount ? `（${pendingCount}）` : ''}</button>
             <button class="btn btn-text" data-act="score-undo" ${scoreUndoStack.length ? '' : 'disabled'}>撤销</button>
-            <button class="btn score-exam-action" data-act="score-edit-exam" ${exam ? '' : 'disabled'}>考试设置</button>
+            <button class="btn score-exam-action" data-act="score-edit-exam" ${exam ? '' : 'disabled'}>考试信息</button>
             <button class="btn score-exam-delete" data-act="score-del-exam" ${exam ? '' : 'disabled'}>删除考试…</button>
             ${pendingCount ? `<span class="unsaved-indicator"><span aria-hidden="true"></span>${pendingCount} 项未保存</span>` : '<span class="saved-indicator">所有更改已保存</span>'}
           </div>
           ${sourceWarning}
           <div class="card score-table-card"><div class="card-body" style="padding:0;overflow:auto;">
-            <table class="score-table"><thead><tr><th>学号</th><th class="sticky-name-col">姓名</th><th>班级</th><th class="text-right">英语总分</th><th class="text-right">班级排名</th><th class="text-right">年级排名</th></tr></thead><tbody>
+            <table class="score-table"><thead><tr><th>学号</th><th class="sticky-name-col">姓名</th><th>班级</th><th class="text-right">${subjectHtml('score_total')}</th><th class="text-right">班级排名</th><th class="text-right">年级排名</th></tr></thead><tbody>
               ${list.map(s => {
                 const sc = getExamScore(exam, s);
                 const gradeRank = getStudentGradeRank(exam, s);
                 const dirty = pendingScoreEdits.has(scoreEditKey(exam?.id, s.id));
-                return `<tr><td class="numeric">${escapeHtml(s.id)}</td><td class="sticky-name-col">${escapeHtml(s.name)}</td><td>${escapeHtml(formatClassLabel(s.class))}</td><td class="text-right numeric score-edit-cell ${dirty ? 'score-dirty' : ''}" contenteditable="${exam ? 'true' : 'false'}" data-act="score-edit" data-sid="${escapeAttr(s.id)}" aria-label="${escapeAttr(s.name)}英语成绩${dirty ? '，尚未保存' : ''}">${sc === null ? '—' : sc}</td><td class="text-right numeric">${rankMap[s.id] || '—'}</td><td class="text-right numeric">${gradeRank ?? '—'}</td></tr>`;
+                return `<tr><td class="numeric">${escapeHtml(s.id)}</td><td class="sticky-name-col">${escapeHtml(s.name)}</td><td>${escapeHtml(formatClassLabel(s.class))}</td><td class="text-right numeric score-edit-cell ${dirty ? 'score-dirty' : ''}" contenteditable="${exam ? 'true' : 'false'}" data-act="score-edit" data-sid="${escapeAttr(s.id)}" aria-label="${escapeAttr(s.name)}${subjectHtml('score_column')}${dirty ? '，尚未保存' : ''}">${sc === null ? '—' : sc}</td><td class="text-right numeric">${rankMap[s.id] || '—'}</td><td class="text-right numeric">${gradeRank ?? '—'}</td></tr>`;
               }).join('')}
             </tbody></table>
             ${list.length?'':'<div class="empty">该班级暂无学生</div>'}
@@ -1050,7 +1072,7 @@
       const rows = records.length
         ? records.map(item => `<tr><td>${escapeHtml(item.exam.name || '未命名考试')}</td><td>${escapeHtml(item.exam.date || '—')}</td><td class="text-center"><strong>${item.tier}</strong></td><td class="text-center">${fmt(item.score)}</td></tr>`).join('')
         : `<tr><td colspan="4" class="empty">近${recentExams.length}次考试中暂无${targetLevel}类记录</td></tr>`;
-      openModal(`重点关注 · ${student.name}`, `<div class="card" style="margin:0 0 16px;"><div class="card-body"><div style="display:flex;gap:24px;flex-wrap:wrap;"><span><b>姓名：</b>${escapeHtml(student.name)}</span><span><b>学号：</b>${escapeHtml(student.id)}</span><span><b>班级：</b>当前班级</span></div>${evidenceBlock}</div></div><div class="card"><div class="card-header"><h3 class="card-title">${targetLevel}层 · ${targetLevel === 'D' ? '优先干预' : '需跟进'}</h3><span class="badge ${targetLevel === 'D' ? 'badge-red' : 'badge-orange'}">${records.length} 次</span></div><div class="card-body" style="padding:0;overflow:auto;"><table><thead><tr><th>考试</th><th>日期</th><th class="text-center">层级</th><th class="text-center">英语分数</th></tr></thead><tbody>${rows}</tbody></table></div></div>`, '<button class="btn btn-primary" onclick="closeModal()">关闭</button>');
+      openModal(`重点关注 · ${student.name}`, `<div class="card" style="margin:0 0 16px;"><div class="card-body"><div style="display:flex;gap:24px;flex-wrap:wrap;"><span><b>姓名：</b>${escapeHtml(student.name)}</span><span><b>学号：</b>${escapeHtml(student.id)}</span><span><b>班级：</b>当前班级</span></div>${evidenceBlock}</div></div><div class="card"><div class="card-header"><h3 class="card-title">${targetLevel}层 · ${targetLevel === 'D' ? '优先干预' : '需跟进'}</h3><span class="badge ${targetLevel === 'D' ? 'badge-red' : 'badge-orange'}">${records.length} 次</span></div><div class="card-body" style="padding:0;overflow:auto;"><table><thead><tr><th>考试</th><th>日期</th><th class="text-center">层级</th><th class="text-center">${subjectHtml('score_short')}</th></tr></thead><tbody>${rows}</tbody></table></div></div>`, '<button class="btn btn-primary" onclick="closeModal()">关闭</button>');
     }
 
     function renderRiskClouds(cls) {
@@ -1152,6 +1174,7 @@
 
     function renderSettings() {
       const currentTerm = availableTerms.find(term => Number(term.id) === Number(currentTermId));
+      const currentSubject = subjectCatalog.find(item => item.key === subjectKey) || subjectCatalog[0] || {};
       const termPeriod = currentTerm ? [currentTerm.starts_on, currentTerm.ends_on].filter(Boolean).join(' 至 ') : '';
       return `
         <div class="card"><div class="card-header"><h3 class="card-title">教师信息与评分标准</h3></div>
@@ -1159,7 +1182,10 @@
           ${DATABASE_MODE ? `<div class="term-settings-row"><div><strong>${escapeHtml(currentTerm?.name || '未识别')}</strong>${termPeriod ? `<div class="subtle">${escapeHtml(termPeriod)}</div>` : ''}</div><div><button class="btn btn-secondary" data-act="term-manage">管理学期</button><button class="btn btn-primary" data-act="term-add">新建学期</button></div></div><hr style="margin:20px 0;border:0;border-top:1px solid var(--border);">` : ''}
           <div class="form-row">
             <div class="form-group"><label>教师姓名</label><input id="sett-name" value="${escapeAttr(state.teacher.name)}"></div>
-            <div class="form-group"><label>学科</label><input id="sett-subject" value="${escapeAttr(state.teacher.subject)}"></div>
+            <div class="form-group"><label for="sett-subject-key">任教学科</label><select id="sett-subject-key">${subjectCatalog.map(item => `<option value="${escapeAttr(item.key)}" ${item.key === subjectKey ? 'selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}</select></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>学科名称（显示在顶栏）</label><input id="sett-subject" value="${escapeAttr(state.teacher.subject)}" placeholder="例如：七年级语文"></div>
           </div>
           <div class="form-row">
             <div class="form-group"><label>优秀线（满分百分比）</label><input type="number" min="0" max="100" step="0.5" id="sett-excellent" value="${state.settings.excellent}"></div>
@@ -1170,15 +1196,89 @@
           </div>
           <button class="btn btn-primary" data-act="settings-save">保存设置</button>
         </div></div>
-        <div class="card"><div class="card-header"><h3 class="card-title">MONI 数据接口（MCP）</h3></div>
+        ${DATABASE_MODE ? `<div class="card" id="paper-default-card"><div class="card-header"><h3 class="card-title">试卷设置</h3></div><div class="card-body">
+
+
+          <div id="paper-default-rows" class="paper-distribution-rows">正在读取试卷设置…</div>
+          <div class="paper-distribution-actions"><button class="btn btn-primary" data-act="paper-default-save" disabled>保存设置</button><span id="paper-default-status" role="status" class="subtle"></span></div>
+        </div></div>` : ''}
+        ${DATABASE_MODE ? `<div class="card"><div class="card-header"><h3 class="card-title">成长加分标准</h3></div>
         <div class="card-body">
-          <p style="margin:0 0 12px;color:var(--md-text-secondary);">接口地址和 MCP 格式已内置，只需要填写 MONI API Key。令牌只保存在本机，不会显示给前端。</p>
+
+          <div class="form-row">
+            <div class="form-group"><label for="growth-teacher-select">当前教师</label><select id="growth-teacher-select" data-act="growth-teacher-select"></select></div>
+            <div class="form-group"><label for="growth-teacher-new">新增教师</label><div style="display:flex;gap:8px;"><input id="growth-teacher-new" placeholder="教师姓名" maxlength="32" autocomplete="off"><button class="btn btn-secondary" data-act="growth-teacher-add">添加</button></div></div>
+          </div>
+          <div id="growth-preset-conflict" class="growth-preset-conflict" role="status"></div>
+          <div id="growth-preset-rows" class="growth-preset-editor">正在读取加分标准…</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center;"><button class="btn btn-primary" data-act="growth-preset-save">保存加分标准</button><button class="btn btn-secondary" data-act="growth-preset-reset">恢复默认分值</button><button class="btn btn-text danger-text" data-act="growth-teacher-remove">删除当前教师</button><span id="growth-preset-status" class="subtle">正在读取配置…</span></div>
+        </div></div>` : ''}
+        ${subjectKey === 'english' ? `<div class="card"><div class="card-header"><h3 class="card-title">MONI 数据接口（MCP）</h3></div>
+        <div class="card-body">
+
           <div class="form-group"><label for="moni-api-key">MONI API Key</label><input id="moni-api-key" type="password" autocomplete="off" placeholder="输入新的 API Key（已配置时可留空）" style="font-family:ui-monospace,monospace;"><div id="moni-key-state" class="subtle" style="margin-top:8px;">正在检查 API Key 状态…</div></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center;"><button class="btn btn-secondary" data-act="moni-open-tutorial">使用教程</button><button class="btn btn-primary" data-act="moni-save-config">保存接口配置</button><button class="btn btn-secondary" data-act="moni-test-config">测试连接</button><button class="btn btn-secondary" data-act="moni-sync-now">测试并同步学生数据</button><span id="moni-config-status" class="subtle">正在读取配置…</span></div>
-        </div></div>
+        </div></div>` : `<div class="card"><div class="card-header"><h3 class="card-title">MONI 数据接口（MCP）</h3></div><div class="card-body"><p style="margin:0;color:var(--md-text-secondary);">内置 MONI 目前只提供英语单科同步。当前是${escapeHtml(subjectName())}工作区，请在下方配置对应学科的数据源。</p></div></div>`}
+        ${DATABASE_MODE ? `<div class="card"><div class="card-header"><h3 class="card-title">其他学校数据源（自定义 MCP）</h3></div>
+        <div class="card-body">
+
+          <div id="school-source-list" class="school-source-list">正在读取数据源…</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center;"><button class="btn btn-secondary" data-act="school-source-new">新建数据源</button><button class="btn btn-text" data-act="school-source-refresh">刷新列表</button><span id="school-source-status" class="subtle">正在读取配置…</span></div>
+          <div id="school-source-editor" class="school-source-editor" hidden>
+            <h4 id="school-source-editor-title">新建数据源</h4>
+            <div class="form-row">
+              <div class="form-group"><label for="school-source-key">数据源标识</label><input id="school-source-key" maxlength="64" autocomplete="off" placeholder="小写字母、数字、点、下划线或连字符"></div>
+              <div class="form-group"><label for="school-source-name">显示名称</label><input id="school-source-name" maxlength="150" autocomplete="off" placeholder="例如：某校${escapeAttr(subjectName())}数据"></div>
+            </div>
+            <div class="form-group"><label for="school-source-endpoint">MCP 端点（http/https）</label><input id="school-source-endpoint" autocomplete="off" placeholder="https://mcp.example.edu/api/mcp" style="font-family:ui-monospace,monospace;"></div>
+            <div class="form-row">
+              <div class="form-group"><label for="school-source-auth">鉴权方式</label><select id="school-source-auth"><option value="none">不需要令牌</option><option value="bearer">Bearer 令牌</option></select></div>
+              <div class="form-group"><label for="school-source-token">Bearer 令牌</label><input id="school-source-token" type="password" autocomplete="off" placeholder="已配置时可留空"><div id="school-source-token-state" class="subtle" style="margin-top:8px;">令牌状态未知</div></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label for="school-source-term-id">学期标识</label><input id="school-source-term-id" autocomplete="off" placeholder="例如 2026-S1"></div>
+              <div class="form-group"><label for="school-source-term-name">学期名称</label><input id="school-source-term-name" autocomplete="off" placeholder="例如 2026 学年第一学期"></div>
+              <div class="form-group"><label for="school-source-full-score">满分（兜底）</label><input id="school-source-full-score" type="number" min="0" max="1000" step="0.5" placeholder="例如 100"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label for="school-source-subject-field">科目字段名</label><input id="school-source-subject-field" autocomplete="off" placeholder="例如 subjectName"></div>
+              <div class="form-group"><label for="school-source-subject-values">只同步的科目取值（逗号分隔）</label><input id="school-source-subject-values" autocomplete="off" placeholder="英语,English"></div>
+            </div>
+            <h4>数据路径模板</h4>
+            <p class="subtle" style="margin:0 0 8px;">用 <code>{class_id}</code> / <code>{exam_id}</code> 作为占位符，只填学校实际提供的路径。</p>
+            <div class="school-source-grid">
+              <label><span>学期</span><input id="school-source-path-term" autocomplete="off" placeholder="/school/current-term.json"></label>
+              <label><span>班级列表</span><input id="school-source-path-classes" autocomplete="off" placeholder="/classes/.list.jsonl"></label>
+              <label><span>学生名册</span><input id="school-source-path-roster" autocomplete="off" placeholder="/classes/{class_id}/students/.list.jsonl"></label>
+              <label><span>考试列表</span><input id="school-source-path-exams" autocomplete="off" placeholder="/classes/{class_id}/exams/.list.jsonl"></label>
+              <label><span>题目</span><input id="school-source-path-questions" autocomplete="off" placeholder="/classes/{class_id}/exams/{exam_id}/questions/.list.jsonl"></label>
+              <label><span>成绩</span><input id="school-source-path-students" autocomplete="off" placeholder="/classes/{class_id}/exams/{exam_id}/students/.list.jsonl"></label>
+            </div>
+            <h4>字段映射</h4>
+            <p class="subtle" style="margin:0 0 8px;">左边是 WorkBench 认的逻辑字段，右边写学校返回的字段名；可以写候选列表，按顺序取第一个有值的。取不到的字段留空，不会被当成 0。</p>
+            <textarea id="school-source-field-map" rows="12" spellcheck="false" aria-label="字段映射 JSON"></textarea>
+            <div id="school-source-missing" class="school-source-missing" role="status"></div>
+            <h4>分类取值对照（可选）</h4>
+            <p class="subtle" style="margin:0 0 8px;">字段名对上了，取值口径还可能对不上：同一类东西，上游可能叫「甲等」，WorkBench 只认 A。每行写一条「逻辑字段: 统一叫法 = 上游叫法1, 上游叫法2」，多个上游叫法用逗号、顿号或分号分隔；以 <code>#</code> 开头的行会被忽略。没有写进对照表的上游取值会按原样保留，不会被猜成别的东西。</p>
+            <details class="school-source-alias-help"><summary>可以填哪些字段</summary><ul id="school-source-alias-reference"></ul></details>
+            <textarea id="school-source-alias-map" rows="5" spellcheck="false" aria-label="分类取值对照表" placeholder="question.knowledge: 宾语从句 = 从句, Object Clause"></textarea>
+            <h4>学生分层别名（可选）</h4>
+            <p class="subtle" style="margin:0 0 8px;">学校的「优秀 / 良好 / 合格 / 待提高」这类分层叫法，每行写「上游叫法 = A」。只有填了才知道哪一层是 A；填不出来就留空，分层线不会被猜。</p>
+            <textarea id="school-source-tier-aliases" rows="3" spellcheck="false" aria-label="学生分层别名" placeholder="优秀 = A"></textarea>
+            <div id="school-source-alias-status" class="school-source-missing" role="status"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center;">
+              <button class="btn btn-primary" data-act="school-source-save">保存配置</button>
+              <button class="btn btn-secondary" data-act="school-source-test">测试连接</button>
+              <button class="btn btn-secondary" data-act="school-source-sync">立即同步</button>
+              <button class="btn btn-text danger-text" data-act="school-source-delete">删除数据源</button>
+              <button class="btn btn-text" data-act="school-source-cancel">取消</button>
+              <span id="school-source-editor-status" class="subtle"></span>
+            </div>
+          </div>
+        </div></div>` : ''}
         <div class="card"><div class="card-header"><h3 class="card-title">班级归档与合并</h3></div>
         <div class="card-body">
-          <p style="margin:0 0 14px;color:var(--md-text-secondary);">同年级、同班号的不同写法会自动合并。</p>
+
           ${state.classes.length >= 2 ? `<div class="form-row"><div class="form-group"><label>来源班级</label><select id="class-merge-source">${state.classes.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(formatClassLabel(c))}</option>`).join('')}</select></div><div class="form-group"><label>目标班级</label><select id="class-merge-target">${state.classes.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(formatClassLabel(c))}</option>`).join('')}</select></div></div><button class="btn btn-secondary" data-act="class-merge">归档并合并</button>` : '<div style="color:var(--md-text-secondary);">至少需要两个班级才能进行手动合并。</div>'}
           ${Object.keys(state.classAliases || {}).length ? `<div style="margin-top:16px;"><strong>已归档的班级写法</strong><div style="display:grid;gap:8px;margin-top:8px;">${Object.entries(state.classAliases).map(([source, target]) => `<div class="tag-manage-row"><span>${escapeHtml(formatClassLabel(source))} → ${escapeHtml(formatClassLabel(resolveClassName(target)))}</span><button class="btn btn-sm" data-act="class-unarchive" data-id="${escapeAttr(source)}">解除映射</button></div>`).join('')}</div><small style="color:var(--md-text-secondary);">解除映射不会拆分已有学生，只影响之后导入时的自动归类。</small></div>` : ''}
         </div></div>

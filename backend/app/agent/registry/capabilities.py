@@ -29,28 +29,23 @@ MANAGED_OPTIONAL_TOOLS_BY_CAPABILITY = {
     "review_plan": ("get_teaching_guidance",),
 }
 
-# 普通对话的“自主查数”白名单：仅包含聚合/题目层面的只读查询，不包含
-# 学生名单、个人画像、写入工具或批量执行工具。模型可以选择调用，也可以
-# 直接回答；当前会话没有 exam_id 时 ToolRegistry 会自动过滤这些工具。
-GENERAL_CHAT_READ_TOOLS = (
-    "get_exam_statistics",
-    "get_question_list",
-    "get_question_difficulty",
-    "get_score_distribution",
-    "get_knowledge_coverage",
-    "get_error_causes",
-    "get_common_mistakes",
-)
-
 # Harness Education Bridge 使用的等价只读工具名。
 GENERAL_CHAT_MANAGED_READ_TOOLS = (
+    "get_practice_context",
+    "get_student_learning_evidence",
+    "get_original_question",
+    "resolve_student",
     "get_exam_overview",
     "get_score_distribution",
     "get_question_list",
     "get_wrong_questions",
     "get_student_scores",
+    "get_student_trend",
 )
 
+
+# 两条运行路径共用同一普通对话契约。
+GENERAL_CHAT_READ_TOOLS = GENERAL_CHAT_MANAGED_READ_TOOLS
 
 @dataclass
 class CapabilityDefinition:
@@ -98,7 +93,7 @@ _GENERAL_CHAT_CAPABILITY = CapabilityDefinition(
     managed_required_tools=[],
     managed_optional_tools=[],
     # 允许一轮“模型决定查数”+一轮“依据结果回答”，但仍限制总轮数。
-    max_iterations=3,
+    max_iterations=4,
     max_parallel_tools=1,
     budget_limit_yuan=0.1,
     requires_evidence=False,
@@ -244,7 +239,7 @@ def create_default_capability_registry() -> CapabilityRegistry:
     registry.register(CapabilityDefinition(
         name="review_plan",
         display_name="复习计划生成",
-        description="根据考试分析结果，生成针对性的复习计划，包括知识点优先级和练习建议。",
+        description="根据指定考试的证据生成复习安排，按教师需求提供练习及复测建议。学生练习与教师答案分开展示，不生成教案。",
         required_tools=[
             "get_exam_statistics",
             "get_knowledge_coverage",

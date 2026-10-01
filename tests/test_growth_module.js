@@ -22,6 +22,14 @@ function forestFor(termId) {
   if (termId === 2) {
     return {
       term_id: 2, class_id: null, rule_version: 'growth-v3',
+      manual_entry_policy: 'teacher_confirmed_v1',
+      // 第二位老师给了不同的分值：多套标准分叉，界面必须显式说明不宜横向比较。
+      active_teacher: { id: 2, name: '王老师' },
+      manual_presets: [
+        { type: 'task_completed', label: '完成学习任务', points: 5, default_points: 2, visible: true, customized: true },
+        { type: 'spaced_review', label: '间隔复习/达标复测', points: 3, default_points: 3, visible: true, customized: false },
+      ],
+      standard_conflict: { conflict: true, teachers: 2, divergent_types: ['task_completed'] },
       stages: [
         { min: 0, name: '种子', icon: '🌰' }, { min: 30, name: '发芽', icon: '🌱' },
         { min: 80, name: '小树苗', icon: '🌿' }, { min: 160, name: '茁壮成长', icon: '🪴' },
@@ -43,6 +51,18 @@ function forestFor(termId) {
   }
   return {
     term_id: 1, class_id: null, rule_version: 'growth-v3',
+    manual_entry_policy: 'teacher_confirmed_v1',
+    // 补录预设由后端按「当前教师」下发：前端不再自带第二份分值表，
+    // 因此把「完成学习任务」改成 3 分，界面上的快捷按钮与默认输入值都应跟着变。
+    active_teacher: { id: 1, name: '默认教师' },
+    manual_presets: [
+      { type: 'task_completed', label: '完成学习任务', points: 3, default_points: 2, visible: true, customized: true },
+      { type: 'correction_verified', label: '完成订正并确认', points: 2, default_points: 2, visible: true, customized: false },
+      { type: 'spaced_review', label: '间隔复习/达标复测', points: 3, default_points: 3, visible: true, customized: false },
+      { type: 'teacher_observation', label: '课堂/阅读表现', points: 1, default_points: 1, visible: true, customized: false },
+      { type: 'weekly_goal', label: '达成个人周目标', points: 2, default_points: 2, visible: true, customized: false },
+    ],
+    standard_conflict: { conflict: false, teachers: 1, divergent_types: [] },
     stages: [
       { min: 0, name: '种子', icon: '🌰' }, { min: 30, name: '发芽', icon: '🌱' },
       { min: 80, name: '小树苗', icon: '🌿' }, { min: 160, name: '茁壮成长', icon: '🪴' },
@@ -104,7 +124,7 @@ function detailFor(studentId) {
         cap_reason: 'legacy', reversible: true, proposed_points: 0 },
       { event_id: 12, event_type: 'task_completed', event_label: '完成学习任务',
         business_date: '2026-04-02', note: '完成课堂任务', legacy_points: null, applied_points: 2,
-        cap_reason: 'none', reversible: true, proposed_points: 2 },
+        cap_reason: 'none', reversible: true, proposed_points: 2, actor: '王老师' },
       { event_id: 13, event_type: 'task_completed', event_label: '完成学习任务',
         business_date: '2026-04-02', note: '完成课堂任务', legacy_points: null, applied_points: 0,
         cap_reason: 'category_daily_awards', reversible: false, proposed_points: 2 },
@@ -177,6 +197,8 @@ function navItem(key) { return [...doc.querySelectorAll('.nav-item')].find(item 
   check('阶段阈值来自后端', area.textContent.includes('🌰0') && area.textContent.includes('🌳560'));
   check('明确说明营养不是能力等级', area.textContent.includes('不是英语能力等级'));
   check('森林请求按当前学期发起', forestRequests[0] === 1);
+  check('森林页标出当前补录标准归属', area.textContent.includes('当前补录标准') && area.textContent.includes('默认教师'));
+  check('单套标准不误报分叉警告', !area.textContent.includes('不宜直接横向比较'));
 
   // 批量补录模式：勾选后切换全局班级范围必须清空选择（方案 §1.2）
   [...area.querySelectorAll('[data-act="growth-batch-toggle"]')][0].click();
@@ -221,6 +243,10 @@ function navItem(key) { return [...doc.querySelectorAll('.nav-item')].find(item 
   check('进步分单独标注并给出相对自己的基线', modal.includes('进步 +2') && modalHtml.includes('基线 35.0%'));
   check('展示历史年轮', modal.includes('2025 秋季'));
   check('展示规则版本与记录覆盖', modal.includes('growth-v3') && modal.includes('5 条'));
+  // 补录预设由后端下发：把「完成学习任务」设成 3 分后，快捷按钮与默认输入值都要跟着变，
+  // 前端不得再自带一份硬编码分值表。
+  check('快捷补录分值来自后端预设', modal.includes('＋3 完成学习任务') && modalHtml.includes('value="3"'));
+  check('补录记录标出记录人', modal.includes('王老师'));
 
   // 学期切换：作废成长缓存并重新拉取新学期森林
   doc.getElementById('modalClose').click();
@@ -233,6 +259,8 @@ function navItem(key) { return [...doc.querySelectorAll('.nav-item')].find(item 
   check('切换学期后重新请求成长森林', forestRequests.length > before && forestRequests[forestRequests.length - 1] === 2);
   const term2 = doc.getElementById('workarea').textContent;
   check('新学期森林不残留旧学期学生', term2.includes('王五') && !term2.includes('张三'));
+  check('新学期标出该学期教师与标准', term2.includes('王老师') && term2.includes('当前补录标准'));
+  check('多套标准分叉时显式提示不可比', term2.includes('不同的加分标准') && term2.includes('不宜直接横向比较'));
 
   check('全程无脚本错误', errors.length === 0);
 

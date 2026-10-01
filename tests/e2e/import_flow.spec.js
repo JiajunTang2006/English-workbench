@@ -1,7 +1,7 @@
 // S0-04：真实文件导入冒烟
 // 覆盖名单导入、成绩导入、导入后的数据库持久化和成绩页展示。
 const path = require('path');
-const { test, expect } = require('./fixtures');
+const { test, expect, dismissFirstUseModal } = require('./fixtures');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'test_data');
 
@@ -14,6 +14,7 @@ test('S0-04: 名单和成绩文件可通过真实页面导入并持久化', asyn
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/workbench');
   await page.waitForTimeout(700);
+  await dismissFirstUseModal(page);
 
   await page.locator('#fileInput').setInputFiles(path.join(DATA_DIR, 'class_711_roster.csv'));
   await expect(page.locator('#toast')).toContainText('名单导入成功', { timeout: 5000 });

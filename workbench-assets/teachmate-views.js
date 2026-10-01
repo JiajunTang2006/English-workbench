@@ -59,7 +59,7 @@
       var pinnedIds = (snapshot.pinnedSessionIds || []).map(String);
       var folders = snapshot.sessionFolders || [];
       var isActive = s.id === snapshot.currentSessionId;
-      var preview = s.summary || s.title || '新对话';
+      var preview = s.summary && s.summary !== s.title ? s.summary : '';
       var time = _formatSessionTime(s.updated_at || s.created_at);
       var isPinned = pinnedIds.indexOf(String(s.id)) >= 0;
       var inFolder = folders.find(function (f) { return (f.sessionIds || []).map(String).indexOf(String(s.id)) >= 0; });
@@ -147,7 +147,7 @@
       if (el && el.textContent) return el.textContent;
       var t = String(state.teacher && state.teacher.name || '').trim();
       var s = String(state.teacher && state.teacher.subject || '').trim();
-      return (t ? t + ' · ' : '') + (s ? s + '教师助手' : '英语教学教师助手');
+      return (t ? t + ' · ' : '') + (s ? s + '教师助手' : subjectBaseTitle() + '教师助手');
     }
     function _tmHeaderSubtitle() { return 'AI 教学助手'; }
 
@@ -258,7 +258,7 @@
         '<div class="tm-center">' +
         '<div class="tm-mobile-toolbar"><div><strong>' + escapeHtml(_tmHeaderTitle()) + '</strong><span>' + escapeHtml(_tmHeaderSubtitle()) + '</span></div></div>' +
         '<div class="tm-messages" id="tmMessages" data-session-id="' + escapeAttr(String(snapshot.currentSessionId || '')) + '" role="log" aria-live="polite" aria-atomic="false" aria-label="对话消息">' + messagesHtml + scopePromptHtml + batchHtml + runningHtml + confirmationHtml + timelineHtml + '<div id="tmReportMount"></div></div>' +
-        errorHtml + inputHtml + '</div></div>';
+        errorHtml + inputHtml + '</div>' + '</div>';
     }
 
     // --- 过程消息（Harness 风格）：keyed 行缓存 + 原地更新 ---
@@ -520,7 +520,7 @@
         examName = examName || ('考试 #' + session.exam_id);
       }
       var contextLabel = [className, examName].filter(Boolean).join(' · ') || '当前教学范围';
-      var title = isRunning ? '正在分析' : (isWaiting ? '准备继续分析' : (isFailed ? '任务未完成' : '分析结果'));
+      var title = isRunning ? '正在分析' : (isWaiting ? '准备继续分析' : (isFailed ? '任务未完成' : (answer && answer.answer_type === 'review_plan' ? '教学包草稿' : '分析结果')));
       var status = isRunning ? '进行中' : (isWaiting ? '等待确认' : (isFailed ? '需要处理' : (answer ? '已完成' : '等待结果')));
       var statusClass = isRunning ? 'tm-right-status-running' : (isFailed ? 'tm-right-status-error' : 'tm-right-status-done');
       var body = '';
@@ -530,10 +530,10 @@
       } else if (isFailed) {
         body = '<div class="tm-right-empty tm-right-empty-error"><span class="material-symbols-rounded">error_outline</span><strong>这次任务没有完成</strong><p>' + escapeHtml(snapshot.error || '可以在左侧查看错误信息并重试。') + '</p>' + (snapshot.canRetry ? '<button class="tm-right-retry" data-act="tm-retry">重新运行</button>' : '') + '</div>';
       } else if (answer && typeof teachMateReport !== 'undefined') {
-        body = '<div class="tm-right-summary"><div class="tm-right-summary-kicker">已生成成果</div><strong>这份报告可以继续转成教学行动</strong><span>先查看结论，再打开证据或生成后续材料。</span></div>' +
+        body = '<div class="tm-right-summary"><div class="tm-right-summary-kicker">已生成成果</div><strong>' + (answer.answer_type === 'review_plan' ? '复习安排和课堂材料已整理成草稿' : '这份报告可以继续转成教学行动') + '</strong><span>核对证据与数据局限，调整后再用于课堂。</span></div>' +
           _renderRightDataQuality(snapshot) +
-          '<div class="tm-right-report-tabs" role="tablist" aria-label="结果内容"><button type="button" class="tm-right-tab is-active" data-act="tm-right-tab" data-tab="report" aria-selected="true">报告</button><button type="button" class="tm-right-tab" data-act="tm-right-tab" data-tab="evidence" aria-selected="false">证据' + (snapshot.currentEvidence && snapshot.currentEvidence.length ? ' (' + snapshot.currentEvidence.length + ')' : '') + '</button></div>' +
-          '<div class="tm-right-tab-panel" data-right-tab-panel="report">' + teachMateReport.renderReportCanvas(answer, { hideEvidence: true, hideLimitations: true }) + _renderRightNextActions(snapshot) + '</div>' +
+          '<div class="tm-right-report-tabs" role="tablist" aria-label="结果内容"><button type="button" class="tm-right-tab is-active" data-act="tm-right-tab" data-tab="report" aria-selected="true">' + (answer.answer_type === 'review_plan' ? '教学计划与材料' : '报告') + '</button><button type="button" class="tm-right-tab" data-act="tm-right-tab" data-tab="evidence" aria-selected="false">证据' + (snapshot.currentEvidence && snapshot.currentEvidence.length ? ' (' + snapshot.currentEvidence.length + ')' : '') + '</button></div>' +
+          '<div class="tm-right-tab-panel" data-right-tab-panel="report">' + teachMateReport.renderReportCanvas(answer, { hideEvidence: true, runId: snapshot.currentRunId }) + _renderRightNextActions(snapshot) + '</div>' +
           '<div class="tm-right-tab-panel" data-right-tab-panel="evidence" hidden>' + _renderEvidenceList(snapshot) + '</div>' +
           '<div class="tm-right-tab-panel" data-right-tab-panel="quality" hidden>' + _renderRightQualityDetail(snapshot) + '</div>';
       } else {
@@ -577,7 +577,34 @@
 
     function _renderRightNextActions(snapshot) {
       var runId = escapeAttr(String(snapshot.currentRunId || ''));
-      return '<div class="tm-right-next"><div class="tm-right-next-title">下一步</div><div class="tm-right-next-actions"><button type="button" data-act="tm-report-confirm" data-run-id="' + runId + '">教师确认</button></div></div>';
+      var session = (snapshot.sessions || []).find(function (item) { return String(item.id) === String(snapshot.currentSessionId); });
+      var hasExam = !!(session && session.exam_id);
+      var answer = snapshot.reportAnswer;
+      if (!answer && Array.isArray(snapshot.messages)) {
+        for (var i = snapshot.messages.length - 1; i >= 0; i--) {
+          var candidate = snapshot.messages[i] && snapshot.messages[i].structured_answer;
+          if (typeof candidate === 'string') { try { candidate = JSON.parse(candidate); } catch (e) { candidate = null; } }
+          if (candidate && typeof candidate === 'object') { answer = candidate; break; }
+        }
+      }
+      var isTeachingPackage = !!(answer && answer.answer_type === 'review_plan');
+      var actions = (isTeachingPackage ? '' : '<button type="button" data-act="tm-report-confirm" data-run-id="' + runId + '">教师确认</button>') +
+        '<button type="button" data-act="tm-followup-task" data-capability="' + (isTeachingPackage ? 'review_plan' : 'general_chat') + '" data-prompt="' + escapeAttr(isTeachingPackage
+          ? '请根据我接下来补充的调整要求，修订当前教学包；保留未涉及的材料，并继续把学生练习与教师答案分开展示。调整要求：'
+          : '请基于当前会话中有证据支持的教学发现，准备一份可直接使用的讲评草稿：包括 20 分钟流程、课堂提问、分层练习、教师答案与讲解。请区分数据事实和待验证解释；不要把推测写成学生结论。') + '">' + (isTeachingPackage ? '调整教学包' : '准备讲评材料') + '</button>';
+      if (hasExam) {
+        if (!isTeachingPackage) {
+          actions += '<button type="button" data-act="tm-followup-task" data-capability="review_plan" data-prompt="' + escapeAttr('请基于当前考试的已核验分析，制定复习安排和练习建议。注明数据局限；不得把推测写成学生结论。') + '">生成复习计划</button>';
+        }
+      }
+      if (answer && answer.answer_type === 'review_plan') {
+        actions += '<button type="button" data-act="tm-export-doc" data-format="pdf" data-run-id="' + runId + '">导出教师版 PDF</button>' +
+          '<button type="button" data-act="tm-export-doc" data-format="docx" data-run-id="' + runId + '">导出教师版 Word</button>';
+        if (Array.isArray(answer.sections) && answer.sections.some(function (section) { return section && section.kind === 'student_handout'; })) {
+          actions += '<button type="button" data-act="tm-export-doc" data-export-variant="student-handout" data-format="pdf" data-run-id="' + runId + '">单独导出学生练习单</button>';
+        }
+      }
+      return '<div class="tm-right-next"><div class="tm-right-next-title">继续完成教学任务</div><div class="tm-right-next-actions">' + actions + '</div><small class="tm-right-next-hint">选择后会填入输入框；检查范围和要求后再发送。</small></div>';
     }
 
     function _renderContextCard(snapshot) {
@@ -1061,9 +1088,11 @@
       var exportActions = '';
       if (hasStructuredReport && !msg._pending) {
         var _runIdAttr = escapeAttr(String(msg.run_id || ''));
+        var showEvaluationConfirm = parsedAnswer.answer_type !== 'review_plan';
         exportActions = '<div class="tm-message-actions" role="group" aria-label="报告操作">' +
-          '<button type="button" class="tm-action-btn" data-act="tm-export-print" data-run-id="' + _runIdAttr + '" title="打印或另存为 PDF"><span class="material-symbols-rounded" aria-hidden="true">print</span>打印</button>' +
-          '<button type="button" class="tm-action-btn" data-act="tm-report-confirm" data-run-id="' + escapeAttr(String(msg.run_id || '')) + '" title="教师确认"><span class="material-symbols-rounded" aria-hidden="true">verified</span>教师确认</button>' +
+          '<button type="button" class="tm-action-btn" data-act="tm-export-print" data-run-id="' + _runIdAttr + '" title="打印或另存为 PDF"><span class="material-symbols-rounded" aria-hidden="true">print</span>' + (parsedAnswer.answer_type === 'review_plan' ? '打印教师版' : '打印') + '</button>' +
+          '<button type="button" class="tm-action-btn" data-act="tm-copy-summary" data-copy-text="' + escapeAttr(String(summaryText || parsedAnswer.summary || '')) + '" title="复制本报告结论"><span class="material-symbols-rounded" aria-hidden="true">content_copy</span>复制结论</button>' +
+          (showEvaluationConfirm ? '<button type="button" class="tm-action-btn" data-act="tm-report-confirm" data-run-id="' + escapeAttr(String(msg.run_id || '')) + '" title="教师确认"><span class="material-symbols-rounded" aria-hidden="true">verified</span>教师确认</button>' : '') +
           '<button type="button" class="tm-action-btn tm-action-copy" data-act="tm-copy-diagnostics" data-run-id="' + escapeAttr(String(msg.run_id || '')) + '" title="复制诊断信息"><span class="material-symbols-rounded" aria-hidden="true">content_copy</span>诊断</button>' +
           '</div>';
       }
@@ -1102,22 +1131,39 @@
 
     function _renderInlineReportSummary(answer, msg) {
       var snapshot = teachMateState.getSnapshot();
+      var isTeachingPackage = answer.answer_type === 'review_plan';
+      var materialCount = Array.isArray(answer.sections) ? answer.sections.filter(Boolean).length : 0;
       var findings = Array.isArray(answer.findings) ? answer.findings.length : 0;
       var recommendations = Array.isArray(answer.recommendations) ? answer.recommendations.length : 0;
       var duration = _formatDurationLabel(_messageElapsedMs(msg, snapshot));
       var reportHtml = (typeof teachMateReport !== 'undefined' && teachMateReport.renderReportCanvas)
-        ? teachMateReport.renderReportCanvas(answer, { hideEvidence: true, hideLimitations: true, runId: msg && msg.run_id })
-        : _renderStructuredAnswer(answer, { hideEvidence: true, hideLimitations: true });
+        ? teachMateReport.renderReportCanvas(answer, { hideEvidence: true, hideLimitations: !isTeachingPackage, runId: msg && msg.run_id })
+        : _renderStructuredAnswer(answer, { hideEvidence: true, hideLimitations: !isTeachingPackage });
       // 数据质量属于某次分析的范围；历史报告不能复用当前底部选择器的状态。
       var isCurrentReport = !msg || !msg.run_id || !snapshot.currentRunId
         || String(msg.run_id) === String(snapshot.currentRunId);
       var qualityHtml = snapshot.dataReady && isCurrentReport
         ? _renderInlineReportQuality(snapshot)
         : '';
+      var packageActions = '';
+      if (isTeachingPackage && msg && msg.run_id) {
+        var runId = escapeAttr(String(msg.run_id));
+        packageActions = '<div class="tm-material-actions" role="group" aria-label="教学包操作">' +
+          '<button type="button" class="tm-action-btn" data-act="tm-export-doc" data-format="docx" data-run-id="' + runId + '"><span class="material-symbols-rounded" aria-hidden="true">description</span>教师版 Word</button>' +
+          '<button type="button" class="tm-action-btn" data-act="tm-export-doc" data-format="pdf" data-run-id="' + runId + '">教师版 PDF</button>';
+        if (Array.isArray(answer.sections) && answer.sections.some(function (section) { return section && section.kind === 'student_handout'; })) {
+          packageActions += '<button type="button" class="tm-action-btn tm-material-export-student" data-act="tm-export-doc" data-format="pdf" data-export-variant="student-handout" data-run-id="' + runId + '"><span class="material-symbols-rounded" aria-hidden="true">download</span>单独导出学生练习单</button>';
+        }
+        var session = (snapshot.sessions || []).find(function (item) { return String(item.id) === String(snapshot.currentSessionId); });
+        if (isCurrentReport && session && session.exam_id) {
+          packageActions += '<button type="button" class="tm-action-btn" data-act="tm-followup-task" data-capability="review_plan" data-prompt="请修订当前教学包，保留未涉及的材料，并把学生练习与教师答案分开展示。调整要求："><span class="material-symbols-rounded" aria-hidden="true">edit</span>调整教学包</button>';
+        }
+        packageActions += '</div>';
+      }
       return '<section class="tm-inline-report-summary tm-inline-artifact" data-testid="inline-report-summary" data-testid-artifact="inline-artifact">' +
-        '<div class="tm-inline-report-summary-head"><div class="tm-inline-report-kicker">ARTIFACT · 教学成果</div><div class="tm-inline-report-title-row"><div class="tm-inline-report-title"><span class="material-symbols-rounded" aria-hidden="true">summarize</span><strong>考试分析报告</strong></div><span class="tm-inline-report-summary-status">已完成</span></div><div class="tm-inline-report-subtitle">基于当前选择的班级、考试和资料生成 · 可继续核验或导出</div></div>' +
-        '<div class="tm-inline-report-meta"><span>主要发现 ' + findings + ' 条</span><span>行动建议 ' + recommendations + ' 条</span>' + (duration ? '<span>本次用时 ' + escapeHtml(duration) + '</span>' : '') + '</div>' +
-        reportHtml + qualityHtml +
+        '<div class="tm-inline-report-summary-head"><div class="tm-inline-report-kicker">ARTIFACT · 教学成果</div><div class="tm-inline-report-title-row"><div class="tm-inline-report-title"><span class="material-symbols-rounded" aria-hidden="true">' + (isTeachingPackage ? 'auto_stories' : 'summarize') + '</span><strong>' + (isTeachingPackage ? '复习计划' : '考试分析报告') + '</strong></div><span class="tm-inline-report-summary-status">' + (isTeachingPackage ? '草稿 · 待核对' : '已完成') + '</span></div><div class="tm-inline-report-subtitle">' + (isTeachingPackage ? '按用途展开材料，核对后用于课堂 · 学生练习可单独导出' : '基于本次分析使用的班级、考试和资料生成 · 可继续核验或导出') + '</div></div>' +
+        '<div class="tm-inline-report-meta">' + (isTeachingPackage ? '<span>教学材料 ' + materialCount + ' 份</span>' : '<span>主要发现 ' + findings + ' 条</span>') + '<span>行动建议 ' + recommendations + ' 条</span>' + (duration ? '<span>本次用时 ' + escapeHtml(duration) + '</span>' : '') + '</div>' +
+        reportHtml + qualityHtml + packageActions +
         '</section>';
     }
 
@@ -1342,7 +1388,7 @@
       var pendingGroup = snapshot.analysisGroup && String(snapshot.analysisGroup.status || '') === 'waiting_confirmation'
         ? snapshot.analysisGroup : null;
       var composerLocked = snapshot.isRunning || !!pendingGroup;
-      var disabled = (composerLocked || unavailable) ? ' disabled' : '';
+      var disabled = composerLocked ? ' disabled' : '';
       // 模型列表完全来自“班级与设置 → 模型”返回的已保存档案，不在聊天区写死示例模型。
       var savedModels = Array.isArray(snapshot.savedModels) ? snapshot.savedModels : [];
       var currentModelId = String(snapshot.currentModelId || (snapshot.providerInfo && snapshot.providerInfo.profile_id) || '');
@@ -1474,8 +1520,9 @@
       var planConfirmation = pendingGroup
         ? '<div class="tm-plan-confirm" role="dialog" aria-label="确认学生诊断执行方案" aria-live="polite"><div class="tm-plan-confirm-icon"><span class="material-symbols-rounded" aria-hidden="true">fact_check</span></div><div class="tm-plan-confirm-copy"><strong>执行方案已准备好，是否开始？</strong><span>将为 ' + Number(pendingGroup.requested_student_count || 0) + ' 名学生生成画像' + (pendingGroup.estimated_tokens != null ? '，预计约 ' + Number(pendingGroup.estimated_tokens).toLocaleString('zh-CN') + ' tokens' : '') + '。确认前不会运行。</span></div><div class="tm-plan-confirm-actions"><button type="button" class="tm-plan-confirm-secondary" data-act="tm-batch-edit" data-group-id="' + escapeAttr(String(pendingGroup.id || '')) + '">修改范围</button><button type="button" class="tm-plan-confirm-secondary is-cancel" data-act="tm-batch-cancel" data-group-id="' + escapeAttr(String(pendingGroup.id || '')) + '">取消</button><button type="button" class="tm-plan-confirm-primary" data-act="tm-batch-confirm" data-group-id="' + escapeAttr(String(pendingGroup.id || '')) + '">确认执行</button></div></div>'
         : '';
+      var scopeControls = classPicker + examPicker;
       return '<div class="tm-input-area">' + planConfirmation + '<div class="tm-composer">' + attachChips +
         selectedPluginChip + '<div class="tm-composer-input-row"><textarea class="tm-input" id="tmInput" placeholder="给 TeachMate 发送消息…" rows="1" data-act="tm-input" aria-label="消息输入框"' + disabled + '></textarea></div>' +
-        '<div class="tm-composer-toolbar"><div class="tm-composer-leading">' + toolPicker + classPicker + examPicker + '</div><div class="tm-composer-actions">' + modelPicker + sendBtn + '</div></div></div>' +
-        '<div class="tm-input-hint"><span class="material-symbols-rounded">verified_user</span>TeachMate 的结论仅作教学参考，请核实重要信息</div></div>';
+        '<div class="tm-composer-toolbar"><div class="tm-composer-leading">' + toolPicker + scopeControls + '</div><div class="tm-composer-actions">' + modelPicker + sendBtn + '</div></div></div>' +
+        '<div class="tm-input-hint">' + (unavailable ? '<span>模型暂不可用，可以先编辑问题。</span><button type="button" class="tm-settings-quiet" data-act="tm-model-custom">配置模型</button>' : '<span class="material-symbols-rounded">verified_user</span>TeachMate 的结论仅作教学参考，请核实重要信息') + '</div></div>';
     }

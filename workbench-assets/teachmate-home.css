@@ -1,0 +1,148 @@
+/* A compact starting page; scope all rules to the welcome layout. */
+body.tab-teachmate .tm-layout-welcome {
+  --tm-home-font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+body.tab-teachmate .tm-layout-welcome .tm-messages {
+  flex: 0 1 auto;
+  padding: 30px 32px 20px;
+  scroll-padding-bottom: 20px;
+}
+body.tab-teachmate .tm-welcome.tm-home {
+  width: min(1040px, 100%);
+  min-height: 0;
+  padding: 0;
+  margin: 0 auto;
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: left;
+  font-family: var(--tm-home-font);
+  gap: 28px;
+}
+.tm-home .tm-welcome-hero {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+}
+.tm-home .tm-welcome-brand { margin: 0; flex-shrink: 0; }
+body.tab-teachmate .tm-home .tm-welcome-icon {
+  width: 52px !important;
+  height: 52px !important;
+  border: 0 !important;
+  border-radius: 15px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.tm-home .tm-welcome-copy { align-items: flex-start; gap: 7px; }
+body.tab-teachmate .tm-home h2 {
+  margin: 0;
+  font: 600 28px/1.3 var(--tm-home-font);
+  letter-spacing: -.025em;
+}
+.tm-home .tm-home-subtitle {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--wp-muted, #746d63);
+}
+.tm-home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.tm-home .tm-task-home {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 302px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 22px;
+  border: 1px solid var(--wp-hair, #ded5c8);
+  border-radius: 16px;
+  background: var(--wp-card, #fffdf8);
+}
+.tm-home .tm-task-heading { align-items: flex-start; }
+.tm-home .tm-task-heading h3 { font-size: 17px; line-height: 1.5; }
+.tm-home h3 { font-family: var(--tm-home-font); letter-spacing: 0; }
+.tm-home .tm-task-heading p { margin: 5px 0 0; font-size: 12px; }
+.tm-home .tm-task-heading .tm-task-btn {
+  padding: 9px 12px;
+  font-family: var(--tm-home-font);
+  font-size: 12px;
+}
+.tm-home .tm-task-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+  padding: 28px 8px 20px;
+}
+.tm-home .tm-task-empty > .material-symbols-rounded {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  font-size: 23px;
+  color: var(--wp-sand, #a57c45);
+  background: var(--wp-sand-soft, #f6f0e4);
+  border-radius: 12px;
+}
+.tm-home .tm-task-empty strong { font-size: 14px; font-weight: 500; }
+.tm-home .tm-task-empty p { margin: 0; max-width: 290px; font-size: 12px; line-height: 1.7; }
+.tm-home .tm-task-grid { margin-top: 16px; grid-template-columns: minmax(0, 1fr); gap: 10px; max-height: 264px; overflow-y: auto; overscroll-behavior: contain; padding: 3px; }
+.tm-home .tm-task-grid:empty { display: none; }
+.tm-home .tm-task-card { padding: 14px; border-radius: 10px; background: var(--wp-paper, #f5f0e8); gap: 5px; }
+.tm-home .tm-task-card span { font-size: 11px; }
+.tm-home .tm-task-card small { font-size: 12px; }
+.tm-task-home-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; color: var(--wp-muted, #746d63); font-size: 12px; }
+.tm-home .tm-task-home-footer .tm-task-btn { border: 0; background: transparent; padding: 0; color: var(--wp-muted, #746d63); font-size: 12px; }
+.tm-home .tm-home-quick { min-width: 0; }
+.tm-home .tm-quick-prompts-title { margin: 0 0 12px; font-size: 14px; line-height: 1.5; text-align: left; font-weight: 600; }
+.tm-home .tm-suggestions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; max-width: none; }
+body.tab-teachmate .tm-home .tm-suggestion-card {
+  display: flex;
+  align-items: center;
+  min-height: 82px;
+  gap: 13px;
+  padding: 16px !important;
+  border: 1px solid var(--wp-hair, #ded5c8) !important;
+  border-radius: 12px !important;
+  background: var(--wp-card, #fffdf8) !important;
+  box-shadow: none !important;
+  font-family: var(--tm-home-font);
+}
+.tm-home .tm-suggestion-card::after { display: none; }
+body.tab-teachmate .tm-home .tm-suggestion-card:hover { transform: translateY(-1px); border-color: var(--wp-clay, #b65f42) !important; }
+.tm-home .tm-suggestion-icon { width: 36px; height: 36px; border-radius: 10px; font-size: 21px !important; }
+.tm-home .tm-suggestion-copy { flex: 1; gap: 5px; }
+.tm-home .tm-suggestion-copy strong { font-size: 14px; font-weight: 600; }
+.tm-home .tm-suggestion-copy small { font-size: 12px; line-height: 1.5; }
+.tm-home .tm-card-arrow { position: static; opacity: .65; transform: none; flex-shrink: 0; }
+body.tab-teachmate .tm-layout-welcome .tm-input-area { padding: 12px 32px 16px; border-top: 0 !important; background: transparent !important; }
+body.tab-teachmate .tm-layout-welcome .tm-composer { max-width: 1040px; margin: 0 auto; }
+@media (max-width: 1150px) {
+  .tm-home .tm-task-grid { max-height: 220px; }
+}
+@media (max-width: 960px) {
+  .tm-home-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .tm-home .tm-task-home { min-height: 250px; }
+  .tm-home .tm-task-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 680px) {
+  body.tab-teachmate .tm-layout-welcome .tm-messages { padding: 22px 16px 16px; }
+  body.tab-teachmate .tm-welcome.tm-home { gap: 24px; }
+  body.tab-teachmate .tm-home h2 { font-size: 23px; }
+  .tm-home .tm-welcome-hero { gap: 12px; }
+  body.tab-teachmate .tm-home .tm-welcome-icon { width: 44px !important; height: 44px !important; }
+  .tm-home .tm-home-subtitle { font-size: 12px; }
+  .tm-home .tm-task-home { padding: 16px; }
+  .tm-home .tm-task-heading { flex-wrap: wrap; }
+  .tm-home .tm-task-grid { grid-template-columns: minmax(0, 1fr); }
+  body.tab-teachmate .tm-layout-welcome .tm-input-area { padding: 10px 16px 12px; }
+}

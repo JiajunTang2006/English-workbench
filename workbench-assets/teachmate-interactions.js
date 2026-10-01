@@ -67,7 +67,9 @@
           teachMateState.setPersonalization(settings || {});
           if (typeof state !== 'undefined' && state.teacher && settings) {
             if (settings.teacher_name) state.teacher.name = settings.teacher_name;
-            if (settings.subject) state.teacher.subject = settings.subject;
+            if (settings.subject && (!settings.subject_key || settings.subject_key === subjectKey)) {
+              state.teacher.subject = settings.subject;
+            }
           }
         }).catch(function () {});
       }
@@ -79,6 +81,7 @@
       }).catch(function () {});
       // 考试选择器只读取当前学期的数据库考试，不回退到可能过期的工作区快照。
       tmRefreshAvailableExams(currentTermId);
+      if (typeof teachMateTasks !== 'undefined') teachMateTasks.refresh(true);
 
       // U5: 数据就绪检查 + a11y 状态播报（非阻塞）
       if (typeof teachMateOnboarding !== 'undefined' && typeof teachMateState.setDataReady === 'function') {
@@ -195,8 +198,9 @@
     /** 收起导入菜单并同步按钮状态 */
     function tmCloseImportMenu() {
       var menu = document.getElementById('tmImportMenu');
-      if (!menu || menu.hidden) return;
+      if (!menu) return;
       menu.hidden = true;
+      tmClosePluginMenu();
       var btn = document.querySelector('[data-act="tm-composer-plus"]');
       if (btn) btn.setAttribute('aria-expanded', 'false');
     }
@@ -822,6 +826,7 @@
       try {
         var msgs = await teachMateApi.listMessages(sessionId);
         if (loadToken !== tmSessionLoadToken || teachMateState.currentSessionId !== normalizedSessionId) return;
+        if (typeof teachMateReport !== 'undefined') teachMateReport.hydrateMaterialEdits(msgs || []);
         teachMateState.setMessages(msgs || []);
         // 重新打开历史对话时恢复该对话最近一次运行的时间信息，
         // 这样报告中的“本次用时”不会因切换对话而丢失。
@@ -1015,7 +1020,7 @@
     function tmRenameSession(sessionId) {
       var current = (teachMateState.getSnapshot().sessions || []).find(function (s) { return s.id === Number(sessionId); });
       if (!current) return;
-      var currentTitle = String(current.title || '新对话').replace(/"/g, '&quot;');
+      var currentTitle = escapeAttr(String(current.title || '新对话'));
       openModal('重命名对话',
         '<div class="tm-rename-field">' +
         '<label for="tmRenameInput" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--tm-text-secondary);">对话名称</label>' +
@@ -1034,6 +1039,7 @@
       try {
         await teachMateApi.updateSession(sessionId, { title: title });
         teachMateState.setSessions(await teachMateApi.listSessions(currentTermId));
+        closeModal();
         renderNav();
         render();
         showToast('已重命名');
@@ -1236,6 +1242,7 @@
       var menu = document.getElementById('tmImportMenu');
       if (!menu) return;
       if (menu.hidden) {
+        tmClosePluginMenu();
         menu.hidden = false;
         if (button) button.setAttribute('aria-expanded', 'true');
       } else {
@@ -1356,6 +1363,8 @@
       return tmPluginDefinitions().find(function (plugin) { return plugin.id === id; }) || null;
     }
     function tmPluginCapabilityReady(plugin, capabilities) {
+      // The practice workspace is a local UI, not a chat capability endpoint.
+      if (plugin.id === 'targeted_practice') return true;
       return !capabilities.length || capabilities.some(function (item) {
         return String(item.id || item.name || '').indexOf(plugin.id) >= 0 || String(item.name || '').indexOf(plugin.name) >= 0;
       });
@@ -1439,7 +1448,9 @@
 
     function tmRenderPluginDetails(pluginId) {
       var plugin = tmFindPlugin(pluginId);
-      var guide = (window.TM_PLUGIN_GUIDES || {})[String(pluginId)];
+      var guide = window.tmPluginGuideForSubject
+        ? window.tmPluginGuideForSubject(String(pluginId), subjectConfig())
+        : (window.TM_PLUGIN_GUIDES || {})[String(pluginId)];
       var content = document.getElementById('tmSettingsContent');
       if (!content) return;
       if (!plugin || !guide) { tmRenderAgentSettingsTab('plugins'); return; }
@@ -1615,13 +1626,13 @@
         var personalization = snapshot.personalization || {};
         var tone = ['rigorous', 'friendly', 'custom'].includes(String(personalization.tone || '')) ? String(personalization.tone) : 'rigorous';
         var customPrompt = String(personalization.custom_prompt || '');
-        return '<div class="tm-settings-page-head"><div><h2>回复偏好</h2><p>让回答更符合你的教学方式和课堂习惯。</p></div></div><div class="tm-settings-card tm-settings-form-card"><div class="tm-settings-form-title"><span class="material-symbols-rounded">person</span><div><strong>教师资料</strong><small>这些信息会用于调整回答方式，不会改变事实、隐私和安全规则。</small></div></div><div class="tm-settings-form-grid"><label>教师姓名<input id="tm-settings-teacher-name" value="' + escapeAttr(teacher.name || '') + '" placeholder="例如：王老师"></label><label>学科<input id="tm-settings-teacher-subject" value="' + escapeAttr(teacher.subject || '') + '" placeholder="例如：初中英语"></label></div><div class="tm-settings-form-grid tm-settings-preference-grid"><label>我怎么称呼你<input id="tm-settings-user-address" value="' + escapeAttr(personalization.user_address || '老师') + '" placeholder="例如：王老师、老师"></label><label>回答风格<select id="tm-settings-tone"><option value="rigorous"' + (tone === 'rigorous' ? ' selected' : '') + '>严谨务实</option><option value="friendly"' + (tone === 'friendly' ? ' selected' : '') + '>亲和友好</option><option value="custom"' + (tone === 'custom' ? ' selected' : '') + '>自定义语气</option></select></label></div><label class="tm-settings-field-full tm-settings-custom-tone-field" id="tm-settings-custom-tone-wrap"' + (tone === 'custom' ? '' : ' hidden') + '>自定义语气<textarea id="tm-settings-custom-prompt" maxlength="1200" placeholder="例如：回答像一位耐心的教研组长，先用一句话总结，再给出三条课堂行动建议。">' + escapeHtml(customPrompt) + '</textarea><small>只影响表达方式，不会覆盖事实、隐私和安全规则。</small></label><div class="tm-settings-form-foot"><span>保存后，下一次发送分析请求时生效。</span><button class="tm-settings-primary" data-act="tm-settings-personalization-save">保存个性化</button></div></div>';
+        return '<div class="tm-settings-page-head"><div><h2>回复偏好</h2><p>让回答更符合你的教学方式和课堂习惯。</p></div></div><div class="tm-settings-card tm-settings-form-card"><div class="tm-settings-form-title"><span class="material-symbols-rounded">person</span><div><strong>教师资料</strong><small>这些信息会用于调整回答方式，不会改变事实、隐私和安全规则。</small></div></div><div class="tm-settings-form-grid"><label>教师姓名<input id="tm-settings-teacher-name" value="' + escapeAttr(teacher.name || '') + '" placeholder="例如：王老师"></label><label>学科<input id="tm-settings-teacher-subject" value="' + escapeAttr(teacher.subject || '') + '" placeholder="例如：' + escapeAttr(subjectName()) + '"></label></div><div class="tm-settings-form-grid tm-settings-preference-grid"><label>我怎么称呼你<input id="tm-settings-user-address" value="' + escapeAttr(personalization.user_address || '老师') + '" placeholder="例如：王老师、老师"></label><label>回答风格<select id="tm-settings-tone"><option value="rigorous"' + (tone === 'rigorous' ? ' selected' : '') + '>严谨务实</option><option value="friendly"' + (tone === 'friendly' ? ' selected' : '') + '>亲和友好</option><option value="custom"' + (tone === 'custom' ? ' selected' : '') + '>自定义语气</option></select></label></div><label class="tm-settings-field-full tm-settings-custom-tone-field" id="tm-settings-custom-tone-wrap"' + (tone === 'custom' ? '' : ' hidden') + '>自定义语气<textarea id="tm-settings-custom-prompt" maxlength="1200" placeholder="例如：回答像一位耐心的教研组长，先用一句话总结，再给出三条课堂行动建议。">' + escapeHtml(customPrompt) + '</textarea><small>只影响表达方式，不会覆盖事实、隐私和安全规则。</small></label><div class="tm-settings-form-foot"><span>保存后，下一次发送分析请求时生效。</span><button class="tm-settings-primary" data-act="tm-settings-personalization-save">保存个性化</button></div></div>';
       }
       if (tab === 'plugins') {
         var capabilities = Array.isArray(snapshot.capabilities) ? snapshot.capabilities : [];
         var pluginList = tmPluginDefinitions();
-        var teachingPluginIds = ['exam_analysis', 'student_diagnosis', 'review_plan'];
-        var listHtml = pluginList.length ? '<div class="tm-settings-plugin-list">' + pluginList.map(function (plugin) { var enabled = plugin.enabled; var available = plugin.available && tmPluginCapabilityReady(plugin, capabilities); var statusClass = !enabled ? 'is-disabled' : (available ? 'is-ready' : ''); var statusText = !enabled ? '已停用' : (available ? '已启用' : '待配置'); var isTeachingPlugin = teachingPluginIds.indexOf(String(plugin.id)) >= 0; var actionAttrs = isTeachingPlugin ? 'data-act="tm-settings-plugin-details"' : 'data-act="tm-settings-plugin-toggle"'; var actionLabel = isTeachingPlugin ? '详情' : '管理'; return '<div class="tm-settings-plugin-row' + (!enabled ? ' is-disabled' : '') + '"><img class="tm-plugin-svg-icon tm-settings-plugin-svg-icon" src="' + escapeAttr(plugin.icon_asset) + '" alt=""><div class="tm-settings-plugin-copy"><strong>' + escapeHtml(plugin.name) + '</strong><small>' + escapeHtml(plugin.desc) + '</small></div><span class="tm-settings-plugin-state ' + statusClass + '">' + statusText + '</span><button class="tm-settings-quiet" ' + actionAttrs + ' data-plugin-id="' + escapeAttr(plugin.id) + '">' + actionLabel + '</button></div>'; }).join('') + '</div>' : '<div class="tm-settings-empty"><span class="material-symbols-rounded">extension_off</span><strong>暂时没有可用插件</strong><span>插件服务未连接或尚未安装插件包。</span></div>';
+        var teachingPluginIds = ['exam_analysis', 'student_diagnosis', 'review_plan', 'targeted_practice'];
+        var listHtml = pluginList.length ? '<div class="tm-settings-plugin-list">' + pluginList.map(function (plugin) { var enabled = plugin.enabled; var available = plugin.available && tmPluginCapabilityReady(plugin, capabilities); var statusClass = !enabled ? 'is-disabled' : (available ? 'is-ready' : ''); var statusText = !enabled ? '已停用' : (available ? '已启用' : '待配置'); var isTeachingPlugin = teachingPluginIds.indexOf(String(plugin.id)) >= 0; var actionAttrs = isTeachingPlugin ? 'data-act="tm-settings-plugin-details"' : 'data-act="tm-settings-plugin-toggle"'; var actionLabel = isTeachingPlugin ? '详情' : '管理'; return '<div class="tm-settings-plugin-row' + (!enabled ? ' is-disabled' : '') + '"><img class="tm-plugin-svg-icon tm-settings-plugin-svg-icon" src="' + escapeAttr(plugin.icon_asset) + '" alt=""><div class="tm-settings-plugin-copy"><strong>' + escapeHtml(plugin.name) + '</strong><small>' + escapeHtml(plugin.desc) + '</small></div><span class="tm-settings-plugin-state ' + statusClass + '">' + statusText + '</span><button class="tm-settings-quiet" ' + actionAttrs + ' data-plugin-id="' + escapeAttr(plugin.id) + '">' + actionLabel + '</button>' + (plugin.id === 'targeted_practice' && enabled ? '<button class="tm-settings-quiet" data-act="tm-practice-plugin-open">打开推题</button>' : '') + '</div>'; }).join('') + '</div>' : '<div class="tm-settings-empty"><span class="material-symbols-rounded">extension_off</span><strong>暂时没有可用插件</strong><span>插件服务未连接或尚未安装插件包。</span></div>';
         var countLabel = pluginList.length && pluginList.every(function (plugin) { return plugin.source === 'bundled'; }) ? ' 个内置插件' : ' 个插件';
         var workBuddyCard = '<div class="tm-settings-card tm-workbuddy-card"><div class="tm-workbuddy-card-icon"><span class="material-symbols-rounded">hub</span></div><div class="tm-workbuddy-card-copy"><div><strong>WorkBuddy 联动</strong><span id="tm-workbuddy-connection-status" class="tm-workbuddy-status">检查连接…</span></div><p>让 WorkBuddy 读取 TeachMate 已完成的分析，可以继续生成 PDF、PPT 或其他材料。</p></div><div class="tm-workbuddy-card-actions"><button class="tm-settings-quiet" data-act="tm-disconnect-workbuddy" hidden>断开连接</button><button class="tm-settings-primary" data-act="tm-connect-workbuddy"><span class="material-symbols-rounded">link</span>快速连接</button></div></div>';
         return '<div class="tm-settings-page-head"><div><h2>功能扩展</h2><p>连接外部工具，并管理 TeachMate 当前可用的教学能力。</p></div><div class="tm-settings-page-head-actions"><span class="tm-settings-count-badge">' + pluginList.length + countLabel + '</span><button class="tm-settings-quiet tm-settings-install-button" data-act="tm-plugin-install"><span class="material-symbols-rounded">add</span>安装插件</button></div></div>' + workBuddyCard + '<div class="tm-settings-section-title"><strong>TeachMate 工具</strong><span>按需启用</span></div>' + listHtml + '<div class="tm-settings-info-banner"><span class="material-symbols-rounded">shield</span><span>外部工具只有在你主动调用时才会读取已确认的数据。</span></div>';
@@ -1675,6 +1686,9 @@
       if (!text) return;
 
       var initialSnapshot = teachMateState.getSnapshot();
+      var modelUnavailable = typeof _teachMateUnavailableReason === 'function'
+        ? _teachMateUnavailableReason(initialSnapshot.providerInfo) : '';
+      if (modelUnavailable) { showToast(modelUnavailable); return; }
       var pendingScopePrompt = initialSnapshot.scopePrompt;
       if (typeof teachMateState.clearScopePrompt === 'function' && initialSnapshot.scopePrompt) teachMateState.clearScopePrompt();
       var selectedPlugin = tmFindPlugin(initialSnapshot.selectedPluginId);
@@ -1799,10 +1813,7 @@
         }
       }
       // 消息中点名了学生时，单人诊断必须固定到该学生；不要复用未绑定或绑定了另一位学生的旧会话。
-      if (studentReference && sessionId && currentSession) {
-        createFreshSession = true;
-        resolvedScopePayload = null;
-      }
+      // 点名与换人由服务端本轮实体解析处理，保留当前对话的连续性。
       if (!sessionId || createFreshSession) {
         try {
           // exam_analysis 可在未绑定数据库考试时基于文字/已确认附件运行；
@@ -1913,7 +1924,7 @@
             return;
           }
         }
-        if (effectiveCapability === 'student_diagnosis' && (!currentSession || !currentSession.student_id)) {
+        if (effectiveCapability === 'student_diagnosis' && (!currentSession || !currentSession.student_id) && !(studentReference && !studentReference.ambiguous)) {
           teachMateState.setIdle();
           teachMateState.updateLastAssistantMessage({
             content_text: '学生诊断需要绑定一名学生。请在学生列表中选中一名学生后新建对话。',
@@ -1923,7 +1934,8 @@
           return;
         }
         var modelId = teachMateState.getSnapshot().currentModelId || null;
-        var response = await teachMateApi.sendMessage(sessionId, text, quickTask, attachmentIds, modelId);
+        var response = await teachMateApi.sendMessage(sessionId, text, quickTask, attachmentIds, modelId,
+          null, initialSnapshot.selectedPluginId === 'targeted_practice' ? 'targeted_practice' : null);
         // 发送期间允许教师切换历史对话；晚到的响应不能把运行状态写进新会话。
         if (teachMateState.currentSessionId !== Number(sessionId)) return;
         if (attachmentIds.length) teachMateState.clearPendingAttachments();
@@ -2246,8 +2258,95 @@
       }
     }
 
+    /** 从已完成报告准备一个带当前会话上下文的后续任务；教师仍需检查并发送。 */
+    function tmPrepareReportFollowup(button) {
+      var capability = String(button && button.dataset.capability || 'general_chat');
+      var prompt = String(button && button.dataset.prompt || '').trim();
+      if (!prompt) return;
+      var snapshot = teachMateState.getSnapshot();
+      var session = (snapshot.sessions || []).find(function (item) {
+        return String(item.id) === String(snapshot.currentSessionId);
+      });
+      if (capability === 'review_plan') {
+        if (!session || !session.exam_id) {
+          showToast('请先为当前对话选择一场考试，再生成复习计划。');
+          return;
+        }
+        var planPlugin = tmFindPlugin('review_plan');
+        if (!planPlugin || !planPlugin.enabled) {
+          showToast('复习计划功能当前不可用，请在设置 → 功能扩展中检查状态。');
+          return;
+        }
+        teachMateState.setSelectedPluginId(planPlugin.id);
+        teachMateState._pendingQuickTask = 'review_plan';
+      } else {
+        // 材料生成沿用当前会话与已核验分析，不再强制调用原来的专用插件。
+        teachMateState.setSelectedPluginId('');
+        teachMateState._pendingQuickTask = null;
+      }
+      teachMateState.setDraft(prompt);
+      render();
+      var input = document.getElementById('tmInput');
+      if (input) {
+        input.value = prompt;
+        input.focus();
+        input.setSelectionRange(prompt.length, prompt.length);
+      }
+    }
+
     /** 处理 TeachMate 相关的 data-act 点击事件 */
     function handleTeachMateAction(act, t) {
+      if (act.indexOf('tm-task-') === 0 && typeof teachMateTasks !== 'undefined') {
+        teachMateTasks.action(act, t);
+        return true;
+      }
+      if (act === 'tm-materials-expand' || act === 'tm-materials-collapse') {
+        teachMateReport.setMaterialsExpanded(t, act === 'tm-materials-expand');
+        return true;
+      }
+      var materialActions = {
+        'tm-material-edit': 'edit',
+        'tm-material-compare': 'compare',
+        'tm-material-back': 'back',
+        'tm-material-save': 'save',
+        'tm-material-cancel': 'cancel',
+      };
+      if (materialActions[act]) {
+        var materialCard = t.closest('.tm-material-card');
+        var materialRunId = materialCard && materialCard.dataset.materialRunId;
+        var materialIndex = materialCard && materialCard.dataset.sectionIndex;
+        if (act === 'tm-material-save') {
+          var draft = materialCard && teachMateReport.getMaterialDraft(materialRunId, materialIndex);
+          if (!draft || !materialRunId) { showToast('编辑草稿不可用，请重新编辑', 'error'); return true; }
+          t.disabled = true;
+          teachMateApi.saveMaterialEdit(materialRunId, materialIndex, draft).then(function (saved) {
+            teachMateReport.commitSavedMaterialEdit(materialRunId, materialIndex, saved);
+            render();
+            showToast('教师修改已保存，导出将使用修改稿', 'success');
+          }).catch(function (error) {
+            showToast(error && error.message ? error.message : '保存失败，草稿仍在当前页面', 'error');
+          }).finally(function () { if (t.isConnected) t.disabled = false; });
+          return true;
+        }
+        var sourceAnswer = materialRunId ? _findReportForRun(materialRunId) : null;
+        if (!materialCard || !sourceAnswer || !teachMateReport.modifyMaterial(materialActions[act], t, sourceAnswer)) {
+          showToast('无法读取这份材料，请刷新后重试');
+          return true;
+        }
+        render();
+        setTimeout(function () {
+          var targetCard = Array.from(document.querySelectorAll('.tm-material-card')).find(function (card) {
+            return card.dataset.materialRunId === String(materialRunId) && card.dataset.sectionIndex === String(materialIndex);
+          });
+          if (targetCard) {
+            var focusTarget = act === 'tm-material-edit' || act === 'tm-material-save'
+              ? targetCard.querySelector('.tm-material-editor textarea, [data-act="tm-material-edit"], [data-act="tm-material-compare"]')
+              : targetCard.querySelector('[data-act="tm-material-edit"]');
+            if (focusTarget) focusTarget.focus();
+          }
+        }, 0);
+        return true;
+      }
       if (act === 'tm-new-chat') { tmNewChat(); return true; }
       if (act === 'tm-bind-current-exam') {
         teachMateState.setBindCurrentExam(!teachMateState.getSnapshot().bindCurrentExam);
@@ -2286,6 +2385,7 @@
         return true;
       }
       if (act === 'tm-right-tab') { tmSelectRightPanelTab(t.dataset.tab || 'report'); return true; }
+      if (act === 'tm-practice-plugin-open') { closeModal(); tmSelectPlugin({ dataset: { pluginId: 'targeted_practice' } }); var input = document.getElementById('tmInput'); if (input) input.focus(); showToast('输入学生姓名和练习需求即可，例如：查看李明近期的薄弱知识点，再出三道专项练习。'); return true; }
       if (act === 'tm-plugin-placeholder') { tmOpenAgentSettings('plugins'); return true; }
       if (act === 'tm-settings-tab') {
         var settingsTab = t.dataset.settingsTab || 'models';
@@ -2329,7 +2429,8 @@
         teachMateState.setDraft(guidePrompt);
         closeModal({ restorePrevious: false });
         render();
-        if (guideInput) guideInput.focus();
+        var readyGuideInput = document.getElementById('tmInput');
+        if (readyGuideInput) readyGuideInput.focus();
         return true;
       }
       if (act === 'tm-settings-plugin-cancel') { tmPendingPluginArchiveFile = null; closeModal(); return true; }
@@ -2358,7 +2459,7 @@
           var previousTeacherName = state.teacher.name;
           var previousSubject = state.teacher.subject;
           state.teacher.name = (teacherName && teacherName.value || '').trim();
-          state.teacher.subject = (teacherSubject && teacherSubject.value || '').trim() || '初中英语';
+          state.teacher.subject = (teacherSubject && teacherSubject.value || '').trim() || subjectConfig().teacher_subject_default || subjectName();
           var payload = {
             teacher_name: state.teacher.name,
             subject: state.teacher.subject,
@@ -2429,7 +2530,6 @@
       if (act === 'tm-open-agent-settings') { tmOpenAgentSettings('system'); return true; }
       if (act === 'tm-conversation-select') { tmSelectSession(t.dataset.id); return true; }
       if (act === 'tm-suggestion') {
-        if (t.dataset.providerUnavailable === 'true') { tmOpenAgentSettings('models'); return true; }
         var input = document.getElementById('tmInput');
         if (input) { input.value = t.dataset.prompt; teachMateState.setDraft(t.dataset.prompt); }
         // P1-12/P1-13: 如果快捷卡携带 data-quick-task，记住它，发送时附带；
@@ -2442,9 +2542,10 @@
             teachMateState.setSelectedPluginId(suggestionPlugin.id);
           }
         }
-        if (input) input.focus();
         render();
-        if (input) input.focus();
+        var readyInput = document.getElementById('tmInput');
+        if (readyInput) readyInput.focus();
+        if (t.dataset.providerUnavailable === 'true') showToast(t.title || '模型未就绪，可以先编辑问题，配置模型后再发送。');
         return true;
       }
       if (act === 'tm-send') { tmSendMessage(); return true; }
@@ -2486,12 +2587,13 @@
       if (act === 'tm-delete-confirm') { closeModal(); _doDeleteSession(t.dataset.id); return true; }
       if (act === 'tm-rename-session') { tmRenameSession(t.dataset.id); return true; }
       if (act === 'tm-rename-cancel') { closeModal(); return true; }
-      if (act === 'tm-rename-confirm') { closeModal(); _doRenameSession(t.dataset.id, (document.getElementById('tmRenameInput') || {}).value); return true; }
+      if (act === 'tm-rename-confirm') { _doRenameSession(t.dataset.id, (document.getElementById('tmRenameInput') || {}).value); return true; }
       if (act === 'tm-archive-session') { tmArchiveSession(t.dataset.id); return true; }
       if (act === 'tm-open-trash') { tmOpenArchivedConversations(); return true; }
       if (act === 'tm-restore-session') { tmRestoreSession(t.dataset.id); return true; }
       if (act === 'tm-toggle-right-panel') { tmToggleRightPanel(); return true; }
       if (act === 'tm-drawer-close') { tmCloseRightPanel(); return true; }
+      if (act === 'tm-followup-task') { tmPrepareReportFollowup(t); return true; }
       if (act === 'tm-load-more') { tmLoadMoreMessages(); return true; }
       if (act === 'tm-toggle-thinking') {
         var box = document.getElementById('tmThinkingBox');
@@ -2523,6 +2625,7 @@
       if (act === 'tm-export-json') { tmExportJSON(t.dataset.runId); return true; }
       if (act === 'tm-report-confirm') { tmOpenReportConfirm(t.dataset.runId); return true; }
       if (act === 'tm-copy-diagnostics') { tmCopyDiagnostics(); return true; }
+      if (act === 'tm-copy-summary') { tmCopySummary(t.dataset.copyText || ''); return true; }
       if (act === 'tm-copy-dialog-close') { closeModal(); return true; }
       if (act === 'tm-evaluation-save') { tmSaveEvaluation(false); return true; }
       if (act === 'tm-evaluation-confirm') { tmSaveEvaluation(true); return true; }
@@ -2631,8 +2734,12 @@
 
     /** 跳转到成绩面板选择考试。 */
     function tmJumpToExams() {
-      if (typeof switchTab === 'function') { switchTab('scores'); return; }
-      var navItem = document.querySelector('[data-tab="scores"], [data-act="scores"]');
+      if (typeof curModule !== 'undefined' && typeof animateTabSwitch === 'function') {
+        curModule = 'score';
+        animateTabSwitch('workbench');
+        return;
+      }
+      var navItem = document.querySelector('[data-act="nav"][data-key="score"]');
       if (navItem) { navItem.click(); return; }
       showToast('请在成绩面板选择或导入考试');
     }
@@ -2649,7 +2756,9 @@
           var a = msgs[i].structured_answer;
           if (typeof a === 'string') { try { a = JSON.parse(a); } catch (e) { a = null; } }
           if (a && typeof a === 'object') {
-            if (!runId || String(msgs[i].run_id) === String(runId)) return a;
+            if (!runId || String(msgs[i].run_id) === String(runId)) {
+              return teachMateReport.applyMaterialEdits(a, msgs[i].run_id);
+            }
           }
         }
       }
@@ -2699,6 +2808,22 @@
       var answer = _findReportForRun(runId);
       if (!answer) { showToast('没有可导出的结构化报告'); return; }
       runId = runId ? Number(runId) : teachMateState.currentRunId;
+      if (btn && btn.dataset.exportVariant === 'student-handout') {
+        var handoutSections = (Array.isArray(answer.sections) ? answer.sections : []).filter(function (section) {
+          return section && section.kind === 'student_handout';
+        });
+        if (!handoutSections.length) { showToast('这份教学包没有可单独导出的学生练习单'); return; }
+        // 学生副本只携带学生练习分节，避免教师答案、风险提示和班级分析进入发放文件。
+        answer = {
+          answer_type: 'student_handout',
+          summary: '',
+          findings: [],
+          recommendations: [],
+          limitations: [],
+          timeline: '',
+          sections: handoutSections,
+        };
+      }
 
       // loading 态：禁用按钮并显示进度文案
       var prevHtml = null;
@@ -2713,7 +2838,9 @@
         if (btn) { btn.disabled = prevDisabled; btn.innerHTML = prevHtml; }
       };
       try {
-        var title = (answer.title || answer.summary || 'TeachMate 分析报告').slice(0, 120);
+        var title = (btn && btn.dataset.exportVariant === 'student-handout'
+          ? '学生练习单'
+          : (answer.title || answer.summary || 'TeachMate 教学包')).slice(0, 120);
         var spec = {
           format: format,
           template: 'report',
@@ -2913,6 +3040,21 @@
       }
     }
 
+    function tmCopySummary(text) {
+      var value = String(text || '').trim();
+      if (!value) { showToast('这份报告没有可复制的结论', 'warning'); return; }
+      var fallback = function () {
+        openModal('复制结论',
+          '<p style="margin:0 0 10px;font-size:14px;color:var(--tm-text-secondary);">当前环境无法自动复制，请手动选择结论。</p>' +
+          '<textarea readonly style="width:100%;min-height:160px;padding:10px 12px;border:1px solid var(--tm-border);border-radius:10px;font:inherit;line-height:1.6;resize:vertical;box-sizing:border-box;">' + escapeHtml(value) + '</textarea>',
+          '<button class="btn btn-primary" data-act="tm-copy-dialog-close">关闭</button>');
+      };
+      if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') { fallback(); return; }
+      navigator.clipboard.writeText(value).then(function () {
+        showToast('报告结论已复制', 'success');
+      }).catch(fallback);
+    }
+
     function _fallbackCopy(text) {
       try { navigator.clipboard.writeText(text).then(function () { showToast('诊断信息已复制'); }).catch(function () { _showManualCopyDialog(text); }); }
       catch (e) { _showManualCopyDialog(text); }
@@ -3066,12 +3208,12 @@
       input.accept = '.pdf,.xlsx,.csv,.txt,.md,.docx,.png,.jpg,.jpeg,.zip,application/zip';
       input.addEventListener('change', function () {
         var file = input.files && input.files[0];
-        if (!file) return;
-        _tmHandleAttachFile(file);
+        input.remove();
+        if (file) _tmHandleAttachFile(file);
       });
+      input.addEventListener('cancel', function () { input.remove(); });
       document.body.appendChild(input);
       input.click();
-      document.body.removeChild(input);
     }
 
     /** 统一处理拖入文件；ZIP 进入插件安装确认，其余文件进入资料附件流程。 */

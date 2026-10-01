@@ -60,8 +60,25 @@ def _dimension_texts(question: ExamQuestion, knowledge_names: list[str]) -> list
     return texts
 
 
-def _empty_dimension() -> dict[str, Any]:
+def classify_subject_dimension(ability_nodes: list[str], specs: list[tuple[str, str, tuple[str, ...] | None]], subject=None) -> str | None:
+    """Only an explicit, unambiguous ability tag supports a subject ability score.
+
+    A multiple-choice or fill-in question can assess any competency; its format
+    must not silently become a student ability judgement.
+    """
+    if subject is not None:
+        from ..subjects import canonical_ability_label
+        ability_nodes = [canonical_ability_label(subject, node) for node in ability_nodes or []]
+    matches = {
+        key for key, label, _question_types in specs
+        if any(label.casefold() == str(node).strip().casefold() for node in (ability_nodes or []))
+    }
+    return next(iter(matches)) if len(matches) == 1 else None
+
+
+def _empty_dimension(label: str | None = None) -> dict[str, Any]:
     return {
+        "label": label,
         "status": "no_evidence",
         "value": None,
         "latest_rate": None,
@@ -76,8 +93,20 @@ def _empty_dimension() -> dict[str, Any]:
 
 
 def build_dimension_performance(session, *, student_id: int, term_id: int) -> dict[str, Any]:
-    """返回学生本学期五个能力分支的近期表现。"""
+    """按当前学科题型映射，返回学生本学期各表现维度的近期记录。"""
     rule = growth_events.read_rule_version(session, term_id=term_id)
+    from ..subjects import get_selected_subject
+    subject = get_selected_subject(session)
+    if subject.key == "english":
+        specs = [(key, rules.DIMENSION_LABELS[key], None) for key in rules.DIMENSION_KEYS]
+    else:
+        specs = [
+            (f"subject_{index}", label,
+             tuple(qtype for qtype, mapped in subject.question_dimension_map.items()
+                   if mapped == label))
+            for index, label in enumerate(subject.analysis_dimensions)
+        ]
+    dimension_keys = [key for key, _label, _qtypes in specs]
 
     selected_versions: dict[int, int] = {}
     for version in session.scalars(
@@ -89,7 +118,7 @@ def build_dimension_performance(session, *, student_id: int, term_id: int) -> di
     ):
         selected_versions.setdefault(version.exam_id, version.id)
     if not selected_versions:
-        return {key: _empty_dimension() for key in rules.DIMENSION_KEYS}
+        return {key: _empty_dimension(label) for key, label, _qtypes in specs}
 
     rows = session.execute(
         select(ExamQuestion, StudentItemResult, Exam)
@@ -134,17 +163,21 @@ def build_dimension_performance(session, *, student_id: int, term_id: int) -> di
         if not math.isfinite(score) or not math.isfinite(maximum):
             continue
         score = max(0.0, min(maximum, score))
-        dimension = classify_dimension(_dimension_texts(question, knowledge_by_question[question.id]))
+        texts = _dimension_texts(question, knowledge_by_question[question.id])
+        if subject.key == "english":
+            dimension = classify_dimension(texts)
+        else:
+            dimension = classify_subject_dimension(question.ability_nodes_json or [], specs, subject)
         if dimension is None:
             continue
         day = exam.exam_date or rules.business_date_for(item.created_at, rule.timezone)
         week = rules.week_key_for(day)
         observations[(dimension, week)].append((day, score, maximum))
 
-    result: dict[str, Any] = {key: _empty_dimension() for key in rules.DIMENSION_KEYS}
+    result: dict[str, Any] = {key: _empty_dimension(label) for key, label, _qtypes in specs}
     by_dimension: dict[str, list[tuple[str, date, float]]] = defaultdict(list)
     for (dimension, week), items in observations.items():
-        if dimension not in result:
+        if dimension not in dimension_keys:
             continue
         week_rate = sum(score for _day, score, _maximum in items) / sum(
             maximum for _day, _score, maximum in items)

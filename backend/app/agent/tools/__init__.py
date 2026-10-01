@@ -29,3 +29,5 @@ def register_all_tools(registry) -> None:
     register_attachment_tools(registry)
     register_report_tools(registry)
     register_profile_tools(registry)
+    from .dialogue_tools import register_dialogue_tools
+    register_dialogue_tools(registry)

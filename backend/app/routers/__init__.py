@@ -15,7 +15,12 @@ from .school_sync import router as school_sync_router
 from .token_usage import router as token_usage_router
 from .growth import router as growth_router
 
+from .teaching import router as teaching_router
+from .practice import router as practice_router
+
 router = APIRouter()
+router.include_router(teaching_router)
+router.include_router(practice_router)
 router.include_router(core_router)
 router.include_router(exams_router)
 router.include_router(profiles_router)

@@ -29,7 +29,14 @@ vm.runInContext(source, context);
   context.window.growthInvalidate();
   const second = context.window.loadGrowthForest();
   assert.equal(requests.length, 2);
-  requests[1].resolve({ term_id: 2, rule_version: 'growth-v4', students: [
+  requests[1].resolve({ term_id: 2, rule_version: 'growth-v4',
+    active_teacher: { id: 1, name: '默认教师' },
+    // 预设由后端下发（v4 含 teacher_bonus）；前端不再持有第二份分值表。
+    manual_presets: [
+      { type: 'teacher_bonus', label: '教师手工加分', points: 1, default_points: 1, visible: true, customized: false },
+    ],
+    standard_conflict: { conflict: false, teachers: 1, divergent_types: [] },
+    students: [
     { student_id: 10, name: '甲' }], summary: { student_count: 1, total_points: 0,
       average_points: 0, active_this_week: 0, blossomed_count: 0 } });
   requests[0].resolve({ term_id: 1, students: [] });

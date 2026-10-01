@@ -471,7 +471,7 @@ test('P1-6: an explicit student name keeps diagnosis in the single-student flow'
         ? [{ id: 9, title: '新对话', term_id: 1, exam_id: 21 }, { id: 10, title: '张三学生画像', term_id: 1, exam_id: 21, student_id: 31 }]
         : [{ id: 9, title: '新对话', term_id: 1, exam_id: 21 }];
     },
-    '/api/v1/agent/sessions/10/messages': req => {
+    '/api/v1/agent/sessions/9/messages': req => {
       if (req.method === 'POST') {
         sentBody = JSON.parse(req.body);
         return { message_id: 101, run_id: 201, status: 'queued', capability: 'student_diagnosis' };
@@ -502,8 +502,7 @@ test('P1-6: an explicit student name keeps diagnosis in the single-student flow'
   await window.tmSendMessage();
   await wait(50);
 
-  assert.ok(createdPayload, '单人诊断未创建会话：' + JSON.stringify(tms.getSnapshot()));
-  assert.equal(createdPayload.student_id, 31);
+  assert.equal(createdPayload, null, '点名学生应保留当前聊天，由本轮服务端解析绑定');
   assert.ok(sentBody, '点名学生后应真正发起单人诊断');
   assert.equal(sentBody.quick_task, 'student_diagnosis');
   assert.match(sentBody.content, /张三/);

@@ -1,34 +1,54 @@
 from __future__ import annotations
 
+import re
+
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..models import Class, Enrollment, Exam, ExamQuestion, ExamScore, Student, StudentItemResult
+from ..models import Class, Enrollment, Exam, ExamQuestion, ExamScore, Student, StudentItemResult, ExamPaperVersion
 from ..models.agent_entities import AgentMessage, AgentSession, AnalysisRun
 from ..schemas.exams import StudentExamPoint, StudentProfileRead
 from .exams import score_rows
 from .student_profiles import apply_analysis_report_to_profile, get_profile_payload
+from .subjects import ENGLISH_PAPER_QUESTION_TYPES
 
 
-QUESTION_TYPE_CATEGORIES = (
-    "听力理解",
-    "阅读理解",
-    "完形填空",
-    "词汇运用",
-    "语法填空",
-    "任务型阅读",
-    "书面表达",
-)
+QUESTION_TYPE_CATEGORIES = ENGLISH_PAPER_QUESTION_TYPES
 
 
-def _question_type_category(section_name: str | None, question_type: str | None) -> str | None:
-    """将 MONI 的卷面字段归并到命题解析中的七类题型。"""
-    text = f"{section_name or ''} {question_type or ''}".strip()
-    if not text:
+def _question_type_category(
+    section_name: str | None,
+    question_type: str | None,
+    categories: tuple[str, ...] = QUESTION_TYPE_CATEGORIES,
+) -> str | None:
+    """将 MONI 的卷面字段归并到命题解析中的六类题型。"""
+    section = str(section_name or "").strip()
+    question = str(question_type or "").strip()
+    if not section and not question:
         return None
+    if categories != QUESTION_TYPE_CATEGORIES:
+        def match(value: str) -> str | None:
+            # Printed section numbers are not part of a question type.
+            normalized = re.sub(r"^\s*(?:第?[一二三四五六七八九十百\d]+[、.．)）]\s*)+", "", value).casefold().replace(" ", "")
+            if not normalized:
+                return None
+            for category in categories:
+                if normalized == category.casefold().replace(" ", ""):
+                    return category
+            # Longer names take precedence (e.g. 综合应用题 over 应用题).
+            for category in sorted(categories, key=len, reverse=True):
+                name = category.casefold().replace(" ", "")
+                stem = name[:-1] if name.endswith("题") else name
+                if (name in normalized or len(stem) >= 2 and stem in normalized) and not (f"非{name}" in normalized or f"非{stem}" in normalized):
+                    return category
+            return None
+
+        # Explicit question type wins over a broader section heading.
+        return match(question) or match(section)
+    text = f"{section} {question}".strip()
     if "任务型阅读" in text:
-        return "任务型阅读"
+        return "阅读理解"
     if "听力" in text or "人机对话" in text:
         return "听力理解"
     if "完形" in text:
@@ -44,119 +64,100 @@ def _question_type_category(section_name: str | None, question_type: str | None)
     return None
 
 
-def question_type_tracking(
-    session: Session,
-    student_id: int,
-    *,
-    term_id: int,
-    scores: list[ExamScore],
-) -> dict:
-    """Return per-exam question-type rates and their longitudinal averages.
+def question_type_tracking(session: Session, student_id: int, *, term_id: int,
+                           scores: list[ExamScore]) -> dict:
+    """Compute the chart from confirmed question structure and actual item scores.
 
-    Each exam contributes one rate per type (type score / type full score), and
-    the radar uses the arithmetic mean of those exam-level rates. Missing item
-    scores are excluded rather than treated as zero.
+    A partial section contributes no rate/mean. Unknown full marks contribute
+    raw per-question means, never a fabricated percentage. Old paper versions
+    and drafts cannot contribute to the chart.
     """
-    present_scores = [
-        item for item in scores
-        if item.attendance_status == "present" and item.total_score is not None
-    ]
-    exam_ids = [item.exam_id for item in present_scores]
-    empty = {
-        "categories": list(QUESTION_TYPE_CATEGORIES),
-        "averages": [{"type": name, "score_rate": None, "exam_count": 0, "item_count": 0} for name in QUESTION_TYPE_CATEGORIES],
-        "history": [],
-        "exam_count": 0,
-        "data_source": "暂无小题成绩",
-    }
-    if not exam_ids:
-        return empty
-
-    rows = session.execute(
-        select(
-            Exam.id,
-            Exam.name,
-            Exam.exam_date,
-            ExamQuestion.section_name,
-            ExamQuestion.question_type,
-            ExamQuestion.max_score,
-            StudentItemResult.score,
-            StudentItemResult.source_sync_run_id,
-        )
-        .join(StudentItemResult, StudentItemResult.exam_id == Exam.id)
-        .join(ExamQuestion, ExamQuestion.id == StudentItemResult.question_id)
-        .where(
-            Exam.term_id == term_id,
-            Exam.status == "active",
-            Exam.id.in_(exam_ids),
-            StudentItemResult.student_id == student_id,
-            StudentItemResult.attendance_status == "present",
-        )
-    ).all()
-
-    grouped: dict[int, dict[str, dict[str, float | int]]] = {}
-    exam_meta: dict[int, dict[str, object]] = {}
-    has_moni_rows = False
-    for exam_id, exam_name, exam_date, section_name, question_type, max_score, score, source_sync_run_id in rows:
-        category = _question_type_category(section_name, question_type)
-        if not category or score is None or max_score is None or max_score <= 0:
+    from .subjects import get_selected_subject
+    from .paper_versions import select_paper_version
+    from .paper_distribution import distribution_types
+    subject = get_selected_subject(session)
+    present = [s for s in scores if s.attendance_status == "present"]
+    versions = {}
+    for score in present:
+        paper, _ = select_paper_version(session, score.exam_id)
+        if paper:
+            versions[score.exam_id] = paper
+    types = distribution_types(subject)
+    categories = list(types)
+    rows = session.execute(select(
+        Exam.id, Exam.name, Exam.exam_date, ExamQuestion.section_name,
+        ExamQuestion.question_type, ExamQuestion.max_score,
+        StudentItemResult.score, StudentItemResult.source_sync_run_id,
+    ).join(ExamPaperVersion, ExamPaperVersion.exam_id == Exam.id)
+      .join(ExamQuestion, ExamQuestion.paper_version_id == ExamPaperVersion.id)
+      .outerjoin(StudentItemResult,
+          (StudentItemResult.question_id == ExamQuestion.id)
+          & (StudentItemResult.exam_id == Exam.id)
+          & (StudentItemResult.student_id == student_id)
+          & (StudentItemResult.attendance_status == "present"))
+      .where(Exam.term_id == term_id, Exam.status == "active",
+             ExamPaperVersion.id.in_([p.id for p in versions.values()]),
+             ExamQuestion.included_in_analysis.is_(True))
+      .order_by(ExamQuestion.id)).all()
+    grouped, meta = {}, {}
+    has_moni = False
+    for exam_id, name, day, section, kind, maximum, value, sync_id in rows:
+        if versions[exam_id].extraction_provider == "teacher_distribution" and kind in types:
+            category = kind
+        else:
+            category = _question_type_category(section, kind,
+                QUESTION_TYPE_CATEGORIES if subject.key == "english" else tuple(subject.question_types))
+        if not category:
             continue
-        exam_meta[exam_id] = {"exam_name": exam_name, "exam_date": exam_date}
-        bucket = grouped.setdefault(exam_id, {}).setdefault(category, {"score": 0.0, "max_score": 0.0, "item_count": 0})
-        bucket["score"] += float(score)
-        bucket["max_score"] += float(max_score)
-        bucket["item_count"] += 1
-        has_moni_rows = has_moni_rows or source_sync_run_id is not None
-
-    history: list[dict] = []
-    for score in sorted(
-        present_scores,
-        key=lambda item: (item.exam.exam_date.isoformat() if item.exam.exam_date else "", item.exam_id),
-    ):
-        buckets = grouped.get(score.exam_id, {})
+        if category not in categories:
+            categories.append(category)
+        meta[exam_id] = {"exam_name": name, "exam_date": day}
+        bucket = grouped.setdefault(exam_id, {}).setdefault(category, {
+            "score": 0.0, "max_score": 0.0, "item_count": 0,
+            "expected_items": 0, "known_maximum": True})
+        bucket["expected_items"] += 1
+        bucket["known_maximum"] = bucket["known_maximum"] and maximum is not None and maximum > 0
+        bucket["max_score"] += maximum or 0
+        if value is not None:
+            bucket["score"] += value
+            bucket["item_count"] += 1
+            has_moni = has_moni or sync_id is not None
+    history = []
+    for score in sorted(present, key=lambda s: (str(s.exam.exam_date or ""), s.exam_id)):
         values = []
-        for category in QUESTION_TYPE_CATEGORIES:
-            bucket = buckets.get(category)
-            if not bucket or not bucket["max_score"]:
+        for category in categories:
+            bucket = grouped.get(score.exam_id, {}).get(category)
+            if not bucket:
                 continue
+            complete = bucket["item_count"] == bucket["expected_items"]
             values.append({
-                "type": category,
-                "score": round(float(bucket["score"]), 2),
-                "max_score": round(float(bucket["max_score"]), 2),
-                "score_rate": round(float(bucket["score"]) / float(bucket["max_score"]) * 100, 2),
-                "item_count": int(bucket["item_count"]),
+                "type": category, "score": round(bucket["score"], 2) if bucket["item_count"] else None,
+                "max_score": round(bucket["max_score"], 2) if bucket["known_maximum"] else None,
+                "score_rate": round(bucket["score"] / bucket["max_score"] * 100, 2)
+                    if complete and bucket["known_maximum"] else None,
+                "mean_score": round(bucket["score"] / bucket["item_count"], 2) if complete else None,
+                "item_count": bucket["item_count"], "expected_items": bucket["expected_items"],
+                "complete": complete,
             })
-        if values:
-            meta = exam_meta.get(score.exam_id, {"exam_name": score.exam.name, "exam_date": score.exam.exam_date})
-            history.append({
-                "exam_id": score.exam_id,
-                "exam_name": meta["exam_name"],
-                "exam_date": meta["exam_date"],
-                "values": values,
-            })
-
-    rates: dict[str, list[float]] = {name: [] for name in QUESTION_TYPE_CATEGORIES}
-    item_counts: dict[str, int] = {name: 0 for name in QUESTION_TYPE_CATEGORIES}
-    for exam in history:
-        for value in exam["values"]:
-            rates[value["type"]].append(float(value["score_rate"]))
-            item_counts[value["type"]] += int(value["item_count"])
-
-    return {
-        "categories": list(QUESTION_TYPE_CATEGORIES),
-        "averages": [
-            {
-                "type": name,
-                "score_rate": round(sum(rates[name]) / len(rates[name]), 2) if rates[name] else None,
-                "exam_count": len(rates[name]),
-                "item_count": item_counts[name],
-            }
-            for name in QUESTION_TYPE_CATEGORIES
-        ],
-        "history": history,
-        "exam_count": len(history),
-        "data_source": "MONI 小题成绩" if has_moni_rows else "已录入的小题成绩",
-    }
+        if any(v["item_count"] for v in values):
+            history.append({"exam_id": score.exam_id, **meta[score.exam_id], "values": values})
+    metric = "mean_score" if any(v["max_score"] is None and v["item_count"]
+                                 for h in history for v in h["values"]) else "score_rate"
+    averages = []
+    for name in categories:
+        values = [v for h in history for v in h["values"] if v["type"] == name]
+        average = {"type": name, "item_count": sum(v["item_count"] for v in values),
+                   "exam_count": sum(v[metric] is not None for v in values)}
+        for key in ("score_rate", "mean_score"):
+            numbers = [v[key] for v in values if v[key] is not None]
+            average[key] = round(sum(numbers) / len(numbers), 2) if numbers else None
+        averages.append(average)
+    return {"categories": categories, "averages": averages, "history": history,
+            "exam_count": len(history), "metric_key": metric,
+            "metric_label": "各场考试每题平均得分的平均值" if metric == "mean_score" else "各场考试题型得分率的平均值",
+            "unit": "分/题" if metric == "mean_score" else "%",
+            "incomplete_section_count": sum(not v["complete"] for h in history for v in h["values"]),
+            "data_source": ("MONI 小题成绩" if has_moni else "已录入的小题成绩") if history else "暂无小题成绩"}
 
 
 def student_profile(session: Session, student_id: int, *, term_id: int) -> StudentProfileRead:

@@ -301,12 +301,13 @@
       return;
     }
 
-    // Ctrl/Cmd + 1~9: 切换模块
-    if (typeof MODULES !== 'undefined' && typeof curModule !== 'undefined') {
+    // Ctrl/Cmd + 1~9: 切换模块（编号按当前学科实际显示的导航项算）
+    if (typeof visibleModules === 'function' && typeof curModule !== 'undefined') {
+      var visible = visibleModules();
       var num = parseInt(e.key, 10);
-      if (num >= 1 && num <= MODULES.length) {
+      if (num >= 1 && num <= visible.length) {
         e.preventDefault();
-        curModule = MODULES[num - 1].key;
+        curModule = visible[num - 1].key;
         if (typeof render === 'function') {
           renderNav();
           render();

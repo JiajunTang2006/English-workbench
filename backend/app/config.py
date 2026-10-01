@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-APP_NAME = "English Workbench"
+APP_NAME = "TeachMate 教学工作台"
 DATA_DIR_NAME = "workbench"
 # Keep reading installations created before the neutral English rename.  Unicode
 # escapes prevent the former personal name from appearing in project metadata.

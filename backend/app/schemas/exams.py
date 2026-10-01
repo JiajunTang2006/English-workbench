@@ -4,6 +4,7 @@ from datetime import date
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from ..question_types import canonical_question_type
 
 
 AttendanceStatus = Literal["present", "absent", "excused"]
@@ -39,6 +40,16 @@ class ExamCreate(BaseModel):
         names = [item.name for item in self.dimensions]
         if len(codes) != len(set(codes)) or len(names) != len(set(names)):
             raise ValueError("题型代码和名称不能重复")
+        if any("任务型阅读" in item.name for item in self.dimensions):
+            merged = {}
+            for item in self.dimensions:
+                name = canonical_question_type(item.name)
+                if name in merged:
+                    previous = merged[name]
+                    merged[name] = previous.model_copy(update={"max_score": previous.max_score + item.max_score})
+                else:
+                    merged[name] = item.model_copy(update={"name": name})
+            self.dimensions = list(merged.values())
         if self.exam_type == "question_type" and not self.dimensions:
             raise ValueError("按题型考试至少需要一个题型")
         if sum(item.max_score for item in self.dimensions) > self.full_score + 1e-9:
@@ -240,3 +251,107 @@ class StudentProfileUpdateRequest(BaseModel):
     """教师直接编辑正式学生画像。"""
     patch: dict[str, Any] = Field(default_factory=dict)
     expected_version: int | None = Field(default=None, ge=0)
+
+
+class ItemScoreRow(BaseModel):
+    """一条逐题小分：按「题型 + 题号」定位当前试卷里的具体题目。
+
+    题型名同时接受 ``exam_questions.question_type`` 与 ``section_name``：
+    视觉识别把学科题型写进前者，学校同步把卷面小节写进后者，教师手上的
+    小分表两种写法都可能出现。这里只用于定位，不改写字段本身。
+    """
+
+    student_id: int | None = Field(default=None, gt=0)
+    student_no: str | None = Field(default=None, min_length=1, max_length=50)
+    question_type: str | None = Field(default=None, min_length=1, max_length=100)
+    question_no: str = Field(min_length=1, max_length=50)
+    sub_question_no: str | None = Field(default=None, max_length=50)
+    score: float = Field(ge=0, le=1000)
+
+    @model_validator(mode="after")
+    def validate_student(self):
+        if self.student_id is None and not (self.student_no or "").strip():
+            raise ValueError("每条小分必须给出 student_id 或 student_no")
+        return self
+
+
+class ItemScoresUpsert(BaseModel):
+    """按题型批量上传小分。"""
+
+    rows: list[ItemScoreRow] = Field(min_length=1, max_length=5000)
+    note: str | None = Field(default=None, max_length=500)
+    # 审核界面可以显式写到尚未确认的草稿试卷上；正式写入默认只认已确认版本。
+    include_draft: bool = False
+    # 默认不覆盖教师单题修正过的分数，避免一次上传悄悄盖掉手工改分。
+    overwrite_teacher_override: bool = False
+
+    @model_validator(mode="after")
+    def validate_rows(self):
+        seen = set()
+        for row in self.rows:
+            key = (
+                row.student_id if row.student_id is not None else (row.student_no or "").strip(),
+                (row.question_type or "").strip(),
+                row.question_no.strip(),
+                row.sub_question_no,
+            )
+            if key in seen:
+                raise ValueError(f"同一学生的同一道题不能重复提交：{key[1]} {key[2]}")
+            seen.add(key)
+        return self
+
+
+class ItemScoreSkip(BaseModel):
+    """被保护而未写入的行。
+
+    ``teacher_override``：这条小分由教师单独修正过；
+    ``previous_upload``：这条小分来自上一次按题型上传且分数相同；
+    ``score_changed``：本次上传分数不同，但已有上传成绩默认受保护。
+    两者都需要显式勾选「覆盖」才会重写。
+    """
+
+    student_no: str
+    question_type: str
+    question_no: str
+    reason: Literal["teacher_override", "previous_upload", "score_changed"]
+    # Keep the response backward-compatible: changed-score rows may carry
+    # these extra fields, while unchanged rows remain the original shape.
+    model_config = ConfigDict(extra="allow")
+
+
+class ItemScoreSectionRead(BaseModel):
+    """单个题型在本批次之后的落库情况，供教师回显核对。"""
+
+    section_name: str
+    max_score: float
+    expected_items: int
+    scored_items: int
+    # 该题型所有题目都已录入小分的学生数；平均分只统计这批学生，缺失不补零。
+    complete_student_count: int = 0
+    average_score: float | None = None
+
+
+class ItemScoresWriteRead(BaseModel):
+    exam_id: int
+    paper_version: int | None = None
+    paper_status: str
+    written: int
+    student_count: int
+    overwritten_overrides: int = 0
+    # 本次涉及的学生里总分仍为空的人数：小分合计无法与总分核对，单独提示，不补零。
+    total_score_missing_count: int = 0
+    question_types: list[str] = Field(default_factory=list)
+    sections: list[ItemScoreSectionRead] = Field(default_factory=list)
+    skipped: list[ItemScoreSkip] = Field(default_factory=list)
+
+
+class PaperDistributionRow(BaseModel):
+    question_type: str = Field(min_length=1, max_length=100)
+    question_numbers: str = Field(default="", max_length=2000)
+
+
+class PaperDistributionWrite(BaseModel):
+    subject_key: str = Field(min_length=1, max_length=50)
+    rows: list[PaperDistributionRow] = Field(max_length=30)
+    expected_revision: int = Field(ge=0)
+    expected_paper_version_id: int | None = Field(default=None, gt=0)

@@ -52,14 +52,17 @@ def get_student_score_details(db, *, exam_id: int, student_id: int,
                 "question_type": question.question_type,
                 "score": value,
                 "max_score": question.max_score,
+                "full_score_known": question.max_score > 0,
                 "status": "scored" if value is not None else "missing",
                 "source": source,
             })
             section = sections.setdefault(section_name, {
                 "section_name": section_name, "score": 0.0,
                 "max_score": 0.0, "expected_items": 0, "scored_items": 0,
+                "full_score_known": True,
             })
             section["max_score"] += question.max_score
+            section["full_score_known"] = section["full_score_known"] and question.max_score > 0
             section["expected_items"] += 1
             if value is not None:
                 section["score"] += value

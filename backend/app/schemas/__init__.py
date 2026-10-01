@@ -1,4 +1,15 @@
-from .entities import ClassCreate, ClassPatch, ClassRead, SettingsPatch, SettingsRead, StudentCreate, StudentPatch, StudentRead
+from .entities import (
+    ClassCreate,
+    ClassPatch,
+    ClassRead,
+    SettingsPatch,
+    SettingsRead,
+    StudentCreate,
+    StudentPatch,
+    StudentRead,
+    SubjectOption,
+    SubjectsRead,
+)
 from .attachments import AttachmentCreate, AttachmentRead
 from .attachment_workspace import AttachmentWorkspaceDelete, AttachmentWorkspaceDeleteRead
 from .exams import (
@@ -13,6 +24,11 @@ from .exams import (
     ExamSummary,
     ExamWorkspaceMutation,
     ExamWorkspaceMutationRead,
+    ItemScoreRow,
+    ItemScoreSectionRead,
+    ItemScoreSkip,
+    ItemScoresUpsert,
+    ItemScoresWriteRead,
     ScoreDimensionRead,
     StudentItemResultPatch,
     StudentItemResultRead,
@@ -32,9 +48,10 @@ from .growth import (
 
 __all__ = [
     "AttachmentCreate", "AttachmentRead", "ClassCreate", "ClassPatch", "ClassRead", "SettingsPatch", "SettingsRead",
-    "StudentCreate", "StudentPatch", "StudentRead", "DimensionScoreRead",
+    "StudentCreate", "StudentPatch", "StudentRead", "SubjectOption", "SubjectsRead", "DimensionScoreRead",
     "ExamClassMetricRead", "ExamClassMetricUpsert", "ExamCreate", "ExamPatch", "ExamRead", "ExamScoreRead", "ExamScoresUpsert",
     "ExamSummary", "ExamWorkspaceMutation", "ExamWorkspaceMutationRead", "ScoreDimensionRead", "StudentItemResultPatch", "StudentItemResultRead", "StudentProfileRead", "StudentProfileUpdateRequest", "AttachmentWorkspaceDelete", "AttachmentWorkspaceDeleteRead",
+    "ItemScoreRow", "ItemScoreSectionRead", "ItemScoreSkip", "ItemScoresUpsert", "ItemScoresWriteRead",
     "WorkspaceStateRead", "WorkspaceStateWrite", "CurrentTermWrite", "TermCacheClear", "TermCacheSummary", "TermCreate", "TermDelete", "TermPatch", "TermRead",
     "GrowthActivityBatch", "GrowthActivityItem", "GrowthLegacyBatchReverseRequest", "GrowthLegacyConfirmRequest", "GrowthLegacyPreviewRequest", "GrowthReversalRequest",
 ]

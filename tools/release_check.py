@@ -65,8 +65,8 @@ SECRET_PATTERNS = (
     re.compile(r"-----BEGIN (RSA |EC |OPENSSH )?(PRIVATE|PUBLIC) KEY-----"),
 )
 ALLOWED_PHONE_PLACEHOLDERS = {"13800138000", "13900139000", "13800000000", "13912345678"}
-# 手机号匹配要求后随非字母数字，避免 SHA-256 哈希中的连续数字误报
-PHONE_PATTERN = re.compile(r"(?<!\d)1[3-9]\d{9}(?![\da-zA-Z])")
+# 不从小数的尾数或长数字中截取手机号；后随字母的哈希片段也不作为手机号。
+PHONE_PATTERN = re.compile(r"(?<![\d.])1[3-9]\d{9}(?![\da-zA-Z])")
 
 failures: list[str] = []
 

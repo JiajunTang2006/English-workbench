@@ -94,9 +94,13 @@ def _render_sections(sections: list[dict]) -> str:
     for s in sections:
         title = _esc(s.get("title") or "")
         body = _esc(s.get("body") or s.get("content") or "")
-        if not (title or body):
+        items = s.get("items") or []
+        if not (title or body or items):
             continue
-        out.append(f'<section class="block"><h2>{title}</h2><p>{body}</p></section>')
+        item_html = "".join(f"<li>{_esc(item)}</li>" for item in items if item is not None)
+        list_html = f'<ul class="struct-list">{item_html}</ul>' if item_html else ""
+        body_html = f"<p>{body}</p>" if body else ""
+        out.append(f'<section class="block"><h2>{title}</h2>{body_html}{list_html}</section>')
     return "".join(out)
 
 
@@ -213,6 +217,7 @@ def build_html_report(
     recs = answer.get("recommendations") or []
     limits = answer.get("limitations") or []
     sections = answer.get("sections") or []
+    timeline = _esc(answer.get("timeline") or "")
 
     meta_html = ""
     if meta:
@@ -231,6 +236,7 @@ def build_html_report(
         + (f'<section class="summary"><h2>摘要</h2><p>{summary}</p></section>' if summary else "")
         + _render_findings(findings)
         + _render_recommendations(recs)
+        + (f'<section class="block"><h2>复习时间表</h2><p>{timeline}</p></section>' if timeline else "")
         + _render_sections(sections)
         + _render_limitations(limits)
         + _render_evidence_appendix(evidence or [])

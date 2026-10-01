@@ -121,20 +121,19 @@ class OpenAICompatTextProvider(TextModelProvider):
             "model": used_model,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": max_tokens,
+            "max_tokens": min(max_tokens, self._max_output_tokens),
             "stream": False,
         }
-        if response_format:
+        if response_format and self._supports_json:
             payload["response_format"] = response_format
+        elif response_format:
+            raise ModelError("所选模型不支持结构化输出，请选择兼容模型或普通对话。", ModelErrorType.INVALID_RESPONSE)
+        if tools and not self._supports_tool_calls:
+            raise ModelError("所选模型不支持工具调用，请使用普通对话或支持工具的模型。", ModelErrorType.INVALID_RESPONSE)
         if tools and self._supports_tool_calls:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
-        if self._thinking_enabled:
-            if not self._supports_reasoning:
-                raise ModelError(
-                    "当前 OpenAI 兼容模型未声明支持 reasoning_effort；请关闭思考，或在模型档案中开启该能力。",
-                    ModelErrorType.INVALID_RESPONSE,
-                )
+        if self._thinking_enabled and self._supports_reasoning:
             payload["reasoning_effort"] = self._reasoning_effort
         return payload
 
@@ -290,12 +289,12 @@ class OpenAICompatTextProvider(TextModelProvider):
                     arguments=args,
                 ))
 
-        usage_data = data.get("usage", {})
+        usage_data = data.get("usage")
         usage = ModelUsage(
             input_tokens=usage_data.get("prompt_tokens", 0),
             output_tokens=usage_data.get("completion_tokens", 0),
             provider_request_id=data.get("id"),
-        )
+        ) if isinstance(usage_data, dict) and "prompt_tokens" in usage_data and "completion_tokens" in usage_data else None
 
         return ModelResponse(
             content=content,

@@ -4,6 +4,192 @@
     // 所有函数挂到 window.teachMateReport，供 teachmate-views.js 与 teachmate-interactions.js 调用。
 
     const teachMateReport = (function () {
+      // 只记住本页各份报告的展开状态，避免后续消息刷新时打断阅读。
+      var materialOpenStates = new Map();
+      var materialEdits = new Map();
+      var materialDrafts = new Map();
+      var materialModes = new Map();
+      var materialTypes = {
+        lesson_flow: { label: '课堂讲评', icon: 'co_present', hint: '上课时使用', tone: 'lesson' },
+        student_handout: { label: '学生练习', icon: 'edit_note', hint: '发给学生 · 不含答案', tone: 'student' },
+        teacher_key: { label: '教师答案', icon: 'key', hint: '备课参考 · 教师使用', tone: 'teacher' },
+        followup_assessment: { label: '课后复测', icon: 'fact_check', hint: '复测草稿 · 使用前核对', tone: 'assessment' },
+      };
+
+      function rememberMaterialState(card) {
+        var key = card.dataset.materialKey;
+        if (!key) return;
+        materialOpenStates.delete(key);
+        materialOpenStates.set(key, card.open);
+        if (materialOpenStates.size > 200) materialOpenStates.delete(materialOpenStates.keys().next().value);
+      }
+
+      function materialKey(runId, sectionIndex) {
+        return runId ? String(runId) + ':' + Number(sectionIndex) : '';
+      }
+
+      function trimMaterialMap(map) {
+        while (map.size > 200) map.delete(map.keys().next().value);
+      }
+
+      function updateMaterialDraft(field) {
+        var card = field && field.closest('.tm-material-card');
+        if (!card) return;
+        var key = materialKey(card.dataset.materialRunId, card.dataset.sectionIndex);
+        if (!key) return;
+        var draft = materialDrafts.get(key) || { body: '', items: '' };
+        if (field.dataset.materialField === 'body') draft.body = field.value;
+        if (field.dataset.materialField === 'items') draft.items = field.value;
+        materialDrafts.set(key, draft);
+        trimMaterialMap(materialDrafts);
+      }
+
+      function modifyMaterial(action, button, answer) {
+        var card = button && button.closest('.tm-material-card');
+        var runId = card && card.dataset.materialRunId;
+        var sectionIndex = card && Number(card.dataset.sectionIndex);
+        var key = materialKey(runId, sectionIndex);
+        var original = answer && Array.isArray(answer.sections) && answer.sections[sectionIndex];
+        if (!key || !original) return false;
+
+        if (action === 'edit') {
+          var existing = materialEdits.get(key);
+          materialDrafts.set(key, existing
+            ? { body: existing.body, items: existing.items.join('\n') }
+            : { body: String(original.body || ''), items: (Array.isArray(original.items) ? original.items : []).join('\n') });
+          materialModes.set(key, 'edit');
+        } else if (action === 'compare') {
+          materialModes.set(key, 'compare');
+        } else if (action === 'back') {
+          materialModes.set(key, 'view');
+        } else if (action === 'cancel') {
+          materialDrafts.delete(key);
+          materialModes.set(key, 'view');
+        } else {
+          return false;
+        }
+        trimMaterialMap(materialModes);
+        return true;
+      }
+
+      function getMaterialDraft(runId, sectionIndex) {
+        var draft = materialDrafts.get(materialKey(runId, sectionIndex));
+        if (!draft) return null;
+        return {
+          body: String(draft.body || ''),
+          items: String(draft.items || '').split(/\r?\n/).map(function (item) { return item.trim(); }).filter(Boolean),
+        };
+      }
+
+      function commitSavedMaterialEdit(runId, sectionIndex, edit) {
+        var key = materialKey(runId, sectionIndex);
+        if (!key || !edit) return;
+        materialEdits.set(key, { body: String(edit.body || ''), items: Array.isArray(edit.items) ? edit.items.slice() : [] });
+        materialDrafts.delete(key);
+        materialModes.set(key, 'view');
+        trimMaterialMap(materialEdits);
+      }
+
+      function hydrateMaterialEdits(messages) {
+        (messages || []).forEach(function (message) {
+          if (!message || !message.run_id || !message.material_edits) return;
+          Object.entries(message.material_edits).forEach(function (entry) {
+            if (!/^\d+$/.test(entry[0])) return;
+            commitSavedMaterialEdit(message.run_id, Number(entry[0]), entry[1]);
+          });
+        });
+      }
+
+      function applyMaterialEdits(answer, runId) {
+        if (!answer || !Array.isArray(answer.sections) || !runId) return answer;
+        var changed = false;
+        var sections = answer.sections.map(function (section, index) {
+          var edit = materialEdits.get(materialKey(runId, index));
+          if (!edit) return section;
+          changed = true;
+          return Object.assign({}, section, { body: edit.body, items: edit.items.slice() });
+        });
+        return changed ? Object.assign({}, answer, { sections: sections }) : answer;
+      }
+
+      document.addEventListener('input', function (event) {
+        if (event.target && event.target.matches && event.target.matches('[data-material-field]')) updateMaterialDraft(event.target);
+      }, true);
+
+      document.addEventListener('toggle', function (event) {
+        var card = event.target;
+        if (card && card.isConnected && card.matches && card.matches('.tm-material-card')) rememberMaterialState(card);
+      }, true);
+
+      document.addEventListener('click', function (event) {
+        var summary = event.target && event.target.closest && event.target.closest('.tm-material-card > summary');
+        var card = summary && summary.parentElement;
+        if (!card || !card.isConnected) return;
+        var key = card.dataset.materialKey;
+        if (key) {
+          materialOpenStates.delete(key);
+          materialOpenStates.set(key, !card.open);
+          trimMaterialMap(materialOpenStates);
+        }
+      }, true);
+
+      function setMaterialsExpanded(button, expanded) {
+        var materials = button && button.closest('.tm-materials');
+        if (!materials) return;
+        materials.querySelectorAll('.tm-material-card').forEach(function (card) {
+          card.open = expanded;
+          rememberMaterialState(card);
+        });
+      }
+
+      function renderMaterials(sections, runId) {
+        var html = '<section class="tm-materials" aria-label="教学材料">' +
+          '<div class="tm-materials-head"><div><span class="tm-report-kicker">备课材料</span><h4>把分析带进课堂 <span>' + sections.length + ' 份材料</span></h4></div>' +
+          '<div class="tm-materials-controls" role="group" aria-label="材料阅读方式"><button type="button" data-act="tm-materials-expand">全部展开</button><button type="button" data-act="tm-materials-collapse">全部收起</button></div></div>';
+        sections.forEach(function (section, index) {
+          if (!section || typeof section !== 'object') return;
+          var type = materialTypes[section.kind] || { label: '教学材料', icon: 'description', hint: '教学草稿', tone: 'lesson' };
+          var key = runId ? String(runId) + ':' + index + ':' + (section.kind || '') : '';
+          var editKey = materialKey(runId, index);
+          var edit = editKey ? materialEdits.get(editKey) : null;
+          var draft = editKey ? materialDrafts.get(editKey) : null;
+          var mode = editKey ? (materialModes.get(editKey) || 'view') : 'view';
+          var visibleBody = edit ? edit.body : String(section.body || '');
+          var visibleItems = edit ? edit.items : (Array.isArray(section.items) ? section.items : []);
+          var open = key && materialOpenStates.has(key) ? materialOpenStates.get(key) : index === 0 && section.kind !== 'teacher_key';
+          var cardRun = runId ? String(runId) : '';
+          html += '<details class="tm-material-card tm-material-' + type.tone + '" data-testid="report-section" data-material-key="' + _escape(key) + '" data-material-run-id="' + _escape(cardRun) + '" data-section-index="' + index + '"' + (open ? ' open' : '') + '>' +
+            '<summary><span class="tm-material-icon material-symbols-rounded" aria-hidden="true">' + type.icon + '</span>' +
+            '<span class="tm-material-heading"><small>' + type.label + (edit ? ' · 教师已改' : '') + '</small><strong>' + _escape(section.title || type.label) + '</strong><span>' + type.hint + '</span></span>' +
+            '<span class="tm-material-chevron material-symbols-rounded" aria-hidden="true">expand_more</span></summary>' +
+            '<div class="tm-material-content"><div class="tm-material-toolbar">';
+          if (mode === 'edit') {
+            html += '<span>编辑草稿 · 导出会包含已保存修改</span><div><button type="button" data-act="tm-material-save">保存修改</button><button type="button" data-act="tm-material-cancel">取消</button></div></div>' +
+              '<div class="tm-material-editor"><label>材料说明<textarea class="tm-material-field" data-material-field="body" rows="3">' + _escape(draft ? draft.body : visibleBody) + '</textarea></label>' +
+              '<label>步骤或题目 <small>每行一项；留空可移除全部项目</small><textarea class="tm-material-field" data-material-field="items" rows="5">' + _escape(draft ? draft.items : visibleItems.join('\n')) + '</textarea></label></div>' +
+              '<p class="tm-material-edit-note">编辑中的草稿尚未保存；点击“保存修改”后会写入本机数据库，可在刷新后继续使用。</p>';
+          } else if (mode === 'compare' && edit) {
+            html += '<span>原稿与教师修改</span><div><button type="button" data-act="tm-material-back">返回材料</button><button type="button" data-act="tm-material-edit">继续修改</button></div></div>' +
+              '<div class="tm-material-compare"><section><h5>AI 原稿</h5>' + _renderMaterialText(section.body, section.items) + '</section><section><h5>教师修改版</h5>' + _renderMaterialText(edit.body, edit.items) + '</section></div>';
+          } else {
+            html += '<span>' + (edit ? '已保存 · 导出将使用教师修改稿' : (cardRun ? '待教师核对' : '只读历史材料')) + '</span><div>' +
+              (edit && cardRun ? '<button type="button" data-act="tm-material-compare">查看修改对比</button>' : '') +
+              (cardRun ? '<button type="button" data-act="tm-material-edit">编辑材料</button>' : '') + '</div></div>';
+            if (visibleBody) html += '<p class="tm-report-body">' + _escape(visibleBody) + '</p>';
+            if (visibleItems.length) html += '<ul class="tm-struct-list">' + visibleItems.map(function (item) { return '<li>' + _escape(item) + '</li>'; }).join('') + '</ul>';
+          }
+          html += '</div></details>';
+        });
+        return html + '</section>';
+      }
+
+      function _renderMaterialText(body, items) {
+        var html = body ? '<p>' + _escape(body) + '</p>' : '<p class="tm-material-empty">暂无说明</p>';
+        if (Array.isArray(items) && items.length) html += '<ul>' + items.map(function (item) { return '<li>' + _escape(item) + '</li>'; }).join('') + '</ul>';
+        else html += '<p class="tm-material-empty">暂无步骤或题目</p>';
+        return html;
+      }
+
       function _escape(v) {
         return (typeof escapeHtml === 'function') ? escapeHtml(v) : String(v == null ? '' : v);
       }
@@ -34,6 +220,17 @@
               var reason = item && (item.rationale || item.description || item.detail || '') || '';
               return (index + 1) + '、' + action + (reason ? '：' + _sentence(reason) : '。');
             }).join('\n'));
+          }
+          if (value.timeline) parts.push('复习安排\n' + _sentence(value.timeline));
+          var sections = Array.isArray(value.sections) ? value.sections : [];
+          if (sections.length) {
+            parts.push('教学材料\n' + sections.map(function (section) {
+              var heading = section && section.title || '教学材料';
+              var lines = [];
+              if (section && section.body) lines.push(section.body);
+              if (section && Array.isArray(section.items)) lines = lines.concat(section.items);
+              return heading + (lines.length ? '\n' + lines.map(function (line) { return '• ' + line; }).join('\n') : '');
+            }).join('\n\n'));
           }
           var limitations = Array.isArray(value.limitations) ? value.limitations.filter(Boolean) : [];
           if (limitations.length) parts.push('需要注意\n' + limitations.map(function (item) { return '• ' + _sentence(item); }).join('\n'));
@@ -89,6 +286,9 @@
             '<h4 class="tm-report-title"><span class="material-symbols-rounded" aria-hidden="true">summarize</span>核心结论</h4>' +
             '<p class="tm-report-body">' + _escape(answer.summary) + '</p></section>';
         }
+        if (answer.timeline) {
+          html += '<section class="tm-report-section"><div class="tm-report-kicker">安排</div><h4 class="tm-report-title"><span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>复习时间表</h4><p class="tm-report-body">' + _escape(answer.timeline) + '</p></section>';
+        }
         html += '<div class="tm-report-stat-grid' + (hideEvidence ? ' tm-report-stat-grid-compact' : '') + '" aria-label="报告概览指标">' +
           '<div class="tm-report-stat"><strong>' + findingCount + '</strong><span>主要发现</span></div>' +
           '<div class="tm-report-stat"><strong>' + recommendationCount + '</strong><span>行动建议</span></div>' +
@@ -118,6 +318,9 @@
                   return '<button type="button" class="tm-evidence-ref-btn" data-act="tm-view-evidence-id" data-evidence-id="' + _escape(eid) + '" data-run-id="' + _escape(String((finding.run_id) || reportRunId || '')) + '" aria-label="查看第' + (evidenceIndex + 1) + '条来源">来源' + (evidenceIndex + 1) + '</button>';
                 }).join('、') +
                 '</div>';
+            }
+            if (reportRunId && window.teachMateTasks && teachMateTasks.currentTaskId()) {
+              html += '<button type="button" class="tm-task-btn" data-act="tm-task-feedback" data-run-id="' + _escape(String(reportRunId)) + '" data-finding="' + _escape(findingTitle) + '">记录对这一判断的修正</button>';
             }
             html += '</article>';
           });
@@ -152,7 +355,9 @@
         }
 
         // 附加分节（通用）
-        if (Array.isArray(answer.sections)) {
+        if (answer.answer_type === 'review_plan' && Array.isArray(answer.sections) && answer.sections.length) {
+          html += renderMaterials(answer.sections.filter(function (section) { return section && typeof section === 'object'; }), reportRunId);
+        } else if (Array.isArray(answer.sections)) {
           answer.sections.forEach(function (sec) {
             html += '<section class="tm-report-section" data-testid="report-section">';
             if (sec.title) html += '<h4 class="tm-report-title">' + _escape(sec.title) + '</h4>';
@@ -166,6 +371,9 @@
           });
         }
 
+        if (reportRunId && window.teachMateTasks && !teachMateTasks.currentTaskId()) {
+          html += '<div class="tm-task-actions"><button type="button" class="tm-task-btn" data-act="tm-task-from-report" data-run-id="' + _escape(String(reportRunId)) + '">围绕本报告创建教学任务</button></div>';
+        }
         html += '</div>';
         return html;
       }
@@ -252,6 +460,16 @@
               html += '<div class="rec"><strong>' + _escape(r.action || '') + '</strong> ' + _escape(r.rationale || '') + '</div>';
             });
           }
+          if (answer.timeline) html += '<h2>复习时间表</h2><p>' + _escape(answer.timeline) + '</p>';
+          if (Array.isArray(answer.sections)) {
+            answer.sections.forEach(function (section) {
+              html += '<h2>' + _escape(section.title || '教学材料') + '</h2>';
+              if (section.body) html += '<p>' + _escape(section.body) + '</p>';
+              if (Array.isArray(section.items) && section.items.length) {
+                html += '<ul>' + section.items.map(function (item) { return '<li>' + _escape(item) + '</li>'; }).join('') + '</ul>';
+              }
+            });
+          }
           if (Array.isArray(answer.limitations) && answer.limitations.length) {
             html += '<h2>局限与注意事项</h2><ul class="limitations">' + answer.limitations.map(function (l) { return '<li>' + _escape(l) + '</li>'; }).join('') + '</ul>';
           }
@@ -312,6 +530,12 @@
       }
 
       return {
+        modifyMaterial: modifyMaterial,
+        getMaterialDraft: getMaterialDraft,
+        commitSavedMaterialEdit: commitSavedMaterialEdit,
+        hydrateMaterialEdits: hydrateMaterialEdits,
+        applyMaterialEdits: applyMaterialEdits,
+        setMaterialsExpanded: setMaterialsExpanded,
         renderReportCanvas: renderReportCanvas,
         renderConfirmPanel: renderConfirmPanel,
         exportForPrint: exportForPrint,

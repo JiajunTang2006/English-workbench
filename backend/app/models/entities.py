@@ -4,9 +4,10 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from ..database import Base
+from ..question_types import normalize_workspace_question_types
 
 
 def utcnow() -> datetime:
@@ -208,6 +209,30 @@ class ImportJob(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class TeacherProfile(Base):
+    """本机教师档案：承载「每位老师自己那套补录加分标准」。
+
+    单机软件不做账号体系，这里只记录「本机有哪几位老师、当前是谁」，用于：
+    - 把补录预设（快捷按钮与默认分值）按教师区分；
+    - 在事件账本 ``GrowthEvent.actor`` 里留下真实操作人。
+
+    预设只决定快捷按钮与默认值，不改变计分引擎：补录时教师仍可临时覆盖单次
+    分值，且历史事件按发生当时的分值入账，不受后续修改预设影响。
+    """
+
+    __tablename__ = "teacher_profiles"
+    __table_args__ = (UniqueConstraint("name", name="uq_teacher_profiles_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    # {event_type: {"points": int, "visible": bool}}；未列出的类型用后端默认值。
+    presets_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
 class SchoolDataSource(Base):
     """外部学校数据源配置。连接方式先保留为 mock/api/mcp。"""
 
@@ -370,6 +395,10 @@ class WorkspaceState(Base):
     """
 
     __tablename__ = "workspace_states"
+
+    @validates("state_json")
+    def normalize_question_labels(self, key, value):
+        return normalize_workspace_question_types(value)
 
     term_id: Mapped[int] = mapped_column(ForeignKey("terms.id", ondelete="CASCADE"), primary_key=True)
     state_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)

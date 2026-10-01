@@ -12,16 +12,28 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..auth import require_token
-from ..agent.keyvault import api_key_configured, clear_api_key, load_api_key, save_api_key
+from ..agent.keyvault import api_key_configured, load_api_key, save_api_key
 from ..models import BackgroundJob, SchoolDataSource, SchoolSyncRun
 from ..schemas.school_sync import (
-    SchoolDataSourceCreate, SchoolDataSourceRead, SchoolSyncPayload, StudentRosterPayload,
-    SyncApplyResponse, SyncPreviewResponse, MoniMcpConfig,
+    SchoolDataSourceCreate, SchoolDataSourceWrite, SchoolSyncPayload,
+    StudentRosterPayload, SyncApplyResponse, SyncPreviewResponse, MoniMcpConfig,
 )
-from ..services.school_sync import apply_payload, apply_student_roster, ensure_source, mock_payload, preview_payload
+from ..services.school_sync import apply_payload, apply_student_roster, mock_payload, preview_payload
 from ..services.job_worker import submit_job
-from ..services.moni_sync import sync_current_term, sync_moni_roster
+from ..services.moni_sync import sync_current_term
 from ..services.plugin_manager import PluginManager, PluginValidationError
+from ..services.school_sources import (
+    GenericSourceError,
+    SourceConfigError,
+    delete_source,
+    ensure_moni_source,
+    get_source_row,
+    key_hint,
+    list_source_rows,
+    resolve_source,
+    save_source_config,
+    source_status,
+)
 from urllib.parse import urlparse
 from .agent import _job_status_payload
 
@@ -31,6 +43,25 @@ log = logging.getLogger(__name__)
 
 def get_session(request: Request) -> Session:
     return request.app.state.session_factory()
+
+
+def _clean_error_detail(exc: Exception) -> str:
+    """把上游返回的错误压成一行有限长度的摘要，不带原始数据或令牌。"""
+    detail = str(exc).strip()
+    if detail.startswith("{"):
+        try:
+            payload = json.loads(detail)
+            detail = str(payload.get("message") or payload.get("detail") or payload.get("error") or detail)
+        except (TypeError, ValueError):
+            pass
+    return " ".join(detail.split())[:240]
+
+
+def _require_source(session: Session, source_key: str) -> SchoolDataSource:
+    row = get_source_row(session, str(source_key or "").strip().lower())
+    if row is None:
+        raise HTTPException(404, "数据源不存在")
+    return row
 
 
 def _moni_server(payload: MoniMcpConfig) -> dict:
@@ -50,6 +81,7 @@ def _moni_server(payload: MoniMcpConfig) -> dict:
 
 
 def _moni_key_hint(data_dir) -> str | None:
+    # 与通用数据源共用同一套遮蔽口径（MONI 的档案名历史上就是 "moni"）。
     key = load_api_key("moni", data_dir=data_dir) or ""
     if not key:
         return None
@@ -122,6 +154,15 @@ def test_moni_config(request: Request):
 
 @router.post("/moni/sync")
 def sync_moni_now(request: Request):
+    with get_session(request) as session:
+        from ..services.subjects import get_selected_subject
+        subject = get_selected_subject(session)
+        if subject.key != "english":
+            raise HTTPException(
+                409,
+                f"MONI 当前同步器按英语单科字段读取；当前学科为{subject.label}。"
+                "请切回英语同步，或配置对应学科的通用数据源。",
+            )
     try:
         summary = sync_current_term(request.app.state.settings)
     except HTTPError as exc:
@@ -134,35 +175,146 @@ def sync_moni_now(request: Request):
         raise HTTPException(502, "MONI 服务暂时无法连接，请稍后重试") from exc
     except Exception as exc:
         log.exception("MONI 同步失败")
-        detail = str(exc).strip()
-        # 只把有限长度的错误摘要返回前端，不返回原始数据或令牌。
-        if detail.startswith("{"):
-            try:
-                payload = json.loads(detail)
-                detail = str(payload.get("message") or payload.get("detail") or payload.get("error") or detail)
-            except (TypeError, ValueError):
-                pass
-        detail = " ".join(detail.split())[:240]
+        detail = _clean_error_detail(exc)
         suffix = f"：{detail}" if detail else ""
         raise HTTPException(502, f"MONI同步失败（{type(exc).__name__}）{suffix}") from exc
     return {"status": "completed", "summary": summary}
 
 
-@router.get("/sources", response_model=list[SchoolDataSourceRead])
+# ---- 通用数据源：内置 MONI 与自定义 MCP 走同一组端点 ----
+#
+# 换学校只是换一份配置（端点 + 鉴权 + 路径模板 + 字段映射），不需要新增代码或
+# 插件包；自定义数据源会被「物化」成插件清单，从而复用既有的 MCP 宿主。
+# ``/moni/*`` 保留为兼容别名，行为不变。
+
+
+@router.get("/sources")
 def list_sources(request: Request):
+    """列出所有数据源；配置回显已遮蔽凭证，令牌只给「是否已配置 + 尾号」。"""
+    settings = request.app.state.settings
     with get_session(request) as session:
-        return list(session.scalars(select(SchoolDataSource).order_by(SchoolDataSource.id)))
-
-
-@router.post("/sources", response_model=SchoolDataSourceRead, status_code=201)
-def create_source(payload: SchoolDataSourceCreate, request: Request):
-    with get_session(request) as session:
-        if session.scalar(select(SchoolDataSource).where(SchoolDataSource.source_key == payload.source_key)):
-            raise HTTPException(409, "数据源标识已存在")
-        source = ensure_source(session, source_key=payload.source_key, name=payload.name, kind=payload.kind, config=payload.config)
+        ensure_moni_source(session)
         session.commit()
-        session.refresh(source)
-        return source
+        return [source_status(settings, row) for row in list_source_rows(session)]
+
+
+@router.post("/sources", status_code=201)
+def create_source(payload: SchoolDataSourceCreate, request: Request):
+    settings = request.app.state.settings
+    with get_session(request) as session:
+        if get_source_row(session, str(payload.source_key).strip().lower()) is not None:
+            raise HTTPException(409, "数据源标识已存在")
+        try:
+            row = save_source_config(
+                settings, session, source_key=payload.source_key, name=payload.name,
+                config=payload.config, bearer_token=payload.bearer_token,
+                enabled=payload.enabled,
+            )
+        except SourceConfigError as exc:
+            session.rollback()
+            raise HTTPException(422, str(exc)) from exc
+        session.commit()
+        session.refresh(row)
+        return source_status(settings, row)
+
+
+@router.get("/sources/{source_key}/config")
+def get_source_config(source_key: str, request: Request):
+    settings = request.app.state.settings
+    with get_session(request) as session:
+        return source_status(settings, _require_source(session, source_key))
+
+
+@router.put("/sources/{source_key}/config")
+def put_source_config(source_key: str, payload: SchoolDataSourceWrite, request: Request):
+    settings = request.app.state.settings
+    with get_session(request) as session:
+        _require_source(session, source_key)
+        try:
+            row = save_source_config(
+                settings, session, source_key=source_key, name=payload.name,
+                config=payload.config, bearer_token=payload.bearer_token,
+                enabled=payload.enabled,
+            )
+        except SourceConfigError as exc:
+            session.rollback()
+            raise HTTPException(422, str(exc)) from exc
+        session.commit()
+        session.refresh(row)
+        return source_status(settings, row)
+
+
+@router.delete("/sources/{source_key}")
+def delete_source_config(source_key: str, request: Request):
+    """删除自定义数据源：登记行、物化插件与专属令牌一起清掉。"""
+    settings = request.app.state.settings
+    with get_session(request) as session:
+        try:
+            delete_source(settings, session, source_key=source_key)
+        except SourceConfigError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(404, "数据源不存在") from exc
+        session.commit()
+    return {"status": "deleted", "source_key": str(source_key).strip().lower()}
+
+
+@router.post("/sources/{source_key}/test")
+def test_source(source_key: str, request: Request):
+    settings = request.app.state.settings
+    with get_session(request) as session:
+        try:
+            source = resolve_source(settings, session, str(source_key or "").strip().lower())
+        except KeyError as exc:
+            raise HTTPException(404, "数据源不存在") from exc
+        except SourceConfigError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        try:
+            health = source.health()
+        except Exception as exc:  # noqa: BLE001 - 上游异常统一转成 502
+            log.exception("数据源健康检查失败")
+            raise HTTPException(502, f"数据源连接失败（{type(exc).__name__}）") from exc
+        return {
+            "status": "ok" if health.get("health") == "ready" else "failed",
+            "health": health.get("health"),
+            "tool_count": health.get("tool_count", 0),
+            "error": health.get("error"),
+            "key_hint": key_hint(settings, str(source_key or "").strip().lower()),
+        }
+
+
+@router.post("/sources/{source_key}/sync")
+def sync_source(source_key: str, request: Request, dry_run: bool = False):
+    """立即同步一次；``dry_run=true`` 只做取数与校验，不写库。"""
+    settings = request.app.state.settings
+    with get_session(request) as session:
+        if str(source_key or "").strip().lower() == "moni":
+            from ..services.subjects import get_selected_subject
+            subject = get_selected_subject(session)
+            if subject.key != "english":
+                raise HTTPException(
+                    409,
+                    f"内置 MONI 同步器读取英语单科数据；当前学科为{subject.label}。"
+                    "请使用对应学科的数据源。",
+                )
+        try:
+            source = resolve_source(settings, session, str(source_key or "").strip().lower())
+        except KeyError as exc:
+            raise HTTPException(404, "数据源不存在") from exc
+        except SourceConfigError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    try:
+        summary = source.sync(dry_run=dry_run)
+    except GenericSourceError as exc:
+        raise HTTPException(502, f"同步失败：{exc}") from exc
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 - 上游异常统一转成 502
+        log.exception("数据源同步失败")
+        detail = _clean_error_detail(exc)
+        suffix = f"：{detail}" if detail else ""
+        raise HTTPException(502, f"同步失败（{type(exc).__name__}）{suffix}") from exc
+    return {"status": "completed", "summary": summary}
 
 
 @router.get("/mock/payload", response_model=SchoolSyncPayload)

@@ -33,7 +33,7 @@ class TestToolOutputSchemaCoverage:
     def test_all_tools_have_output_schema(self, registry: ToolRegistry) -> None:
         """17 个工具全部必须有 output_schema。"""
         tools = registry.list_all()
-        assert len(tools) == 17, f"期望 17 个工具，实际 {len(tools)}"
+        assert len(tools) == 24, f"期望 24 个工具，实际 {len(tools)}"
         missing = [t.name for t in tools if t.output_schema is None]
         assert not missing, f"缺少 output_schema 的工具: {missing}"
 

@@ -14,20 +14,6 @@
       "writing.language_accuracy"
     ]
   },
-  "任务型阅读": {
-    "entry_id": "QT-任务型阅读",
-    "error_causes": [
-      "定位",
-      "推断",
-      "表达",
-      "审题"
-    ],
-    "points": [
-      "reading.detail",
-      "writing.task_completion",
-      "reading.multimodal"
-    ]
-  },
   "听力": {
     "entry_id": "QT-听力理解",
     "error_causes": [

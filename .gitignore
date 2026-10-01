@@ -7,6 +7,7 @@
 
 # --- 虚拟环境与包管理器 ---
 .venv/
+.venv
 .venv-windows/
 .windows-tools/
 venv/
@@ -14,6 +15,7 @@ env/
 ENV/
 backend/.venv/
 node_modules/
+node_modules
 .pnpm-store/
 .pnpm-workspace-state.yaml
 

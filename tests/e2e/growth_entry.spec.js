@@ -1,4 +1,4 @@
-const { test, expect } = require('./fixtures');
+const { test, expect, dismissFirstUseModal } = require('./fixtures');
 
 test('growth: confirmed points, batch entry and readable detail', async ({ page }, testInfo) => {
   await page.goto('/workbench');
@@ -18,6 +18,7 @@ test('growth: confirmed points, batch entry and readable detail', async ({ page 
     return { term: term.id, students };
   }, testInfo.project.name);
   await page.reload();
+  await dismissFirstUseModal(page);
   await page.locator('[data-act="nav"][data-key="growth"]').click();
   await expect(page.locator('[data-act="growth-refresh"]')).toHaveCSS('background-color', 'rgb(255, 250, 243)');
   const student = seeded.students[0];
@@ -51,9 +52,11 @@ test('growth: confirmed points, batch entry and readable detail', async ({ page 
   await page.locator('[data-act="growth-custom-add"]').click();
   await expect(card).toContainText('14 营养');
   await card.click();
-  await expect(page.locator('.growth-record-table tbody tr')).toHaveCount(2);
   await page.locator('.growth-detail-modal').evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
   expect(await page.locator('#modalBody').evaluate(el => el.scrollTop)).toBe(0);
+  await expect(page.locator('[data-act="growth-record-toggle"]')).toHaveAttribute('aria-expanded', 'false');
+  await page.locator('[data-act="growth-record-toggle"]').click();
+  await expect(page.locator('.growth-record-table tbody tr')).toHaveCount(2);
   const layout = await page.locator('.growth-record-table').evaluate(el => {
     const row = el.tBodies[0].rows[0];
     return { date: row.cells[0].getBoundingClientRect().width, reason: row.cells[2].getBoundingClientRect().width,
@@ -98,6 +101,7 @@ test('growth: confirmed points, batch entry and readable detail', async ({ page 
   });
   await card.click();
   await expect(page.locator('.growth-history-notice')).toContainText('1 条旧补录');
+  await page.locator('[data-act="growth-record-toggle"]').click();
   await page.locator('[data-filter="limited"]').click();
   await expect(page.locator('.growth-record-table tbody tr:visible')).toHaveCount(1);
   await expect(page.locator('.growth-record-table tbody')).toContainText('旧规则');

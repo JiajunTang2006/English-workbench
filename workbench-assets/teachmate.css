@@ -1772,8 +1772,6 @@ body.tab-teachmate .tm-agent-settings-note { margin: 12px 2px 2px; padding: 9px 
   overflow: hidden; border-radius: 24px; background: var(--tm-bg); border: 1px solid rgba(229,232,241,.9);
 }
 
-/* 学生详情也略微收窄，避免占满整个工作区。 */
-.modal-content.student-detail-modal { max-width: 1260px; }
 .tm-settings-modal-content .modal-header { height: 64px; box-sizing: border-box; padding: 0 24px; background: #fff; border-bottom: 1px solid var(--tm-border); }
 .tm-settings-modal-content .modal-header h3 { font-size: 20px; letter-spacing: -.2px; color: var(--tm-text); }
 .tm-settings-modal-content .modal-body { height: calc(100% - 64px); box-sizing: border-box; padding: 0; overflow: hidden; }
@@ -3092,6 +3090,7 @@ body.tab-teachmate .tm-right-next-actions button {
   font-size: 10px;
 }
 body.tab-teachmate .tm-right-next-actions button:hover { background: var(--tm-brand-yellow-soft); }
+body.tab-teachmate .tm-right-next-hint { display: block; margin-top: 8px; color: var(--tm-text-muted); font-size: 11px; }
 
 body.tab-teachmate .tm-right-empty {
   display: flex;
@@ -3931,6 +3930,98 @@ body.tab-teachmate .tm-batch-progress > span { background: linear-gradient(90deg
 }
 @media (max-width: 680px) {
   body.tab-teachmate .tm-batch-card { padding: 4px 12px 12px; border-radius: 16px; }
+}
+
+/* 教学材料：按用途展开，操作反馈只由教师的交互触发。 */
+body.tab-teachmate .tm-materials { display: grid; gap: 10px; margin-top: 24px; scroll-margin-top: 72px; }
+body.tab-teachmate .tm-materials-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 3px; }
+body.tab-teachmate .tm-materials-head h4 { margin: 5px 0 0; color: var(--tm-text); font-size: 15px; }
+body.tab-teachmate .tm-materials-head h4 span { margin-left: 8px; color: var(--tm-text-muted); font-size: 11px; font-weight: 500; }
+body.tab-teachmate .tm-materials-controls { display: flex; gap: 4px; }
+body.tab-teachmate .tm-materials-controls button { min-height: 34px; padding: 6px 9px; border: 1px solid var(--tm-border); border-radius: 8px; background: var(--tm-surface); color: var(--tm-text-secondary); font: inherit; font-size: 11px; cursor: pointer; }
+body.tab-teachmate .tm-material-card {
+  --material-accent: #85621c; --material-soft: #fff5d8;
+  overflow: hidden; min-width: 0; border: 1px solid var(--tm-border); border-radius: 14px;
+  background: var(--tm-surface); transition: border-color .18s ease, box-shadow .18s ease;
+}
+body.tab-teachmate .tm-material-student { --material-accent: #18756a; --material-soft: #e8f7f1; }
+body.tab-teachmate .tm-material-teacher { --material-accent: #8155a5; --material-soft: #f3ecfa; }
+body.tab-teachmate .tm-material-assessment { --material-accent: #4767aa; --material-soft: #edf2fe; }
+body.tab-teachmate .tm-material-card[open] { border-color: color-mix(in srgb, var(--material-accent) 35%, white); }
+body.tab-teachmate .tm-material-card summary { display: flex; align-items: center; gap: 12px; padding: 15px; list-style: none; cursor: pointer; transition: background .18s ease; }
+body.tab-teachmate .tm-material-card summary::-webkit-details-marker { display: none; }
+body.tab-teachmate .tm-material-card summary::marker { content: ''; }
+body.tab-teachmate .tm-material-card[open] > summary { background: var(--material-soft); }
+body.tab-teachmate .tm-material-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 12px; color: var(--material-accent); background: var(--material-soft); font-size: 23px; transition: transform .18s ease; }
+body.tab-teachmate .tm-material-heading { display: grid; gap: 4px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+body.tab-teachmate .tm-material-heading small { color: var(--material-accent); font-size: 10px; font-weight: 700; }
+body.tab-teachmate .tm-material-heading strong { color: var(--tm-text); font-size: 13px; line-height: 1.5; }
+body.tab-teachmate .tm-material-heading > span { color: var(--tm-text-secondary); font-size: 11px; line-height: 1.5; }
+body.tab-teachmate .tm-material-chevron { flex: none; color: var(--material-accent); font-size: 20px; transition: transform .2s ease; }
+body.tab-teachmate .tm-material-card[open] .tm-material-chevron { transform: rotate(180deg); }
+body.tab-teachmate .tm-material-content { padding: 5px 18px 16px; overflow-wrap: anywhere; }
+body.tab-teachmate .tm-material-content .tm-report-body { white-space: pre-wrap; line-height: 1.85; }
+body.tab-teachmate .tm-material-content .tm-struct-list { margin: 10px 0 0; padding-left: 20px; }
+body.tab-teachmate .tm-material-content li { margin-top: 8px; white-space: pre-wrap; line-height: 1.8; }
+body.tab-teachmate .tm-material-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 12px; padding-bottom: 9px; border-bottom: 1px solid var(--tm-border); color: var(--tm-text-muted); font-size: 11px; }
+body.tab-teachmate .tm-material-toolbar > div { display: flex; flex-wrap: wrap; gap: 6px; }
+body.tab-teachmate .tm-material-toolbar button { padding: 6px 10px; border: 1px solid var(--tm-border); border-radius: 8px; color: var(--tm-text-secondary); background: var(--tm-surface); font: inherit; cursor: pointer; }
+body.tab-teachmate .tm-material-toolbar button:first-child:last-child,
+body.tab-teachmate .tm-material-toolbar button[data-act="tm-material-save"] { color: #fff; border-color: var(--tm-primary); background: var(--tm-primary); }
+body.tab-teachmate .tm-material-toolbar button:hover { border-color: var(--tm-primary); }
+body.tab-teachmate .tm-material-editor { display: grid; gap: 12px; }
+body.tab-teachmate .tm-material-editor label { display: grid; gap: 6px; color: var(--tm-text-secondary); font-size: 12px; font-weight: 650; }
+body.tab-teachmate .tm-material-editor label small { color: var(--tm-text-muted); font-size: 10px; font-weight: 400; }
+body.tab-teachmate .tm-material-editor textarea { width: 100%; min-height: 74px; box-sizing: border-box; resize: vertical; padding: 10px 11px; border: 1px solid var(--tm-border); border-radius: 9px; outline: none; color: var(--tm-text); background: var(--tm-surface); font: inherit; font-size: 12px; line-height: 1.75; }
+body.tab-teachmate .tm-material-editor textarea:focus { border-color: var(--tm-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tm-primary) 12%, transparent); }
+body.tab-teachmate .tm-material-edit-note { margin: 8px 0 0; color: var(--tm-text-muted); font-size: 10px; line-height: 1.6; }
+body.tab-teachmate .tm-material-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+body.tab-teachmate .tm-material-compare section { min-width: 0; padding: 12px; border: 1px solid var(--tm-border); border-radius: 10px; background: var(--tm-surface); overflow-wrap: anywhere; }
+body.tab-teachmate .tm-material-compare section:last-child { border-color: color-mix(in srgb, var(--material-accent) 25%, white); background: color-mix(in srgb, var(--material-soft) 45%, white); }
+body.tab-teachmate .tm-material-compare h5 { margin: 0 0 8px; color: var(--tm-text); font-size: 11px; }
+body.tab-teachmate .tm-material-compare p,
+body.tab-teachmate .tm-material-compare li { color: var(--tm-text-secondary); font-size: 11px; line-height: 1.75; white-space: pre-wrap; }
+body.tab-teachmate .tm-material-compare ul { margin: 8px 0 0; padding-left: 17px; }
+body.tab-teachmate .tm-material-empty { color: var(--tm-text-muted) !important; font-style: italic; }
+body.tab-teachmate .tm-material-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--tm-border); }
+body.tab-teachmate .tm-material-actions .tm-action-btn { min-height: 36px; transition: background .16s ease, border-color .16s ease; }
+body.tab-teachmate .tm-material-actions .tm-material-export-student { color: #186c62; border-color: #c7e4da; background: #edf8f3; }
+body.tab-teachmate .tm-material-card summary:focus-visible,
+body.tab-teachmate .tm-materials-controls button:focus-visible,
+body.tab-teachmate .tm-material-actions button:focus-visible,
+body.tab-teachmate .tm-suggestion-card:focus-visible { outline: 2px solid var(--tm-primary); outline-offset: -3px; }
+body.tab-teachmate .tm-suggestion-icon,
+body.tab-teachmate .tm-suggestion-card::after { transition: transform .22s ease, opacity .22s ease; }
+body.tab-teachmate .tm-card-arrow { opacity: .45; transform: none; }
+body.tab-teachmate .tm-suggestion-card:focus-visible .tm-card-arrow { opacity: 1; transform: translateX(3px); }
+body.tab-teachmate .tm-suggestion-card:not(:disabled):active { transform: translateY(0) scale(.99); }
+@media (hover: hover) and (pointer: fine) {
+  body.tab-teachmate .tm-suggestion-card:not(:disabled):hover .tm-suggestion-icon { transform: rotate(-5deg) scale(1.06); }
+  body.tab-teachmate .tm-suggestion-card:not(:disabled):hover::after { opacity: .23; transform: translate(-3px, 3px) rotate(4deg); }
+  body.tab-teachmate .tm-suggestion-card:not(:disabled):hover .tm-card-arrow { opacity: 1; transform: translateX(3px); }
+  body.tab-teachmate .tm-material-card summary:hover { background: var(--material-soft); }
+  body.tab-teachmate .tm-material-card summary:hover .tm-material-icon { transform: translateY(-2px); }
+  body.tab-teachmate .tm-materials-controls button:hover { background: var(--tm-primary-soft); color: var(--tm-primary); }
+}
+@media (hover: none) {
+  body.tab-teachmate .tm-suggestion-card:hover { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.tab-teachmate .tm-material-card,
+  body.tab-teachmate .tm-material-card summary,
+  body.tab-teachmate .tm-material-icon,
+  body.tab-teachmate .tm-material-chevron,
+  body.tab-teachmate .tm-material-actions .tm-action-btn,
+  body.tab-teachmate .tm-suggestion-card,
+  body.tab-teachmate .tm-suggestion-icon,
+  body.tab-teachmate .tm-suggestion-card::after,
+  body.tab-teachmate .tm-card-arrow { transition: none !important; }
+  body.tab-teachmate .tm-suggestion-card:hover,
+  body.tab-teachmate .tm-suggestion-card:active,
+  body.tab-teachmate .tm-suggestion-card:hover .tm-suggestion-icon,
+  body.tab-teachmate .tm-suggestion-card:hover::after,
+  body.tab-teachmate .tm-suggestion-card .tm-card-arrow,
+  body.tab-teachmate .tm-material-card summary:hover .tm-material-icon { transform: none !important; }
 }
 
 /* ============================================================

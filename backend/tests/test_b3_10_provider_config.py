@@ -245,7 +245,7 @@ class TestProviderPayloads:
         }
 
     @pytest.mark.asyncio
-    async def test_openai_compat_rejects_unsupported_reasoning(self):
+    async def test_openai_compat_omits_optional_unsupported_reasoning(self):
         from backend.app.agent.providers.base import ModelError
         from backend.app.agent.providers.openai_compat_text import OpenAICompatTextProvider
 
@@ -253,8 +253,9 @@ class TestProviderPayloads:
             "sk-test", "https://example.invalid", thinking_enabled=True,
             reasoning_effort="high", supports_reasoning=False,
         )
-        with pytest.raises(ModelError, match="未声明支持 reasoning_effort"):
-            await provider.complete([{"role": "user", "content": "hi"}], model="custom-model")
+        payload = provider._build_payload([{"role": "user", "content": "hi"}], "custom-model", .3, 2048, None, None)
+        assert "reasoning_effort" not in payload
+        assert payload["messages"][0]["content"] == "hi"
 
 
 # ---------------------------------------------------------------------------

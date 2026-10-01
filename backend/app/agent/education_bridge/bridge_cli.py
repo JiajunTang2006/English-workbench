@@ -44,10 +44,14 @@ _TOOL_ARG_SCHEMA: dict[str, tuple[str, ...]] = {
     "get_student_trend": ("horizon",),
     "get_risk_signals": ("threshold",),
     "get_wrong_questions": ("top_n",),
-    "get_student_scores": ("question_no",),
+    "get_student_scores": ("question_no", "student_ref"),
+    "get_student_learning_evidence": ("student_ref", "horizon"),
+    "get_original_question": ("question_ref", "student_ref"),
+    "resolve_student": ("query",),
+    "get_practice_context": ("student_ref",),
     "get_formal_attachment": ("title_keyword", "page", "offset", "limit"),
     "get_teaching_guidance": ("query",),
-    "submit_report": ("findings", "recommendations", "limitations", "summary", "profile_summary"),
+    "submit_report": ("findings", "recommendations", "limitations", "summary", "profile_summary", "timeline", "sections"),
 }
 
 _ALLOWED_TOOLS = frozenset(_TOOL_ARG_SCHEMA)
@@ -62,6 +66,9 @@ TOOL_LABELS: dict[str, str] = {
     "get_risk_signals": "风险信号",
     "get_wrong_questions": "错题统计",
     "get_student_scores": "学生逐题成绩",
+    "get_student_learning_evidence": "近期小分与画像",
+    "get_original_question": "原错题与来源",
+    "resolve_student": "确认学生",
     "get_formal_attachment": "正式附件读取",
     "get_teaching_guidance": "教学依据精确查询",
     "submit_report": "报告提交",
@@ -80,7 +87,10 @@ def _die(msg: str) -> None:
     # 错误输出也必须满足插件 output.schema 的 required: ['ok', 'data']，
     # 否则 harness 会把真实错误掩盖成 "invalid output: missing required data"，
     # 模型无法获知失败原因并重试。data 用空对象占位，真实原因走 error 字段。
-    _out({"ok": False, "data": {}, "error": msg})
+    code = "scope_denied" if any(x in msg for x in ["作用域", "不允许", "不属于"]) else "missing_data" if any(x in msg for x in ["缺少", "没有", "不存在", "未找到"]) else "invalid_arguments" if any(x in msg for x in ["参数", "args", "Schema"]) else "tool_failure"
+    _out({"ok": False, "data": {}, "error": msg, "error_code": code,
+          "recoverable": code in {"missing_data", "invalid_arguments"},
+          "recovery_hint": "调整合法查询或依据已有事实说明缺口，不重复无限调用"})
 
 
 def _ok(data: dict[str, Any], *, evidence_id: str | None = None,
@@ -117,10 +127,8 @@ def _load_scope(path: str) -> dict[str, Any]:
         scope["tool_policy"] = [str(item) for item in policy]
     elif capability == "general_chat":
         # 普通聊天允许模型自主选择安全只读查询；不包含报告提交/画像写入。
-        scope["tool_policy"] = [
-            "get_exam_overview", "get_score_distribution",
-            "get_question_list", "get_wrong_questions", "get_student_scores",
-        ]
+        from ..registry.capabilities import GENERAL_CHAT_MANAGED_READ_TOOLS
+        scope["tool_policy"] = list(GENERAL_CHAT_MANAGED_READ_TOOLS)
     elif capability in {"exam_analysis", "student_diagnosis", "review_plan"}:
         scope["tool_policy"] = (
             ["submit_report", "get_formal_attachment"]
@@ -178,7 +186,7 @@ class _Anonymizer:
         for key, value in obj.items():
             key_lower = str(key).lower()
             if key_lower in {"name", "student_name"}:
-                out[key] = anonymous or "[姓名已脱敏]"
+                out[key] = value if self._mapper.allow_student_names else anonymous or "[姓名已脱敏]"
             elif key_lower == "student_id":
                 if anonymous:
                     out["anonymous_id"] = anonymous
@@ -283,9 +291,87 @@ def _tool_score_distribution(db, scope, anon, args) -> dict[str, Any]:
             "source": f"exam:{scope.get('exam_id')}"}
 
 
+def _tool_practice_context(db, scope, anon, args) -> dict[str, Any]:
+    from ...models import AnalysisRun, AgentSession
+    from ...services.teaching import require_task
+    from ...services.practice import progress
+    from ...models.teaching_entities import PracticeSet
+    from sqlalchemy import select
+    run = db.get(AnalysisRun, scope.get("run_id")) if scope.get("run_id") else None
+    conversation = db.get(AgentSession, run.session_id) if run and run.session_id else None
+    if conversation is None or not conversation.teaching_task_id:
+        return {"data": {"objective_progress": [], "practices": [],
+            "note": "没有关联的历史练习记录。不要要求教师创建任务；仍可查近期小分和画像、回答问题或按要求出题。"},
+            "facts": [], "evidence_type": "db_metric", "source": "practice_history_unavailable"}
+    task = require_task(db, conversation.teaching_task_id)
+    if (task.term_id, task.class_id) != (scope.get("term_id"), scope.get("class_id")):
+        _die("练习任务与本轮作用域不一致")
+    rows = progress(db, task)["objectives"]
+    ref = args.get("student_ref")
+    if ref:
+        from ...services.agent_analysis.conversation import roster
+        sid = anon.mapper.to_real(ref)
+        allowed = {r["id"] for r in roster(db, scope)}
+        if sid not in allowed:
+            _die("学生引用不属于本轮作用域")
+        rows = [r for r in rows if r["student_id"] == sid]
+    elif scope.get("student_id"):
+        rows = [r for r in rows if r["student_id"] == scope["student_id"]]
+    practices = list(db.scalars(select(PracticeSet).where(PracticeSet.task_id == task.id).order_by(PracticeSet.id.desc()).limit(5)))
+    data = {"objective_progress": rows[:20], "practices": [{"title":p.title,"objective":p.objective,"status":p.status,
+        "level":p.level,"retest":bool(p.parent_id)} for p in practices], "truncated": len(rows)>20,
+        "note":"独立新题、提示后完成、复测分开核算；开放题待核对，不能自动认定长期掌握。"}
+    return {"data": data, "facts": [{"type":"练习表现", "text":f"当前目标记录 {len(rows)} 条，其中独立新题答对 {sum(r['independent_new_correct'] for r in rows)} 次。"}],
+        "evidence_type":"db_metric", "source":f"teaching_task:{task.id}"}
+
+
+def _learning_read(db, scope, anon, args, original=False):
+    from ...services.student_learning import learning_evidence, original_question
+    try:
+        data = (original_question if original else learning_evidence)(db, scope, anon.mapper, **args)
+    except (ValueError, LookupError) as exc:
+        _die(str(exc))
+    facts = [{"type": "原错题" if original else "学习证据", "text": (f"读取已确认原题 {data.get('question_ref')}，来源 {data.get('exam_name')}。" if original else f"已读取 {len(data['recent_exams'])} 次考试的小分及确认画像。")}]
+    return {"data": data, "facts": facts, "evidence_type": "db_metric", "source": "confirmed_student_learning"}
+
+
+def _tool_student_learning_evidence(db, scope, anon, args):
+    return _learning_read(db, scope, anon, args)
+
+
+def _tool_original_question(db, scope, anon, args):
+    if not args.get("question_ref"):
+        _die("缺少 question_ref")
+    return _learning_read(db, scope, anon, args, original=True)
+
+
+def _tool_resolve_student(db, scope, anon, args) -> dict[str, Any]:
+    from ...services.agent_analysis.conversation import resolve_student
+    query = args.get("query")
+    if not isinstance(query, str) or not 1 <= len(query.strip()) <= 100:
+        _die("query 需要 1 至 100 字的学生称呼或引用")
+    from ...models import AnalysisRun
+    run = db.get(AnalysisRun, scope.get("run_id")) if scope.get("run_id") else None
+    aliases = ((run.input_summary_json or {}).get("conversation_state") or {}).get("aliases") if run else None
+    resolved = resolve_student(db, scope, query, anon.mapper, aliases)
+    def display(row):
+        return {"student_ref": anon.id_for(row["id"]), "name": row["name"],
+                "class_name": row["class_name"]}
+    data = {"status": resolved["status"], "matches": [display(r) for r in resolved["matches"]],
+            "candidates": [display(r) for r in resolved["candidates"]],
+            "note": "候选不代表已确认；同名需教师确认班级，不发送真实学号。"}
+    return {"data": data, "facts": [{"type": "身份解析", "text": f"身份解析状态：{resolved['status']}"}],
+            "evidence_type": "db_metric", "source": "scoped_roster"}
+
+
 def _tool_student_scores(db, scope, anon, args) -> dict[str, Any]:
     """Read only the student selected by the server-owned run scope."""
     exam_id, student_id = scope.get("exam_id"), scope.get("student_id")
+    if args.get("student_ref"):
+        from ...services.agent_analysis.conversation import roster
+        student_id = anon.mapper.to_real(str(args["student_ref"]))
+        if student_id not in {r["id"] for r in roster(db, scope)}:
+            _die("学生引用不存在或不属于当前范围，请先 resolve_student")
     if exam_id is None or student_id is None:
         _die("请先在当前会话选择考试和学生，才能查询逐题成绩")
     from ...services.student_score_details import get_student_score_details
@@ -633,9 +719,26 @@ def _tool_submit_report(db, scope, anon, args) -> dict[str, Any]:
     limitations = args.get("limitations") or []
     summary = args.get("summary") or ""
     profile_summary = args.get("profile_summary") or ""
+    timeline = args.get("timeline") or ""
+    sections = args.get("sections") or []
     run_id = scope.get("run_id")
     if run_id is None:
         _die("submit_report 需要 run_id scope（教学回话之外不可用）")
+    if scope.get("capability") == "review_plan":
+        required_kinds = {"lesson_flow", "student_handout", "teacher_key", "followup_assessment"}
+        if not isinstance(timeline, str) or not isinstance(sections, list) or len(sections) > 8:
+            _die("复习教学包缺少有效的时间表或材料分节")
+        seen_kinds: set[str] = set()
+        for section in sections:
+            if not isinstance(section, dict) or set(section) != {"kind", "title", "body", "items"}:
+                _die("教学材料分节结构无效")
+            kind = section.get("kind")
+            items = section.get("items")
+            if (kind not in required_kinds or not isinstance(section.get("title"), str)
+                    or not isinstance(section.get("body"), str) or not isinstance(items, list)
+                    or any(not isinstance(item, str) for item in items)):
+                _die("教学材料分节字段无效")
+            seen_kinds.add(kind)
     errors = validate_report_evidence_references(
         findings, recommendations, ledger=None, db_session=db, run_id=run_id,
     )
@@ -666,6 +769,8 @@ def _tool_submit_report(db, scope, anon, args) -> dict[str, Any]:
             "profile_summary": profile_summary,
             "findings": findings,
             "recommendations": recommendations,
+            "timeline": timeline,
+            "sections": sections,
             "limitations": limitations,
             "evidence_ids": evidence_ids,
             "answer_type": run.capability or "exam_analysis",
@@ -722,6 +827,11 @@ def _tool_teaching_guidance(db, scope, anon, args) -> dict[str, Any]:
     capability = scope.get("capability")
     if capability == "general_chat":
         _die("普通聊天不开放教学工具")
+    from ...services.subjects import get_selected_subject
+    subject = get_selected_subject(db)
+    if subject.key != "english":
+        _die(f"当前已选学科为{subject.label}，现有精确教学依据库仅覆盖英语；"
+             "请不要将英语课程依据用于本学科，并在报告局限性中说明依据缺口。")
     # 硬性次数门（与 get_formal_attachment 的两次上限一致）：只统计本工具的
     # 成功调用（记在 run.packet_stats.guidance_calls），分析包预登记的
     # teaching_reference 证据不占额度。
@@ -763,6 +873,10 @@ def _tool_teaching_guidance(db, scope, anon, args) -> dict[str, Any]:
 
 
 _TOOL_IMPL = {
+    "get_practice_context": _tool_practice_context,
+    "get_student_learning_evidence": _tool_student_learning_evidence,
+    "get_original_question": _tool_original_question,
+    "resolve_student": _tool_resolve_student,
     "get_exam_analysis_bundle": _tool_exam_analysis_bundle,
     "get_exam_overview": _tool_exam_overview,
     "get_score_distribution": _tool_score_distribution,
@@ -789,16 +903,14 @@ def run_tool(tool: str, db, scope: dict[str, int | None], args: dict[str, Any]
     impl = _TOOL_IMPL.get(tool)
     if impl is None:
         _die(f"不支持的工具: {tool}")
-    mapper = PrivacyMapper(allow_student_names=True)
-    identity = build_run_identity_dictionary(
-        db,
-        term_id=scope.get("term_id"),
-        class_id=scope.get("class_id"),
-        student_id=scope.get("student_id"),
-    )
-    register_identity_into_mapper(mapper, identity)
+    from ...services.agent_analysis.conversation import mapper_for_run
+    mapper = mapper_for_run(db, scope)
     anon = _Anonymizer(mapper)
-    result = impl(db, scope, anon, args)
+    from ...services.agent_analysis.query_cache import begin, remember
+    cached_run, cache_key, cached = begin(db, scope, tool, args)
+    result = dict(cached) if cached else impl(db, scope, anon, args)
+    if not cached:
+        remember(db, cached_run, cache_key, result)
     result["anon"] = anon
     result["privacy_mapper"] = mapper
     return result
@@ -814,14 +926,8 @@ def _sanitize_for_provider(db, scope, value: Any, privacy_mapper=None) -> Any:
 
     mapper = privacy_mapper
     if mapper is None:
-        mapper = PrivacyMapper(allow_student_names=True)
-        identity = build_run_identity_dictionary(
-            db,
-            term_id=scope.get("term_id"),
-            class_id=scope.get("class_id"),
-            student_id=scope.get("student_id"),
-        )
-        register_identity_into_mapper(mapper, identity)
+        from ...services.agent_analysis.conversation import mapper_for_run
+        mapper = mapper_for_run(db, scope)
 
     def sanitize_document_text(text: str) -> str:
         """补足未入学生库的附件姓名：按表头/显式标签做格式化脱敏。"""

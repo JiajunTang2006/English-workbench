@@ -13,6 +13,14 @@ set -eu
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 cd "$ROOT"
 
+# Some machines have a full Xcode selected but have not accepted its licence.
+# The installed Command Line Tools provide all build/signing commands used here.
+if [ -z "${DEVELOPER_DIR:-}" ] && ! /usr/bin/xcrun --find lipo >/dev/null 2>&1 \
+  && [ -x /Library/Developer/CommandLineTools/usr/bin/lipo ]; then
+  DEVELOPER_DIR=/Library/Developer/CommandLineTools
+  export DEVELOPER_DIR
+fi
+
 # PyInstaller defaults to a user-level cache on macOS. That cache may contain
 # protected files from an older build, so keep build metadata local and
 # reproducible for this project instead of failing during --clean.
