@@ -4,7 +4,7 @@
 
 面向初中英语教师的**本地部署、可选云端 AI 分析**的教学工作台与教学智能体：班级、成绩、原卷与错题、过程性记录统一在一个工作台里管理；内置教学智能体 **TeachMate** 在教师指定的范围内读取数据，产出**可追溯**的分析报告与教学建议；**英语成长森林**把学习参与和相对自身基线的进步记录为可解释的成长事件。
 
-当前源码版本 **1.0.0**。TeachMate 已恢复原聊天界面；可直接按学生姓名查询近期小分、画像和原错题，并在聊天中选择专项推题插件设计练习，详见 [自然聊天改造](docs/TEACHMATE_NATURAL_CHAT_20261001.md)。**1.0.0 尚未制作安装包**；下方下载仍是历史 `0.9.0-beta.2` 空白版。
+当前版本 **1.0.0**。TeachMate 已恢复原聊天界面；可直接按学生姓名查询近期小分、画像和原错题，并在聊天中选择专项推题插件设计练习，详见 [自然聊天改造](docs/TEACHMATE_NATURAL_CHAT_20261001.md)。macOS 空白版及维护者提供的 Windows 空白版见下方下载。
 
 默认题型分布在「班级与设置 → 试卷设置」设置，每行仅填起止两个题号；「成绩管理 → 考试设置」可单独调整当场试卷。配置与小分统一存入数据库，能力图由程序计算，详见 [试卷设置与小分读取](docs/TEACHMATE_PAPER_SETTINGS_20261001.md)。
 
@@ -16,18 +16,20 @@ English Workbench 把这条链路放进一个本地工作台：以**学期、班
 
 ## 下载
 
-以下为已发布的历史安装包，功能与当前 `1.0.0` 源码不同。新版本安装包待另行安排。
+1.0.0 空白版不附带教学数据库或 API 密钥。新数据目录首次启动无预置教学数据；升级已有空白版会保留原数据。
 
 | 平台 | 系统要求 | 安装包 | 大小 |
 | --- | --- | --- | --- |
-| macOS | 12 及以上 · Apple Silicon（arm64） | [EnglishWorkBench_macOS_arm64_Blank_0.9.0-beta.2.dmg](https://github.com/JiajunTang2006/English-workbench/releases/download/v0.9.0-beta.2/EnglishWorkBench_macOS_arm64_Blank_0.9.0-beta.2.dmg) | 约 157 MB |
-| Windows | 10 / 11 · x64 | [EnglishWorkBench_Windows_x64_Blank_0.9.0-beta.2.zip](https://github.com/JiajunTang2006/English-workbench/releases/download/v0.9.0-beta.2/EnglishWorkBench_Windows_x64_Blank_0.9.0-beta.2.zip) | 约 54 MB |
+| macOS | 13.5 及以上 · Apple Silicon（arm64） | [macOS 1.0.0 空白版](https://github.com/JiajunTang2006/English-workbench/releases/download/v1.0.0/EnglishWorkBench_macOS_arm64_Blank_1.0.0.dmg) | 约 166 MB |
+| Windows | 10 / 11 · x64 | [Windows 1.0.0 空白版](https://github.com/JiajunTang2006/English-workbench/releases/download/v1.0.0/EnglishWorkBench_Windows_x64_Blank_1.0.0.zip) | 约 52 MB |
+
+macOS 内置完整聊天引擎与教学知识库。Windows 为维护者提供的精简 Python Agent 原包，未内置 Harness 运行时或教学知识库；本次核对了版本与 ZIP 完整性，未做 Windows 实机验收。
 
 SHA-256 校验值：
 
 ```text
-8a276345814def6de642187e95f07e53f0e7e74cebca42600ce9d66ce05e96d2  EnglishWorkBench_macOS_arm64_Blank_0.9.0-beta.2.dmg
-4616325d1fb29d397c92792521fa0989b9d4fd0324d042c0a4eac4adb00b2807  EnglishWorkBench_Windows_x64_Blank_0.9.0-beta.2.zip
+f0422b26194957fa685995ff21d2962db23026f7f4ab7d4cf0091bbdda598a0f  EnglishWorkBench_macOS_arm64_Blank_1.0.0.dmg
+0162e27fd3ca5245ed5ad28602d99c6c097957b195195dd065076ada41c021f2  EnglishWorkBench_Windows_x64_Blank_1.0.0.zip
 ```
 
 历史版本见 [Releases](https://github.com/JiajunTang2006/English-workbench/releases)。

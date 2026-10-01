@@ -77,6 +77,21 @@ def harness_headless_patch() -> Path:
     return root / "examples" / "teachmate" / "cordis.headless.yml"
 
 
+def harness_sdk_ready() -> bool:
+    """Check the JSON-RPC runtime actually used by the current desktop app."""
+    from backend.app.agent.runtime.harness_runtime import locate_runtime_launch
+    runtime_bin, launch_args, _ = locate_runtime_launch()
+    if launch_args:
+        return True
+    if runtime_bin:
+        try:
+            find_node()
+            return True
+        except FileNotFoundError:
+            pass
+    return False
+
+
 def validate_harness_headless() -> None:
     """Verify the headless CLI entry and patch file exist."""
     cli = harness_paths()[0]

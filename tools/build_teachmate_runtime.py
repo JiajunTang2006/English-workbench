@@ -248,6 +248,69 @@ def link_store_dependencies(tree: Path) -> int:
     return created
 
 
+SDK_RUNTIME_PACKAGES = (
+    "dsh-sdk-jsonrpc-demo", "dsh-sdk-jsonrpc-server", "dsh-llm-deepseek",
+    "dsh-agent-spine-demo", "dsh-session-persistence-jsonl",
+    "dsh-session-checkpoint-policy", "dsh-token-meter",
+    "dsh-compaction-basic", "dsh-tools",
+)
+
+
+def include_sdk_external_dependencies(tree: Path) -> int:
+    """Complete the production dependency graph for the actual SDK profile.
+
+    CLI deploy does not contain every SDK plugin dependency. Resolve each from
+    its installed source owner and keep versions local to that owner, without
+    copying development dependencies or links to the build machine.
+    """
+    workspace = _collect_workspace_packages(UPSTREAM)
+    queue = []
+    for short_name in SDK_RUNTIME_PACKAGES:
+        name = "@deepseek-ai/" + short_name
+        source = workspace.get(name)
+        if source is None:
+            raise RuntimeError(f"SDK workspace package missing: {name}")
+        queue.append((source, tree / source.relative_to(UPSTREAM)))
+    visited = set()
+    copied = 0
+    while queue:
+        source, destination = queue.pop()
+        identity = (source.resolve(), destination)
+        if identity in visited:
+            continue
+        visited.add(identity)
+        metadata = json.loads((source / "package.json").read_text(encoding="utf-8"))
+        dependencies = dict(metadata.get("dependencies", {}))
+        dependencies.update(metadata.get("peerDependencies", {}))
+        optional = metadata.get("peerDependenciesMeta", {})
+        for name in dependencies:
+            if name in workspace:
+                package_source = workspace[name]
+                package_destination = tree / package_source.relative_to(UPSTREAM)
+            else:
+                candidates = [parent / "node_modules" / name
+                              for parent in (source, *source.parents)
+                              if parent == UPSTREAM or UPSTREAM in parent.parents]
+                package_source = next((p.resolve() for p in candidates if p.is_dir()), None)
+                if package_source is None:
+                    if optional.get(name, {}).get("optional"):
+                        continue
+                    raise RuntimeError(f"SDK production dependency missing: {name} ({source.name})")
+                package_metadata = json.loads((package_source / "package.json").read_text(encoding="utf-8"))
+                package_destination = (tree / "node_modules" / ".teachmate-sdk"
+                                       / name / str(package_metadata["version"]))
+                if not package_destination.is_dir():
+                    shutil.copytree(package_source, package_destination,
+                                    symlinks=False, ignore=ignore_source)
+                    copied += 1
+            link = destination / "node_modules" / name
+            if not link.exists() and not link.is_symlink():
+                link.parent.mkdir(parents=True, exist_ok=True)
+                create_directory_link(link, package_destination)
+            queue.append((package_source, package_destination))
+    return copied
+
+
 def build(output: Path, *, no_build: bool, node_binary: str | None) -> None:
     if not UPSTREAM.is_dir():
         raise SystemExit(f"找不到 Harness 源码：{UPSTREAM}")
@@ -294,6 +357,7 @@ def build(output: Path, *, no_build: bool, node_binary: str | None) -> None:
         if ext_linked:
             print(f"Linked {ext_linked} external dependencies from .pnpm store")
 
+        include_sdk_external_dependencies(harness)
         validate_relocatable_links(harness)
 
         node_dir = runtime / "node"

@@ -14,8 +14,7 @@ from urllib.parse import quote
 
 from backend.app.config import get_settings
 from teachmate_runtime import (
-    harness_headless_patch,
-    harness_paths,
+    harness_sdk_ready,
     resolve_ports,
     stop_process,
     teachmate_enabled,
@@ -146,7 +145,7 @@ def start_teachmate_workbench() -> int:
     backend_environment["WORKBENCH_TOKEN"] = token
     backend_environment["WORKBENCH_PORT"] = str(backend_port)
     # 源码运行包未携带 Harness 时自动使用 Python Agent，避免启动即失败。
-    harness_ready = harness_paths()[0].is_file() and harness_headless_patch().is_file()
+    harness_ready = harness_sdk_ready()
     backend_environment.setdefault("AGENT_RUNTIME", "harness" if harness_ready else "legacy")
     backend = subprocess.Popen(
         [str(python), "-m", "backend.app"],

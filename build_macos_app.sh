@@ -87,6 +87,7 @@ fi
   --add-data "$ROOT/backend/alembic.ini:backend" \
   --add-data "$ROOT/backend/migrations:backend/migrations" \
   --add-data "$ROOT/backend/app/agent/prompts:backend/app/agent/prompts" \
+  --add-data "$ROOT/backend/app/agent/knowledge:backend/app/agent/knowledge" \
   --add-data "$ROOT/backend/app/agent/education_bridge:backend/app/agent/education_bridge" \
   --paths "$ROOT/vendor/deepseek-harness-upstream/python/sdk/src" \
   --collect-submodules deepseek_harness \
@@ -113,6 +114,10 @@ fi
   /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "$APP_PATH/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP_PATH/Contents/Info.plist" || \
   /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $VERSION" "$APP_PATH/Contents/Info.plist"
+
+# Bundled Node 24 for Apple Silicon requires macOS 13.5 or later.
+/usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion 13.5" "$APP_PATH/Contents/Info.plist" || \
+  /usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 13.5" "$APP_PATH/Contents/Info.plist"
 
 # Ad-hoc signing makes the locally built bundle internally consistent. It does
 # not claim Apple Developer notarization.

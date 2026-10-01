@@ -13,7 +13,7 @@ from urllib.parse import quote
 import uvicorn
 
 from desktop_shell import acquire_single_instance, activate_existing_instance, open_desktop_window
-from teachmate_runtime import harness_headless_patch, harness_paths, teachmate_enabled
+from teachmate_runtime import harness_sdk_ready, teachmate_enabled
 
 SESSION_CONNECT_TIMEOUT = 45
 SESSION_DISCONNECT_GRACE = 8
@@ -132,7 +132,7 @@ def main_teachmate() -> int:
     os.environ.setdefault("MONI_AUTO_SYNC", "1")
     # 完整桌面包内有 Harness 时启用常驻引擎；精简源码运行包没有 Node/Harness，
     # 自动回退到 Python Agent，保证解压后的代码可以直接启动。
-    harness_ready = harness_paths()[0].is_file() and harness_headless_patch().is_file()
+    harness_ready = harness_sdk_ready()
     os.environ.setdefault("AGENT_RUNTIME", "harness" if harness_ready else "legacy")
 
     from backend.app.config import get_settings

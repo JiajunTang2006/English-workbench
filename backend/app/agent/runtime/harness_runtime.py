@@ -317,6 +317,10 @@ def build_harness_config(settings: Any, agent_cfg: Any) -> Any:
         return None
 
     node = shutil.which("node") or "node"
+    if not launch_args_override and runtime_bin:
+        from teachmate_runtime import find_node
+        node = find_node()
+        launch_args_override = (node, runtime_bin)
     session_root = Path(settings.data_dir) / "harness-sessions"
     session_root.mkdir(parents=True, exist_ok=True)
 
